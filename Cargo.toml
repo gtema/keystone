@@ -2,6 +2,10 @@
 name = "openstack_keystone"
 version = "0.1.0"
 edition = "2021"
+license = "Apache-2.0"
+authors = ["Artem Goncharov (gtema)"]
+rust-version = "1.76"  # MSRV
+repository = "https://github.com/gtema/keystone"
 
 [[bin]]
 name="keystone"
