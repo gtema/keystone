@@ -51,12 +51,15 @@ async fn list(
     State(state): State<Arc<ServiceState>>,
 ) -> impl IntoResponse {
     debug!("Listing users");
-    let users = state
+    let users: Vec<User> = state
         .identity
         .list_users(&state.db, &query.into())
         .await
-        .unwrap();
-    Users::from(users)
+        .unwrap()
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    Users { users }
 }
 
 /// Get single user

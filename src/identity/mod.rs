@@ -58,7 +58,7 @@ impl IdentitySrv {
         &self,
         db: &DatabaseConnection,
         params: &types::UserListParameters,
-    ) -> Result<Vec<User>, IdentityProviderError> {
+    ) -> Result<impl IntoIterator<Item = User>, IdentityProviderError> {
         tracing::debug!("Fetching user list!");
         let result = self.backend_driver.list(db, params).await?;
         tracing::debug!("User fetching complete!");

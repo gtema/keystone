@@ -12,4 +12,5 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#[allow(clippy::derivable_impls)] 
 pub mod entity;
