@@ -1,7 +1,7 @@
 # OpenStack Keystone in Rust
 
 Attempt to provide Rust library for OpenStack Keystone functionality by
-implemening database access in the same way as Keystone does. When the concept
+implementing database access in the same way as Keystone does. When the concept
 proves usability this might become a base for reimplementing Keystone in Rust.
 
 ## Config
