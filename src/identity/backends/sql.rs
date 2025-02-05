@@ -351,7 +351,7 @@ impl IdentityBackend for SqlDriver {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::derivable_impls)] 
+    #![allow(clippy::derivable_impls)]
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
 
     use crate::config::Config;
