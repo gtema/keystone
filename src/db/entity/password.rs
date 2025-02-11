@@ -22,8 +22,9 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     pub local_user_id: i32,
-    pub expires_at: Option<DateTime>,
     pub self_service: bool,
+    pub created_at: DateTime,
+    pub expires_at: Option<DateTime>,
     pub password_hash: Option<String>,
     pub created_at_int: i64,
     pub expires_at_int: Option<i64>,

@@ -28,13 +28,89 @@ use crate::identity::types;
 pub struct User {
     /// User ID
     pub id: String,
+    /// User domain ID
     pub domain_id: String,
+    /// User name
     pub name: String,
+    /// If the user is enabled, this value is true. If the user is disabled, this value is false.
     pub enabled: bool,
+    /// The ID of the default project for the user. A user’s default project must not be a domain.
+    /// Setting this attribute does not grant any actual authorization on the project, and is
+    /// merely provided for convenience. Therefore, the referenced project does not need to exist
+    /// within the user domain. (Since v3.1) If the user does not have authorization to their
+    /// default project, the default project is ignored at token creation. (Since v3.1)
+    /// Additionally, if your default project is not valid, a token is issued without an explicit
+    /// scope of authorization.
+    pub default_project_id: Option<String>,
     #[serde(flatten)]
     pub extra: Option<Value>,
+    /// The date and time when the password expires. The time zone is UTC.
     pub password_expires_at: Option<DateTime<Utc>>,
+    /// The resource options for the user. Available resource options are
+    /// ignore_change_password_upon_first_use, ignore_password_expiry,
+    /// ignore_lockout_failure_attempts, lock_password, multi_factor_auth_enabled, and
+    /// multi_factor_auth_rules ignore_user_inactivity.
     pub options: Option<UserOptions>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+pub struct UserResponse {
+    /// User object
+    pub user: User,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+pub struct UserCreate {
+    /// User domain ID
+    pub domain_id: String,
+    /// The user name. Must be unique within the owning domain.
+    pub name: String,
+    /// If the user is enabled, this value is true. If the user is disabled, this value is false.
+    pub enabled: Option<bool>,
+    /// The ID of the default project for the user. A user’s default project must not be a domain.
+    /// Setting this attribute does not grant any actual authorization on the project, and is
+    /// merely provided for convenience. Therefore, the referenced project does not need to exist
+    /// within the user domain. (Since v3.1) If the user does not have authorization to their
+    /// default project, the default project is ignored at token creation. (Since v3.1)
+    /// Additionally, if your default project is not valid, a token is issued without an explicit
+    /// scope of authorization.
+    pub default_project_id: Option<String>,
+    /// The password for the user.
+    pub password: Option<String>,
+    /// The resource options for the user. Available resource options are
+    /// ignore_change_password_upon_first_use, ignore_password_expiry,
+    /// ignore_lockout_failure_attempts, lock_password, multi_factor_auth_enabled, and
+    /// multi_factor_auth_rules ignore_user_inactivity.
+    pub options: Option<UserOptions>,
+    /// Additional user properties
+    #[serde(flatten)]
+    pub extra: Option<Value>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+pub struct UserUpdateRequest {
+    /// The user name. Must be unique within the owning domain.
+    pub name: Option<String>,
+    /// If the user is enabled, this value is true. If the user is disabled, this value is false.
+    pub enabled: Option<bool>,
+    /// The ID of the default project for the user. A user’s default project must not be a domain.
+    /// Setting this attribute does not grant any actual authorization on the project, and is
+    /// merely provided for convenience. Therefore, the referenced project does not need to exist
+    /// within the user domain. (Since v3.1) If the user does not have authorization to their
+    /// default project, the default project is ignored at token creation. (Since v3.1)
+    /// Additionally, if your default project is not valid, a token is issued without an explicit
+    /// scope of authorization.
+    pub default_project_id: Option<String>,
+    /// The password for the user.
+    pub password: Option<String>,
+    /// The resource options for the user. Available resource options are
+    /// ignore_change_password_upon_first_use, ignore_password_expiry,
+    /// ignore_lockout_failure_attempts, lock_password, multi_factor_auth_enabled, and
+    /// multi_factor_auth_rules ignore_user_inactivity.
+    pub options: Option<UserOptions>,
+    /// Additional user properties
+    #[serde(flatten)]
+    pub extra: Option<Value>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
@@ -69,6 +145,26 @@ impl From<types::UserOptions> for UserOptions {
     }
 }
 
+impl From<UserOptions> for types::UserOptions {
+    fn from(value: UserOptions) -> Self {
+        Self {
+            ignore_change_password_upon_first_use: value.ignore_change_password_upon_first_use,
+            ignore_password_expiry: value.ignore_password_expiry,
+            ignore_lockout_failure_attempts: value.ignore_lockout_failure_attempts,
+            lock_password: value.lock_password,
+            ignore_user_inactivity: value.ignore_user_inactivity,
+            multi_factor_auth_rules: value.multi_factor_auth_rules,
+            multi_factor_auth_enabled: value.multi_factor_auth_enabled,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+pub struct UserCreateRequest {
+    /// User object
+    pub user: UserCreate,
+}
+
 impl From<types::User> for User {
     fn from(value: types::User) -> Self {
         Self {
@@ -76,6 +172,7 @@ impl From<types::User> for User {
             domain_id: value.domain_id,
             name: value.name,
             enabled: value.enabled,
+            default_project_id: value.default_project_id,
             extra: value.extra,
             password_expires_at: value.password_expires_at,
             options: Some(value.options.into()),
@@ -83,7 +180,24 @@ impl From<types::User> for User {
     }
 }
 
-impl IntoResponse for User {
+impl From<UserCreateRequest> for types::UserCreate {
+    fn from(value: UserCreateRequest) -> Self {
+        let user = value.user;
+        Self {
+            id: String::new(),
+            name: user.name,
+            domain_id: user.domain_id,
+            enabled: user.enabled,
+            password: user.password,
+            extra: user.extra,
+            default_project_id: user.default_project_id,
+            options: user.options.map(Into::into),
+            federated: None,
+        }
+    }
+}
+
+impl IntoResponse for UserResponse {
     fn into_response(self) -> Response {
         (StatusCode::OK, Json(self)).into_response()
     }
@@ -91,24 +205,31 @@ impl IntoResponse for User {
 
 impl IntoResponse for types::User {
     fn into_response(self) -> Response {
-        (StatusCode::OK, Json(User::from(self))).into_response()
+        (
+            StatusCode::OK,
+            Json(UserResponse {
+                user: User::from(self),
+            }),
+        )
+            .into_response()
     }
 }
 
+/// Users
 #[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
-pub struct Users {
+pub struct UserList {
     /// Collection of user objects
     pub users: Vec<User>,
 }
 
-impl From<Vec<types::User>> for Users {
+impl From<Vec<types::User>> for UserList {
     fn from(value: Vec<types::User>) -> Self {
         let objects: Vec<User> = value.into_iter().map(User::from).collect();
         Self { users: objects }
     }
 }
 
-impl IntoResponse for Users {
+impl IntoResponse for UserList {
     fn into_response(self) -> Response {
         (StatusCode::OK, Json(self)).into_response()
     }

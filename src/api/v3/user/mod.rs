@@ -14,7 +14,9 @@
 
 use axum::{
     extract::{Path, Query, State},
+    http::StatusCode,
     response::IntoResponse,
+    Json,
 };
 use std::sync::Arc;
 use tracing::debug;
@@ -22,14 +24,14 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::error::KeystoneApiError;
 use crate::keystone::ServiceState;
-use types::{User, UserListParameters, Users};
+use types::{User, UserCreateRequest, UserList, UserListParameters, UserResponse};
 
 mod types;
 
 pub(super) fn router() -> OpenApiRouter<Arc<ServiceState>> {
     OpenApiRouter::new()
-        .routes(routes!(get))
-        .routes(routes!(list))
+        .routes(routes!(get, delete))
+        .routes(routes!(list, create))
 }
 
 /// List users
@@ -39,7 +41,7 @@ pub(super) fn router() -> OpenApiRouter<Arc<ServiceState>> {
     params(UserListParameters),
     description = "List users op descr",
     responses(
-        (status = OK, description = "List of users", body = Users),
+        (status = OK, description = "List of users", body = UserList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
     tag="users"
@@ -49,17 +51,17 @@ pub(super) fn router() -> OpenApiRouter<Arc<ServiceState>> {
 async fn list(
     Query(query): Query<UserListParameters>,
     State(state): State<Arc<ServiceState>>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, KeystoneApiError> {
     debug!("Listing users");
     let users: Vec<User> = state
         .identity
         .list_users(&state.db, &query.into())
         .await
-        .unwrap()
+        .map_err(KeystoneApiError::identity)?
         .into_iter()
         .map(Into::into)
         .collect();
-    Users { users }
+    Ok(UserList { users })
 }
 
 /// Get single user
@@ -68,7 +70,7 @@ async fn list(
     path = "/{user_id}",
     params(),
     responses(
-        (status = OK, description = "Single user", body = User),
+        (status = OK, description = "Single user", body = UserResponse),
         (status = 404, description = "User not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
     tag="users"
@@ -77,7 +79,7 @@ async fn list(
 async fn get(
     Path(user_id): Path<String>,
     State(state): State<Arc<ServiceState>>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, KeystoneApiError> {
     debug!("Fetching user details");
     state
         .identity
@@ -89,4 +91,55 @@ async fn get(
                 identifier: user_id,
             })
         })?
+}
+
+/// Create user
+#[utoipa::path(
+    post,
+    path = "",
+    description = "User",
+    responses(
+        (status = OK, description = "List of users", body = UserResponse),
+    ),
+    tag="users"
+)]
+#[tracing::instrument(name = "api::create_list", level = "debug", skip(state))]
+#[axum::debug_handler]
+async fn create(
+    Query(query): Query<UserListParameters>,
+    State(state): State<Arc<ServiceState>>,
+    Json(req): Json<UserCreateRequest>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
+    debug!("Creating users");
+    let user = state
+        .identity
+        .create_user(&state.db, req.into())
+        .await
+        .map_err(KeystoneApiError::identity)?;
+    Ok(user.into_response())
+}
+
+/// Delete user
+#[utoipa::path(
+    delete,
+    path = "/{user_id}",
+    params(),
+    responses(
+        (status = 204, description = "Deleted"),
+        (status = 404, description = "User not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
+    ),
+    tag="users"
+)]
+#[tracing::instrument(name = "api::user_delete", level = "debug", skip(state))]
+async fn delete(
+    Path(user_id): Path<String>,
+    State(state): State<Arc<ServiceState>>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
+    debug!("Deleting user");
+    state
+        .identity
+        .delete_user(&state.db, &user_id)
+        .await
+        .map_err(KeystoneApiError::identity)?;
+    Ok((StatusCode::NO_CONTENT).into_response())
 }

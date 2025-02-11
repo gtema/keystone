@@ -14,6 +14,7 @@
 
 use thiserror::Error;
 
+use crate::identity::error::IdentityProviderPasswordHashError;
 use crate::identity::types::*;
 
 #[derive(Error, Debug)]
@@ -21,9 +22,30 @@ pub enum IdentityDatabaseError {
     #[error("corrupted database entries for user {0}")]
     MalformedUser(String),
 
+    #[error("user {0} not found")]
+    UserNotFound(String),
+
+    #[error("data serialization error")]
+    Serde {
+        #[from]
+        source: serde_json::Error,
+    },
+
     #[error("building user data")]
     UserBuilderError {
         #[from]
         source: UserBuilderError,
+    },
+
+    #[error("database data")]
+    Database {
+        #[from]
+        source: sea_orm::DbErr,
+    },
+
+    #[error("password hashing error")]
+    PasswordHash {
+        #[from]
+        source: IdentityProviderPasswordHashError,
     },
 }

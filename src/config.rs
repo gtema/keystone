@@ -13,6 +13,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use config::{File, FileFormat};
+use eyre::Report;
+use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -24,10 +26,12 @@ pub struct Config {
     pub default: Option<DefaultSection>,
 
     /// Database configuration
+    #[serde(default)]
     pub database: DatabaseSection,
 
     /// Identity provider related configuration
-    pub identity: Option<IdentitySection>,
+    #[serde(default)]
+    pub identity: IdentitySection,
 
     /// Security compliance
     #[serde(default)]
@@ -46,15 +50,37 @@ pub struct DatabaseSection {
     pub connection: String,
 }
 
+impl DatabaseSection {
+    pub fn get_connection(&self) -> String {
+        if self.connection.contains("+") {
+            let re = Regex::new(r"(?<type>\w+)\+(\w+)://").unwrap();
+            return re.replace(&self.connection, "${type}://").to_string();
+        }
+        self.connection.clone()
+    }
+}
+
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct IdentitySection {
     #[serde(default = "default_identity_driver")]
     pub driver: String,
+
+    #[serde(default)]
+    pub password_hashing_algorithm: PasswordHashingAlgo,
+    pub max_password_length: usize,
+    pub password_hash_rounds: Option<usize>,
+}
+
+#[derive(Debug, Default, Deserialize, Clone)]
+pub enum PasswordHashingAlgo {
+    #[default]
+    Bcrypt,
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct SecurityComplianceSection {
     pub password_expires_days: Option<u64>,
+    pub disable_user_account_days_inactive: Option<i16>,
 }
 
 fn default_identity_driver() -> String {
@@ -74,10 +100,33 @@ fn default_user_options_mapping() -> HashMap<String, String> {
 }
 
 impl Config {
-    pub fn new(path: PathBuf) -> Self {
-        let builder =
-            config::Config::builder().add_source(File::from(path).format(FileFormat::Ini));
+    pub fn new(path: PathBuf) -> Result<Self, Report> {
+        let mut builder = config::Config::builder();
 
-        builder.build().unwrap().try_deserialize().unwrap()
+        builder = builder.set_default("identity.max_password_length", "4096")?;
+        if std::path::Path::new(&path).is_file() {
+            builder = builder.add_source(File::from(path).format(FileFormat::Ini));
+        }
+
+        Ok(builder.build()?.try_deserialize()?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_db_connection() {
+        let sot = DatabaseSection {
+            connection: "mysql://u:p@h".into(),
+            ..Default::default()
+        };
+        assert_eq!("mysql://u:p@h", sot.get_connection());
+        let sot = DatabaseSection {
+            connection: "mysql+driver://u:p@h".into(),
+            ..Default::default()
+        };
+        assert_eq!("mysql://u:p@h", sot.get_connection());
     }
 }
