@@ -22,17 +22,88 @@ use serde_json::Value;
 use crate::identity::IdentityProviderError;
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[builder(setter(strip_option, into))]
 pub struct User {
+    /// The user ID.
     pub id: String,
-    pub domain_id: String,
+    /// The user name. Must be unique within the owning domain.
     pub name: String,
+    /// The ID of the domain.
+    pub domain_id: String,
+    /// If the user is enabled, this value is true. If the user is disabled, this value is false.
     pub enabled: bool,
-    #[builder(setter(into, strip_option), default)]
+    /// The resource description
+    #[builder(default)]
+    pub description: Option<String>,
+    /// The ID of the default project for the user.
+    #[builder(default)]
+    pub default_project_id: Option<String>,
+    /// Additional user properties
+    #[builder(default)]
     pub extra: Option<Value>,
-    #[builder(setter(into, strip_option), default)]
+    /// The resource options for the user.
+    #[builder(default)]
     pub password_expires_at: Option<DateTime<Utc>>,
-    #[builder(setter(into), default)]
+    /// The resource options for the user.
+    #[builder(default)]
     pub options: UserOptions,
+    /// List of federated objects associated with a user. Each object in the list contains the idp_id and protocols. protocols is a list of objects, each of which contains protocol_id and unique_id of the protocol and user respectively.
+    #[builder(default)]
+    pub federated: Option<Vec<Federation>>,
+}
+
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[builder(setter(strip_option, into))]
+pub struct UserCreate {
+    pub id: String,
+    /// The user name. Must be unique within the owning domain.
+    pub name: String,
+    /// The ID of the domain.
+    pub domain_id: String,
+    /// If the user is enabled, this value is true. If the user is disabled, this value is false.
+    pub enabled: Option<bool>,
+    /// The ID of the default project for the user.
+    #[builder(default)]
+    pub default_project_id: Option<String>,
+    /// User password
+    #[builder(default)]
+    pub password: Option<String>,
+    /// Additional user properties
+    #[builder(default)]
+    pub extra: Option<Value>,
+    /// The resource options for the user.
+    #[builder(default)]
+    pub options: Option<UserOptions>,
+    /// List of federated objects associated with a user. Each object in the list contains the idp_id and protocols. protocols is a list of objects, each of which contains protocol_id and unique_id of the protocol and user respectively.
+    #[builder(default)]
+    pub federated: Option<Vec<Federation>>,
+}
+
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[builder(setter(strip_option, into))]
+pub struct UserUpdate {
+    /// The user name. Must be unique within the owning domain.
+    pub name: Option<String>,
+    /// If the user is enabled, this value is true. If the user is disabled, this value is false.
+    pub enabled: Option<bool>,
+    /// The resource description
+    #[builder(default)]
+    pub description: Option<String>,
+    /// The ID of the default project for the user.
+    #[builder(default)]
+    pub default_project_id: Option<String>,
+    /// User password
+    #[builder(default)]
+    pub password: Option<String>,
+    /// Additional user properties
+    #[builder(default)]
+    pub extra: Option<Value>,
+    /// The resource options for the user.
+    #[builder(default)]
+    pub options: Option<UserOptions>,
+    /// List of federated objects associated with a user. Each object in the list contains the idp_id and protocols. protocols is a list of objects, each of which contains protocol_id and unique_id of the protocol and user respectively.
+    #[builder(default)]
+    pub federated: Option<Vec<Federation>>,
 }
 
 impl UserBuilder {
@@ -41,7 +112,8 @@ impl UserBuilder {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[builder(setter(strip_option, into))]
 pub struct UserOptions {
     pub ignore_change_password_upon_first_use: Option<bool>,
     pub ignore_password_expiry: Option<bool>,
@@ -52,7 +124,27 @@ pub struct UserOptions {
     pub multi_factor_auth_enabled: Option<bool>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[builder(setter(strip_option, into))]
+pub struct Federation {
+    /// Identity provider ID
+    pub idp_id: String,
+    /// Protocols
+    #[builder(default)]
+    pub protocols: Vec<FederationProtocol>,
+}
+
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[builder(setter(strip_option, into))]
+pub struct FederationProtocol {
+    /// Federation protocol ID
+    pub protocol_id: String,
+    // TODO: unique ID should potentially belong to the IDP and not to the protocol
+    /// Unique ID of the associated user
+    pub unique_id: String,
+}
+
+#[derive(Builder, Clone, Debug, Default, Deserialize, Serialize)]
 pub struct UserListParameters {
     /// Filter users by the domain
     pub domain_id: Option<String>,
@@ -63,16 +155,46 @@ pub struct UserListParameters {
 #[async_trait]
 pub trait IdentityBackend: Send + Sync + std::fmt::Debug {
     /// List Users
-    async fn list(
+    async fn list_users(
         &self,
         db: &DatabaseConnection,
         params: &UserListParameters,
     ) -> Result<Vec<User>, IdentityProviderError>;
 
     /// Get single user
-    async fn get(
+    async fn get_user(
         &self,
         db: &DatabaseConnection,
         user_id: String,
     ) -> Result<Option<User>, IdentityProviderError>;
+
+    /// Create local user
+    async fn create_user(
+        &self,
+        db: &DatabaseConnection,
+        user: UserCreate,
+    ) -> Result<User, IdentityProviderError>;
+
+    //    /// Create federated user
+    //    async fn create_federated_user(
+    //        &self,
+    //        db: &DatabaseConnection,
+    //        user: User,
+    //    ) -> Result<User, IdentityProviderError>;
+    /// Delete user
+    async fn delete_user(
+        &self,
+        db: &DatabaseConnection,
+        user_id: String,
+    ) -> Result<(), IdentityProviderError>;
+}
+
+#[async_trait]
+pub trait IdentityShadowBackend: Send + Sync + std::fmt::Debug {
+    async fn create_federated_user(
+        &self,
+        db: &DatabaseConnection,
+        user: &mut User,
+        federation: Federation,
+    ) -> Result<(), IdentityProviderError>;
 }

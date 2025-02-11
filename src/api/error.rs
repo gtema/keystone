@@ -77,3 +77,15 @@ impl IntoResponse for KeystoneApiError {
         }
     }
 }
+
+impl KeystoneApiError {
+    pub fn identity(source: IdentityProviderError) -> Self {
+        match source {
+            IdentityProviderError::UserNotFound(x) => Self::NotFound {
+                resource: "user".into(),
+                identifier: x,
+            },
+            _ => Self::IdentityError { source },
+        }
+    }
+}

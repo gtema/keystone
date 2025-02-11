@@ -13,41 +13,39 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use sea_orm::DatabaseConnection;
+use uuid::Uuid;
 
-pub mod backends;
+mod backends;
 pub mod error;
-pub mod types;
+mod password_hashing;
+pub(crate) mod types;
 
 use crate::config::Config;
+use crate::identity::backends::sql::SqlBackend;
 use crate::identity::error::IdentityProviderError;
-use backends::sql::SqlDriver;
-use types::IdentityBackend;
-use types::User;
+use crate::identity::types::IdentityBackend;
+use crate::identity::types::{User, UserCreate};
 
 #[derive(Debug)]
 pub struct IdentitySrv {
-    //config: Config,
+    config: Config,
     backend_driver: Box<dyn IdentityBackend>,
 }
 
 impl IdentitySrv {
     pub fn new(config: &Config) -> Result<Self, IdentityProviderError> {
-        let driver: Box<dyn IdentityBackend> = match &config.identity {
-            Some(identity_config) => match identity_config.driver.as_str() {
-                "sql" => Box::new(SqlDriver {
-                    config: config.clone(),
-                }),
-                _ => {
-                    return Err(IdentityProviderError::UnsupportedDriver(
-                        identity_config.driver.clone(),
-                    ));
-                }
-            },
-            _ => Box::new(SqlDriver {
+        let driver: Box<dyn IdentityBackend> = match config.identity.driver.as_str() {
+            "sql" => Box::new(SqlBackend {
                 config: config.clone(),
             }),
+            _ => {
+                return Err(IdentityProviderError::UnsupportedDriver(
+                    config.identity.driver.clone(),
+                ));
+            }
         };
         Ok(Self {
+            config: config.clone(),
             backend_driver: driver,
         })
     }
@@ -59,25 +57,49 @@ impl IdentitySrv {
         db: &DatabaseConnection,
         params: &types::UserListParameters,
     ) -> Result<impl IntoIterator<Item = User>, IdentityProviderError> {
-        tracing::debug!("Fetching user list!");
-        let result = self.backend_driver.list(db, params).await?;
-        tracing::debug!("User fetching complete!");
+        let result = self.backend_driver.list_users(db, params).await?;
         Ok(result)
     }
 
     /// Get single user
-    #[tracing::instrument(level = "info", skip(self, db, user_id), fields(user_id = %user_id.as_ref()))]
+    #[tracing::instrument(level = "info", skip(self, db))]
     pub async fn get_user<S: AsRef<str> + std::fmt::Debug>(
         &self,
         db: &DatabaseConnection,
         user_id: S,
     ) -> Result<Option<User>, IdentityProviderError> {
-        tracing::debug!("Fetching user details!");
         let result = self
             .backend_driver
-            .get(db, user_id.as_ref().to_string())
+            .get_user(db, user_id.as_ref().to_string())
             .await?;
-        tracing::debug!("User fetching complete!");
         Ok(result)
+    }
+
+    /// Create user
+    #[tracing::instrument(level = "info", skip(self, db))]
+    pub async fn create_user(
+        &self,
+        db: &DatabaseConnection,
+        user: UserCreate,
+    ) -> Result<User, IdentityProviderError> {
+        let mut mod_user = user;
+        mod_user.id = Uuid::new_v4().into();
+        if mod_user.enabled.is_none() {
+            mod_user.enabled = Some(true);
+        }
+        let new_user = self.backend_driver.create_user(db, mod_user).await?;
+        Ok(new_user)
+    }
+
+    /// Delete user
+    #[tracing::instrument(level = "info", skip(self, db))]
+    pub async fn delete_user<S: AsRef<str> + std::fmt::Debug>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: S,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .delete_user(db, user_id.as_ref().to_string())
+            .await
     }
 }

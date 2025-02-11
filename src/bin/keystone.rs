@@ -14,10 +14,10 @@
 
 use axum::{extract::MatchedPath, http::Request};
 use clap::Parser;
+use color_eyre::eyre::{Report, Result};
 use sea_orm::ConnectOptions;
 use sea_orm::Database;
 use std::io;
-use std::io::Error;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -51,7 +51,7 @@ struct Args {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), Report> {
     let args = Args::parse();
 
     let log_layer = tracing_subscriber::fmt::layer()
@@ -66,8 +66,8 @@ async fn main() -> Result<(), Error> {
     // build the tracing registry
     tracing_subscriber::registry().with(log_layer).init();
 
-    let cfg = Config::new(args.config.into());
-    let db_url = cfg.database.connection.clone();
+    let cfg = Config::new(args.config.into())?;
+    let db_url = cfg.database.get_connection();
     let mut opt = ConnectOptions::new(db_url.to_owned());
     if args.verbose < 2 {
         opt.sqlx_logging(false);
@@ -114,9 +114,9 @@ async fn main() -> Result<(), Error> {
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
     let listener = TcpListener::bind(&address).await?;
-    axum::serve(listener, app.into_make_service())
+    Ok(axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(shutdown_signal(shared_state.clone()))
-        .await
+        .await?)
 }
 
 async fn shutdown_signal(state: Arc<ServiceState>) {

@@ -24,6 +24,16 @@ pub enum IdentityProviderError {
     UnsupportedDriver(String),
 
     /// Identity provider error
+    #[error("data serialization error")]
+    Serde {
+        #[from]
+        source: serde_json::Error,
+    },
+
+    #[error("user {0} not found")]
+    UserNotFound(String),
+
+    /// Identity provider error
     #[error("identity provider error")]
     IdentityDatabaseError {
         #[from]
@@ -34,5 +44,29 @@ pub enum IdentityProviderError {
     UserBuilderError {
         #[from]
         source: UserBuilderError,
+    },
+
+    #[error("password hashing error")]
+    PasswordHash {
+        #[from]
+        source: IdentityProviderPasswordHashError,
+    },
+}
+
+impl IdentityProviderError {
+    pub fn database(source: IdentityDatabaseError) -> Self {
+        match source {
+            IdentityDatabaseError::UserNotFound(x) => Self::UserNotFound(x),
+            _ => Self::IdentityDatabaseError { source },
+        }
+    }
+}
+
+#[derive(Error, Debug)]
+pub enum IdentityProviderPasswordHashError {
+    #[error(transparent)]
+    BCrypt {
+        #[from]
+        source: bcrypt::BcryptError,
     },
 }

@@ -66,3 +66,30 @@ pub mod user;
 pub mod user_group_membership;
 pub mod user_option;
 pub mod whitelisted_config;
+
+impl Default for user::Model {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            extra: None,
+            enabled: None,
+            default_project_id: None,
+            created_at: None,
+            last_active_at: None,
+            domain_id: String::new(),
+        }
+    }
+}
+
+impl Default for local_user::Model {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            user_id: String::new(),
+            domain_id: String::new(),
+            name: String::new(),
+            failed_auth_at: None,
+            failed_auth_count: None,
+        }
+    }
+}

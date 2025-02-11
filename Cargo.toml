@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Artem Goncharov (gtema)"]
-rust-version = "1.76"  # MSRV
+rust-version = "1.83"  # MSRV
 repository = "https://github.com/gtema/keystone"
 
 [[bin]]
@@ -14,10 +14,17 @@ path="src/bin/keystone.rs"
 [dependencies]
 async-trait = { version = "^0.1" }
 axum = { version = "^0.8", features = ["macros"] }
+bcrypt = { version = "0.17", features = ["alloc"] }
+bytes = "1.10.0"
 chrono = { version = "^0.4" }
 clap = { version = "^4.5", features = ["derive"] }
+color-eyre = "0.6.3"
 config = { version = "^0.15", features = ["ini"] }
 derive_builder = { version = "^0.20" }
+eyre = "0.6.12"
+pbkdf2 = { version = "^0.12", features = ["password-hash"] }
+pwhash = "1.0.0"
+regex = "1.11.1"
 sea-orm = { version = "^1.1", features = ["sqlx-mysql", "sqlx-postgres", "runtime-tokio"] }
 serde = { version = "^1.0" }
 serde_json = { version = "^1.0" }
@@ -30,6 +37,7 @@ tracing-subscriber = { version = "^0.3" }
 utoipa = { version = "^5.3", features = ["axum_extras", "chrono"] }
 utoipa-axum = { version = "^0.2" }
 utoipa-swagger-ui = { version = "^9.0", features = ["axum", "vendored"], default-features = false }
+uuid = { version = "1.13.1", features = ["v4"] }
 
 [dev-dependencies]
 sea-orm = { version = "*", features = ["mock"]}
