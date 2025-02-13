@@ -36,6 +36,8 @@ use utoipa_swagger_ui::SwaggerUi;
 use openstack_keystone::api;
 use openstack_keystone::config::Config;
 use openstack_keystone::keystone::ServiceState;
+use openstack_keystone::plugin_manager::PluginManager;
+use openstack_keystone::provider::{Provider, ProviderApi};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -77,13 +79,19 @@ async fn main() -> Result<(), Report> {
         .await
         .expect("Database connection failed");
 
-    let shared_state = Arc::new(ServiceState::new(cfg, conn).await.unwrap());
+    let plugin_manager = PluginManager::default();
+
+    let provider = ProviderApi::new(cfg.clone(), plugin_manager)?;
+
+    let shared_state = Arc::new(ServiceState::new(cfg, conn, provider).unwrap());
 
     let (router, api) = OpenApiRouter::with_openapi(api::ApiDoc::openapi())
-        .merge(api::router())
+        .merge(api::openapi_router::<ProviderApi>())
         .split_for_parts();
 
     let app = router
+        // Router::new()
+        //.merge(api::router())
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api))
         .layer(
             ServiceBuilder::new().layer(
@@ -119,7 +127,7 @@ async fn main() -> Result<(), Report> {
         .await?)
 }
 
-async fn shutdown_signal(state: Arc<ServiceState>) {
+async fn shutdown_signal<P: Provider>(state: Arc<ServiceState<P>>) {
     let ctrl_c = async {
         signal::ctrl_c()
             .await

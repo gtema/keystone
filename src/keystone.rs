@@ -13,28 +13,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
+//use tokio::sync::RwLock;
 
 use tracing::info;
 
 use crate::config::Config;
 use crate::error::KeystoneError;
-use crate::identity::IdentitySrv;
+use crate::provider::Provider;
 
-#[derive()]
-pub struct ServiceState {
+// Placing ServiceState behind Arc is necessary to address DatabaseConnection not implementing
+// Clone
+//#[derive(Clone)]
+pub struct ServiceState<P> {
     pub config: Config,
-    pub identity: Arc<IdentitySrv>,
+    pub provider: P,
     pub db: DatabaseConnection,
 }
 
-impl ServiceState {
-    pub async fn new(cfg: Config, db: DatabaseConnection) -> Result<Self, KeystoneError> {
-        let identity = Arc::new(IdentitySrv::new(&cfg)?);
-
+impl<P> ServiceState<P>
+where
+    P: Provider,
+{
+    pub fn new(cfg: Config, db: DatabaseConnection, provider: P) -> Result<Self, KeystoneError> {
         Ok(Self {
             config: cfg.clone(),
-            identity,
+            provider,
             db,
         })
     }

@@ -17,6 +17,7 @@ use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::keystone::ServiceState;
+use crate::provider::Provider;
 
 pub mod error;
 pub mod v3;
@@ -25,6 +26,9 @@ pub mod v3;
 #[openapi(info(version = "3.14.0"))]
 pub struct ApiDoc;
 
-pub fn router() -> OpenApiRouter<Arc<ServiceState>> {
-    OpenApiRouter::new().nest("/v3", v3::router())
+pub fn openapi_router<P>() -> OpenApiRouter<Arc<ServiceState<P>>>
+where
+    P: Provider + 'static,
+{
+    OpenApiRouter::new().nest("/v3", v3::openapi_router())
 }

@@ -36,7 +36,7 @@ use crate::identity::backends::error::IdentityDatabaseError;
 use crate::identity::password_hashing;
 use crate::identity::IdentityProviderError;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SqlBackend {
     pub config: Config,
 }
@@ -45,6 +45,11 @@ impl SqlBackend {}
 
 #[async_trait]
 impl IdentityBackend for SqlBackend {
+    /// Set config
+    fn set_config(&mut self, config: Config) {
+        self.config = config;
+    }
+
     /// Fetch users from the database
     #[tracing::instrument(level = "debug", skip(self, db))]
     async fn list_users(
@@ -55,6 +60,7 @@ impl IdentityBackend for SqlBackend {
         Ok(list_users(&self.config, db, params).await?)
     }
 
+    /// Get single user by ID
     #[tracing::instrument(level = "debug", skip(self, db))]
     async fn get_user(
         &self,
@@ -64,6 +70,7 @@ impl IdentityBackend for SqlBackend {
         Ok(get_user(&self.config, db, user_id).await?)
     }
 
+    /// Create user
     #[tracing::instrument(level = "debug", skip(self, db))]
     async fn create_user(
         &self,
@@ -73,6 +80,7 @@ impl IdentityBackend for SqlBackend {
         Ok(create_user(&self.config, db, user).await?)
     }
 
+    /// Delete user
     #[tracing::instrument(level = "debug", skip(self, db))]
     async fn delete_user(
         &self,
@@ -213,7 +221,7 @@ async fn create_user(
     user: UserCreate,
 ) -> Result<User, IdentityDatabaseError> {
     let main_user = user::create(conf, db, &user).await?;
-    if let Some(federated) = &user.federated {
+    if let Some(_federated) = &user.federated {
     } else {
         // Local user
         let local_user = local_user::create(conf, db, &user).await?;
@@ -244,16 +252,14 @@ async fn create_user(
 }
 
 pub async fn delete_user(
-    conf: &Config,
+    _conf: &Config,
     db: &DatabaseConnection,
     user_id: String,
 ) -> Result<(), IdentityDatabaseError> {
     if let Some(user) = DbUser::find_by_id(&user_id).one(db).await? {
-        println!("found");
         user.delete(db).await?;
         Ok(())
     } else {
-        println!("not found");
         Err(IdentityDatabaseError::UserNotFound(user_id))
     }
 }
