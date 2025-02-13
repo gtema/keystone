@@ -16,9 +16,13 @@ use std::sync::Arc;
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::keystone::ServiceState;
+use crate::provider::Provider;
 
 pub mod user;
 
-pub(super) fn router() -> OpenApiRouter<Arc<ServiceState>> {
-    OpenApiRouter::new().nest("/users", user::router())
+pub(super) fn openapi_router<P>() -> OpenApiRouter<Arc<ServiceState<P>>>
+where
+    P: Provider + 'static,
+{
+    OpenApiRouter::new().nest("/users", user::openapi_router())
 }

@@ -18,6 +18,8 @@ pub(crate) mod db;
 pub mod error;
 pub mod identity;
 pub mod keystone;
+pub mod plugin_manager;
+pub mod provider;
 pub mod resource;
 
 #[cfg(test)]

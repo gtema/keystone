@@ -12,20 +12,5 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use sea_orm::DatabaseConnection;
-
-use crate::identity::backends::error::IdentityDatabaseError;
-
-use crate::identity::types::*;
-
-async fn create_federated_user(
-    db: &DatabaseConnection,
-    user: &mut User,
-    federation: Federation,
-) -> Result<(), IdentityDatabaseError> {
-    user.federated.get_or_insert_default().push(federation);
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {}

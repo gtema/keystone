@@ -15,13 +15,15 @@ path="src/bin/keystone.rs"
 async-trait = { version = "^0.1" }
 axum = { version = "^0.8", features = ["macros"] }
 bcrypt = { version = "0.17", features = ["alloc"] }
-bytes = "1.10.0"
+bytes = { version = "^1.10" }
 chrono = { version = "^0.4" }
 clap = { version = "^4.5", features = ["derive"] }
-color-eyre = "0.6.3"
+color-eyre = { version = "^0.6" }
 config = { version = "^0.15", features = ["ini"] }
 derive_builder = { version = "^0.20" }
-eyre = "0.6.12"
+dyn-clone = "1.0.18"
+eyre = { version = "^0.6" }
+#mockall_double = { version = "^0.3" } # Used for testing but need to be in main requirements
 pbkdf2 = { version = "^0.12", features = ["password-hash"] }
 pwhash = "1.0.0"
 regex = "1.11.1"
@@ -37,7 +39,9 @@ tracing-subscriber = { version = "^0.3" }
 utoipa = { version = "^5.3", features = ["axum_extras", "chrono"] }
 utoipa-axum = { version = "^0.2" }
 utoipa-swagger-ui = { version = "^9.0", features = ["axum", "vendored"], default-features = false }
-uuid = { version = "1.13.1", features = ["v4"] }
+uuid = { version = "^1.13", features = ["v4"] }
 
 [dev-dependencies]
+http-body-util = "^0.1"
+# mockall = "^0.13"
 sea-orm = { version = "*", features = ["mock"]}

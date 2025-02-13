@@ -15,10 +15,12 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
+use dyn_clone::DynClone;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::identity::Config;
 use crate::identity::IdentityProviderError;
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
@@ -153,7 +155,10 @@ pub struct UserListParameters {
 }
 
 #[async_trait]
-pub trait IdentityBackend: Send + Sync + std::fmt::Debug {
+pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
+    /// Set config
+    fn set_config(&mut self, config: Config);
+
     /// List Users
     async fn list_users(
         &self,
@@ -161,26 +166,20 @@ pub trait IdentityBackend: Send + Sync + std::fmt::Debug {
         params: &UserListParameters,
     ) -> Result<Vec<User>, IdentityProviderError>;
 
-    /// Get single user
+    /// Get single user by ID
     async fn get_user(
         &self,
         db: &DatabaseConnection,
         user_id: String,
     ) -> Result<Option<User>, IdentityProviderError>;
 
-    /// Create local user
+    /// Create user
     async fn create_user(
         &self,
         db: &DatabaseConnection,
         user: UserCreate,
     ) -> Result<User, IdentityProviderError>;
 
-    //    /// Create federated user
-    //    async fn create_federated_user(
-    //        &self,
-    //        db: &DatabaseConnection,
-    //        user: User,
-    //    ) -> Result<User, IdentityProviderError>;
     /// Delete user
     async fn delete_user(
         &self,
@@ -189,12 +188,4 @@ pub trait IdentityBackend: Send + Sync + std::fmt::Debug {
     ) -> Result<(), IdentityProviderError>;
 }
 
-#[async_trait]
-pub trait IdentityShadowBackend: Send + Sync + std::fmt::Debug {
-    async fn create_federated_user(
-        &self,
-        db: &DatabaseConnection,
-        user: &mut User,
-        federation: Federation,
-    ) -> Result<(), IdentityProviderError>;
-}
+dyn_clone::clone_trait_object!(IdentityBackend);

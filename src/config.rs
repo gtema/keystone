@@ -120,12 +120,10 @@ mod tests {
     fn test_db_connection() {
         let sot = DatabaseSection {
             connection: "mysql://u:p@h".into(),
-            ..Default::default()
         };
         assert_eq!("mysql://u:p@h", sot.get_connection());
         let sot = DatabaseSection {
             connection: "mysql+driver://u:p@h".into(),
-            ..Default::default()
         };
         assert_eq!("mysql://u:p@h", sot.get_connection());
     }
