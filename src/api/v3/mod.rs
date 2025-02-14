@@ -18,11 +18,14 @@ use utoipa_axum::router::OpenApiRouter;
 use crate::keystone::ServiceState;
 use crate::provider::Provider;
 
+pub mod group;
 pub mod user;
 
 pub(super) fn openapi_router<P>() -> OpenApiRouter<Arc<ServiceState<P>>>
 where
     P: Provider + 'static,
 {
-    OpenApiRouter::new().nest("/users", user::openapi_router())
+    OpenApiRouter::new()
+        .nest("/users", user::openapi_router())
+        .nest("/groups", group::openapi_router())
 }

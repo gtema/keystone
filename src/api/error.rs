@@ -85,6 +85,10 @@ impl KeystoneApiError {
                 resource: "user".into(),
                 identifier: x,
             },
+            IdentityProviderError::GroupNotFound(x) => Self::NotFound {
+                resource: "group".into(),
+                identifier: x,
+            },
             _ => Self::IdentityError { source },
         }
     }

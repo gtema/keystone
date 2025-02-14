@@ -23,7 +23,7 @@ use crate::db::entity::{
     prelude::{LocalUser, Password},
 };
 use crate::identity::backends::error::IdentityDatabaseError;
-use crate::identity::UserCreate;
+use crate::identity::types::UserCreate;
 
 /// Load local user record with passwords from database
 pub async fn load_local_user_with_passwords<S: AsRef<str>>(

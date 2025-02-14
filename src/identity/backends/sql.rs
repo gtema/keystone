@@ -19,6 +19,7 @@ use sea_orm::DatabaseConnection;
 
 mod common;
 mod federated_user;
+mod group;
 mod local_user;
 mod password;
 mod user;
@@ -87,7 +88,49 @@ impl IdentityBackend for SqlBackend {
         db: &DatabaseConnection,
         user_id: String,
     ) -> Result<(), IdentityProviderError> {
-        delete_user(&self.config, db, user_id)
+        user::delete(&self.config, db, user_id)
+            .await
+            .map_err(IdentityProviderError::database)
+    }
+
+    /// List groups
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn list_groups(
+        &self,
+        db: &DatabaseConnection,
+        params: &GroupListParameters,
+    ) -> Result<Vec<Group>, IdentityProviderError> {
+        Ok(group::list(&self.config, db, params).await?)
+    }
+
+    /// Get single group by ID
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn get_group(
+        &self,
+        db: &DatabaseConnection,
+        group_id: String,
+    ) -> Result<Option<Group>, IdentityProviderError> {
+        Ok(group::get(&self.config, db, group_id).await?)
+    }
+
+    /// Create group
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn create_group(
+        &self,
+        db: &DatabaseConnection,
+        group: GroupCreate,
+    ) -> Result<Group, IdentityProviderError> {
+        Ok(group::create(&self.config, db, group).await?)
+    }
+
+    /// Delete group
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn delete_group(
+        &self,
+        db: &DatabaseConnection,
+        group_id: String,
+    ) -> Result<(), IdentityProviderError> {
+        group::delete(&self.config, db, group_id)
             .await
             .map_err(IdentityProviderError::database)
     }
@@ -249,19 +292,6 @@ async fn create_user(
     let ub = common::get_user_builder(&main_user, Vec::new()).build()?;
 
     Ok(ub)
-}
-
-pub async fn delete_user(
-    _conf: &Config,
-    db: &DatabaseConnection,
-    user_id: String,
-) -> Result<(), IdentityDatabaseError> {
-    if let Some(user) = DbUser::find_by_id(&user_id).one(db).await? {
-        user.delete(db).await?;
-        Ok(())
-    } else {
-        Err(IdentityDatabaseError::UserNotFound(user_id))
-    }
 }
 
 #[cfg(test)]
