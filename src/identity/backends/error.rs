@@ -25,6 +25,9 @@ pub enum IdentityDatabaseError {
     #[error("user {0} not found")]
     UserNotFound(String),
 
+    #[error("group {0} not found")]
+    GroupNotFound(String),
+
     #[error("data serialization error")]
     Serde {
         #[from]

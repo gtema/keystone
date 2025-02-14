@@ -17,7 +17,7 @@ use sea_orm::entity::*;
 use sea_orm::DatabaseConnection;
 
 use crate::config::Config;
-use crate::db::entity::user;
+use crate::db::entity::{prelude::User as DbUser, user};
 use crate::identity::backends::error::IdentityDatabaseError;
 use crate::identity::types::UserCreate;
 
@@ -53,4 +53,51 @@ pub(super) async fn create(
     };
     let db_user: user::Model = entry.insert(db).await?;
     Ok(db_user)
+}
+
+pub async fn delete(
+    _conf: &Config,
+    db: &DatabaseConnection,
+    user_id: String,
+) -> Result<(), IdentityDatabaseError> {
+    let res = DbUser::delete_by_id(&user_id).exec(db).await?;
+    if res.rows_affected == 1 {
+        Ok(())
+    } else {
+        Err(IdentityDatabaseError::UserNotFound(user_id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::derivable_impls)]
+
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
+
+    use crate::identity::Config;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_delete() {
+        // Create MockDatabase with mock query results
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_exec_results([MockExecResult {
+                rows_affected: 1,
+                ..Default::default()
+            }])
+            .into_connection();
+        let config = Config::default();
+
+        delete(&config, &db, "id".into()).await.unwrap();
+        // Checking transaction log
+        assert_eq!(
+            db.into_transaction_log(),
+            [Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"DELETE FROM "user" WHERE "user"."id" = $1"#,
+                ["id".into()]
+            ),]
+        );
+    }
 }

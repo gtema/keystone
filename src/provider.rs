@@ -16,7 +16,7 @@ use crate::config::Config;
 use crate::error::KeystoneError;
 #[cfg(test)]
 use crate::identity::FakeIdentityProvider;
-use crate::identity::{IdentityApi, IdentitySrv};
+use crate::identity::{IdentityApi, IdentityProvider};
 use crate::plugin_manager::PluginManager;
 
 pub trait Provider: Clone + Send + Sync {
@@ -26,12 +26,12 @@ pub trait Provider: Clone + Send + Sync {
 #[derive(Clone)]
 pub struct ProviderApi {
     pub config: Config,
-    identity: IdentitySrv,
+    identity: IdentityProvider,
 }
 
 impl ProviderApi {
     pub fn new(cfg: Config, plugin_manager: PluginManager) -> Result<Self, KeystoneError> {
-        let identity_provider = IdentitySrv::new(&cfg, &plugin_manager)?;
+        let identity_provider = IdentityProvider::new(&cfg, &plugin_manager)?;
 
         Ok(Self {
             config: cfg,

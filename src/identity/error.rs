@@ -32,6 +32,8 @@ pub enum IdentityProviderError {
 
     #[error("user {0} not found")]
     UserNotFound(String),
+    #[error("group {0} not found")]
+    GroupNotFound(String),
 
     /// Identity provider error
     #[error("identity provider error")]
@@ -57,6 +59,7 @@ impl IdentityProviderError {
     pub fn database(source: IdentityDatabaseError) -> Self {
         match source {
             IdentityDatabaseError::UserNotFound(x) => Self::UserNotFound(x),
+            IdentityDatabaseError::GroupNotFound(x) => Self::GroupNotFound(x),
             _ => Self::IdentityDatabaseError { source },
         }
     }
