@@ -12,7 +12,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{extract::MatchedPath, http::Request};
+use axum::{
+    http::{self, header, HeaderName, Request},
+    middleware::{self},
+};
 use clap::Parser;
 use color_eyre::eyre::{Report, Result};
 use sea_orm::ConnectOptions;
@@ -24,16 +27,19 @@ use tokio::net::TcpListener;
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
+    request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
-    LatencyUnit,
+    LatencyUnit, ServiceBuilderExt,
 };
 use tracing::{info_span, Level};
 use tracing_subscriber::{filter::LevelFilter, prelude::*};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
+use uuid::Uuid;
 
 use openstack_keystone::api;
+use openstack_keystone::api::auth::auth;
 use openstack_keystone::config::Config;
 use openstack_keystone::keystone::ServiceState;
 use openstack_keystone::plugin_manager::PluginManager;
@@ -50,6 +56,20 @@ struct Args {
     /// Verbosity level. Repeat to increase level.
     #[arg(short, long, global=true, action = clap::ArgAction::Count, display_order = 920)]
     pub verbose: u8,
+}
+
+// A `MakeRequestId` that increments an atomic counter
+#[derive(Clone, Default)]
+struct OpenStackRequestId {}
+
+impl MakeRequestId for OpenStackRequestId {
+    fn make_request_id<B>(&mut self, _request: &http::Request<B>) -> Option<RequestId> {
+        let req_id = Uuid::new_v4().simple().to_string();
+
+        Some(RequestId::new(
+            http::HeaderValue::from_str(format!("req-{}", req_id).as_str()).unwrap(),
+        ))
+    }
 }
 
 #[tokio::main]
@@ -89,35 +109,49 @@ async fn main() -> Result<(), Report> {
         .merge(api::openapi_router::<ProviderApi>())
         .split_for_parts();
 
+    let x_request_id = HeaderName::from_static("x-openstack-request-id");
+    let sensitive_headers: Arc<[_]> = vec![header::AUTHORIZATION, header::COOKIE].into();
+
+    let middleware = ServiceBuilder::new()
+        // Inject x-request-id header into processing
+        // make sure to set request ids before the request reaches `TraceLayer`
+        .layer(SetRequestIdLayer::new(
+            x_request_id.clone(),
+            OpenStackRequestId::default(),
+        ))
+        //.layer(PropagateRequestIdLayer::new(x_request_id))
+        .sensitive_request_headers(sensitive_headers.clone())
+        .layer(
+            TraceLayer::new_for_http()
+                //.make_span_with(DefaultMakeSpan::new().include_headers(true))
+                .make_span_with(|request: &Request<_>| {
+                    info_span!(
+                        "request",
+                        method = ?request.method(),
+                        some_other_field = tracing::field::Empty,
+                        uri = ?request.uri().path(),
+                        x_request_id = ?request.headers().get("x-openstack-request-id")
+                    )
+                })
+                .on_request(DefaultOnRequest::new().level(Level::INFO))
+                .on_response(
+                    DefaultOnResponse::new()
+                        .level(Level::INFO)
+                        .latency_unit(LatencyUnit::Micros),
+                ),
+        )
+        // Compress responses
+        .compression()
+        .sensitive_response_headers(sensitive_headers)
+        // propagate the header to the response before the response reaches `TraceLayer`
+        .layer(PropagateRequestIdLayer::new(x_request_id));
+
     let app = router
         // Router::new()
         //.merge(api::router())
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api))
-        .layer(
-            ServiceBuilder::new().layer(
-                TraceLayer::new_for_http()
-                    .make_span_with(|request: &Request<_>| {
-                        let matched_path = request
-                            .extensions()
-                            .get::<MatchedPath>()
-                            .map(MatchedPath::as_str);
-
-                        info_span!(
-                            "http_request",
-                            method = ?request.method(),
-                            matched_path,
-                            some_other_field = tracing::field::Empty,
-                            uri = ?request.uri().path()
-                        )
-                    })
-                    .on_request(DefaultOnRequest::new().level(Level::INFO))
-                    .on_response(
-                        DefaultOnResponse::new()
-                            .level(Level::INFO)
-                            .latency_unit(LatencyUnit::Micros),
-                    ),
-            ),
-        )
+        .route_layer(middleware::from_fn(auth))
+        .layer(middleware)
         .with_state(shared_state.clone());
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
