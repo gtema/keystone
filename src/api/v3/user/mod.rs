@@ -13,7 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -21,6 +21,7 @@ use axum::{
 use std::sync::Arc;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
+use crate::api::auth::CurrentUser;
 use crate::api::error::KeystoneApiError;
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
@@ -52,6 +53,7 @@ where
 )]
 #[tracing::instrument(name = "api::user_list", level = "debug", skip(state))]
 async fn list<P>(
+    Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<UserListParameters>,
     State(state): State<Arc<ServiceState<P>>>,
 ) -> Result<impl IntoResponse, KeystoneApiError>
@@ -164,6 +166,7 @@ mod tests {
     use axum::{
         body::Body,
         http::{self, Request, StatusCode},
+        middleware,
     };
     use http_body_util::BodyExt; // for `collect`
     use sea_orm::DatabaseConnection;
@@ -172,6 +175,7 @@ mod tests {
     use tower_http::trace::TraceLayer;
 
     use super::openapi_router;
+    use crate::api::auth::auth;
     use crate::api::v3::user::types::*;
     use crate::config::Config;
     use crate::identity::IdentityApi;
@@ -184,11 +188,20 @@ mod tests {
         let config = Config::default();
         let provider = FakeProviderApi::new(config.clone()).unwrap();
         let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
-        let mut api = openapi_router().with_state(state);
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .route_layer(middleware::from_fn(auth))
+            .with_state(state);
 
         let response = api
             .as_service()
-            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 

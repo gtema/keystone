@@ -19,6 +19,7 @@ use utoipa_axum::router::OpenApiRouter;
 use crate::keystone::ServiceState;
 use crate::provider::Provider;
 
+pub mod auth;
 pub mod error;
 pub mod v3;
 
