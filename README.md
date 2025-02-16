@@ -17,3 +17,20 @@ matches the implementation.
 ## Database
 
 Sea-ORM is being used to access database. PostgreSQL and MySQL are supported.
+
+## Load test
+
+A very brief load test is implemented in `loadtest` using `Goose` framework. It
+generates test load by first incrementally increasing requests up to the
+configure amount (defaults to amount of cpu cores), keeps the load for the
+configured amount of time measuring response latency.
+
+First brief results comparing python implementation (running under uwsgi) vs
+Rust implementation are present in the `loadtest/report_py.html` and
+`loadtest/report_rust.html`. It is absolutely clear that Rust implementation
+currently misses certain things original Keystone does (token validation is at
+the moment fake, policy evaluation is also missing, etc). In addition to that
+more reasonable test environment (comparable amount of python workers, etc,
+debug/release build) need to be established. However current test shows
+difference of factor **100** which is not going to be easy to beat.
+

@@ -1,5 +1,5 @@
 [files]
-extend-exclude = ["openstack_sdk/static/service-types.json"]
+extend-exclude = ["loadtest"]
 ignore-hidden = true
 ignore-files = true
 ignore-dot = true
