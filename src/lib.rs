@@ -21,6 +21,7 @@ pub mod keystone;
 pub mod plugin_manager;
 pub mod provider;
 pub mod resource;
+pub mod token;
 
 #[cfg(test)]
 mod tests {}

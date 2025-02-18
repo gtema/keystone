@@ -190,7 +190,7 @@ mod tests {
         let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
-            .route_layer(middleware::from_fn(auth))
+            .route_layer(middleware::from_fn_with_state(state.clone(), auth))
             .with_state(state);
 
         let response = api

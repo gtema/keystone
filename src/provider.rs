@@ -14,28 +14,33 @@
 
 use crate::config::Config;
 use crate::error::KeystoneError;
-#[cfg(test)]
-use crate::identity::FakeIdentityProvider;
 use crate::identity::{IdentityApi, IdentityProvider};
 use crate::plugin_manager::PluginManager;
+use crate::token::{TokenApi, TokenProvider};
+#[cfg(test)]
+use crate::{identity::FakeIdentityProvider, token::FakeTokenProvider};
 
 pub trait Provider: Clone + Send + Sync {
     fn get_identity_provider(&self) -> &impl IdentityApi;
+    fn get_token_provider(&self) -> &impl TokenApi;
 }
 
 #[derive(Clone)]
 pub struct ProviderApi {
     pub config: Config,
     identity: IdentityProvider,
+    token: TokenProvider,
 }
 
 impl ProviderApi {
     pub fn new(cfg: Config, plugin_manager: PluginManager) -> Result<Self, KeystoneError> {
         let identity_provider = IdentityProvider::new(&cfg, &plugin_manager)?;
+        let token_provider = TokenProvider::new(&cfg)?;
 
         Ok(Self {
             config: cfg,
             identity: identity_provider,
+            token: token_provider,
         })
     }
 }
@@ -44,6 +49,10 @@ impl Provider for ProviderApi {
     fn get_identity_provider(&self) -> &impl IdentityApi {
         &self.identity
     }
+
+    fn get_token_provider(&self) -> &impl TokenApi {
+        &self.token
+    }
 }
 
 #[cfg(test)]
@@ -51,16 +60,19 @@ impl Provider for ProviderApi {
 pub struct FakeProviderApi {
     pub config: Config,
     identity: FakeIdentityProvider,
+    token: FakeTokenProvider,
 }
 
 #[cfg(test)]
 impl FakeProviderApi {
     pub fn new(cfg: Config) -> Result<Self, KeystoneError> {
         let identity_provider = FakeIdentityProvider::default();
+        let token_provider = FakeTokenProvider::default();
 
         Ok(Self {
             config: cfg,
             identity: identity_provider,
+            token: token_provider,
         })
     }
 }
@@ -69,5 +81,9 @@ impl FakeProviderApi {
 impl Provider for FakeProviderApi {
     fn get_identity_provider(&self) -> &impl IdentityApi {
         &self.identity
+    }
+
+    fn get_token_provider(&self) -> &impl TokenApi {
+        &self.token
     }
 }

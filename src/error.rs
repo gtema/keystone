@@ -15,6 +15,7 @@
 use thiserror::Error;
 
 use crate::identity::error::*;
+use crate::token::TokenProviderError;
 
 #[derive(Debug, Error)]
 pub enum KeystoneError {
@@ -22,6 +23,12 @@ pub enum KeystoneError {
     IdentityError {
         #[from]
         source: IdentityProviderError,
+    },
+
+    #[error(transparent)]
+    TokenProvider {
+        #[from]
+        source: TokenProviderError,
     },
 
     #[error("cloud {0} is not present in clouds.yaml")]
