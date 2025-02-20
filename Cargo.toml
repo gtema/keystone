@@ -11,6 +11,10 @@ repository = "https://github.com/gtema/keystone"
 name="keystone"
 path="src/bin/keystone.rs"
 
+[[bench]]
+name = "fernet_token"
+harness = false
+
 [dependencies]
 async-trait = { version = "^0.1" }
 axum = { version = "^0.8", features = ["macros"] }
@@ -25,14 +29,8 @@ derive_builder = { version = "^0.20" }
 dyn-clone = { version = "^1.0" }
 eyre = { version = "^0.6" }
 fernet = { version = "^0.2" }
-#mockall_double = { version = "^0.3" } # Used for testing but need to be in main requirements
-#pbkdf2 = { version = "^0.12", features = ["password-hash"] }
-#pwhash = "1.0.0"
 regex = { version = "^1.11"}
 rmp = { version = "^0.8" }
-rmp-serde = { version = "^1.3" }
-rmpv = { version = "^1.3", features = ["with-serde"]}
-#rms = { version = "^0.4" }
 sea-orm = { version = "^1.1", features = ["sqlx-mysql", "sqlx-postgres", "runtime-tokio"] }
 serde = { version = "^1.0" }
 serde_bytes = "0.11.15"
@@ -49,7 +47,13 @@ utoipa-swagger-ui = { version = "^9.0", features = ["axum", "vendored"], default
 uuid = { version = "^1.13", features = ["v4"] }
 
 [dev-dependencies]
+criterion = { version = "^0.5", features = ["async_tokio"] }
 http-body-util = "^0.1"
-# mockall = "^0.13"
 sea-orm = { version = "*", features = ["mock"]}
-tempdir = { version = "^0.3" }
+tempfile = { version = "^3.17" }
+
+[profile.release]
+opt-level = 3
+strip = true
+debug = false
+lto = true

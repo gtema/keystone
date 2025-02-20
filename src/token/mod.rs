@@ -13,6 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use chrono::{Local, TimeDelta};
 
 mod error;
 pub mod fernet;
@@ -21,7 +22,9 @@ pub mod types;
 
 use crate::config::{Config, TokenProvider as TokenProviderType};
 pub use error::TokenProviderError;
-use types::{Token, TokenBackend};
+use types::TokenBackend;
+
+pub use types::Token;
 
 #[derive(Clone, Debug)]
 pub struct TokenProvider {
@@ -42,15 +45,32 @@ impl TokenProvider {
 
 #[async_trait]
 pub trait TokenApi: Send + Sync + Clone {
-    async fn decrypt(&self, credential: String) -> Result<Token, TokenProviderError>;
+    async fn validate_token(
+        &self,
+        credential: String,
+        window_seconds: Option<i64>,
+    ) -> Result<Token, TokenProviderError>;
 }
 
 #[async_trait]
 impl TokenApi for TokenProvider {
-    /// Decrypt token
+    /// Validate token
     #[tracing::instrument(level = "info", skip(self))]
-    async fn decrypt(&self, credential: String) -> Result<Token, TokenProviderError> {
-        self.backend_driver.decrypt(credential).await
+    async fn validate_token(
+        &self,
+        credential: String,
+        window_seconds: Option<i64>,
+    ) -> Result<Token, TokenProviderError> {
+        let token = self.backend_driver.extract(credential)?;
+        if Local::now().to_utc()
+            > token
+                .expires_at
+                .checked_add_signed(TimeDelta::seconds(window_seconds.unwrap_or(0)))
+                .unwrap_or(token.expires_at)
+        {
+            return Err(TokenProviderError::Expired);
+        }
+        Ok(token)
     }
 }
 
@@ -61,9 +81,13 @@ pub(crate) struct FakeTokenProvider {}
 #[cfg(test)]
 #[async_trait]
 impl TokenApi for FakeTokenProvider {
-    /// Decrypt token
+    /// Validate token
     #[tracing::instrument(level = "info", skip(self))]
-    async fn decrypt(&self, credential: String) -> Result<Token, TokenProviderError> {
+    async fn validate_token(
+        &self,
+        _credential: String,
+        _window_seconds: Option<i64>,
+    ) -> Result<Token, TokenProviderError> {
         Ok(Token {
             user_id: String::new(),
             ..Default::default()

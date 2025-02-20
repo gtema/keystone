@@ -75,7 +75,7 @@ where
 
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct FernetTokenSection {
-    pub key_repository: String,
+    pub key_repository: PathBuf,
     pub max_active_keys: usize,
 }
 

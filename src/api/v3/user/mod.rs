@@ -21,7 +21,7 @@ use axum::{
 use std::sync::Arc;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::api::auth::CurrentUser;
+use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
@@ -53,7 +53,7 @@ where
 )]
 #[tracing::instrument(name = "api::user_list", level = "debug", skip(state))]
 async fn list<P>(
-    Extension(current_user): Extension<CurrentUser>,
+    Extension(current_user): Extension<Auth>,
     Query(query): Query<UserListParameters>,
     State(state): State<Arc<ServiceState<P>>>,
 ) -> Result<impl IntoResponse, KeystoneApiError>

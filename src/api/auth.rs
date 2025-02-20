@@ -19,15 +19,14 @@ use axum::{
     response::Response,
 };
 use std::sync::Arc;
-use tracing::debug;
 
 use crate::keystone::ServiceState;
 use crate::provider::Provider;
-use crate::token::TokenApi;
+use crate::token::{Token, TokenApi};
 
 #[derive(Debug, Clone)]
-pub struct CurrentUser {
-    pub token: String,
+pub struct Auth {
+    pub token: Token,
 }
 
 pub async fn auth<P>(
@@ -49,28 +48,16 @@ where
         return Err(StatusCode::UNAUTHORIZED);
     };
 
-    if let Some(current_user) = authorize_current_user(auth_header).await {
-        // insert the current user into a request extension so the handler can
-        // extract it
-        if let Ok(_) = state
-            .provider
-            .get_token_provider()
-            .decrypt(auth_header.to_string())
-            .await
-        {
-        } else {
-            debug!("Cannot decrypt token");
-        }
-        req.extensions_mut().insert(current_user);
-        Ok(next.run(req).await)
-    } else {
-        Err(StatusCode::UNAUTHORIZED)
-    }
-}
-
-async fn authorize_current_user(auth_token: &str) -> Option<CurrentUser> {
-    // TDDO: Implement token validation
-    Some(CurrentUser {
-        token: auth_token.into(),
-    })
+    // insert the current user into a request extension so the handler can
+    // extract it
+    state
+        .provider
+        .get_token_provider()
+        .validate_token(auth_header.to_string(), None)
+        .await
+        .map(|token| {
+            req.extensions_mut().insert(Auth { token });
+        })
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    Ok(next.run(req).await)
 }

@@ -12,7 +12,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use dyn_clone::DynClone;
 
@@ -34,12 +33,12 @@ pub struct Token {
     pub federated_group_ids: Option<Vec<String>>,
 }
 
-#[async_trait]
 pub trait TokenBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// Set config
     fn set_config(&mut self, g: Config);
 
-    async fn decrypt(&self, credential: String) -> Result<Token, TokenProviderError>;
+    /// Extract the token from string
+    fn extract(&self, credential: String) -> Result<Token, TokenProviderError>;
 }
 
 dyn_clone::clone_trait_object!(TokenBackend);

@@ -29,7 +29,9 @@ ratatui = "ratatui"
 extend-glob = []
 extend-ignore-identifiers-re = []
 extend-ignore-words-re = []
-extend-ignore-re = []
+extend-ignore-re = [
+  "gAA.*\\b"
+]
 
 [type.rust.extend-identifiers]
 flate2 = "flate2"

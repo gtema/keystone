@@ -33,24 +33,39 @@ pub enum TokenProviderError {
         #[from]
         source: fernet::DecryptionError,
     },
-    /// MSGPack Decryption
-    #[error("msgpack decryption error")]
-    MsgPackDecryption {
-        /// The source of the error.
-        #[from]
-        source: rmpv::decode::Error,
-    },
+
+    /// Missing fernet keys
+    #[error("missing fernet keys")]
+    FernetKeysMissing,
+
     /// Invalid token data
     #[error("invalid token error")]
     InvalidToken,
 
+    /// Unsupported token version
+    #[error("token version {0} is not supported")]
+    InvalidTokenType(u8),
+    ///
+    /// Unsupported token uuid
+    #[error("token uuid is not supported")]
+    InvalidTokenUuid,
+
+    /// Unsupported token uuid coding
+    #[error("token uuid coding {0:?} is not supported")]
+    InvalidTokenUuidMarker(rmp::Marker),
+
+    /// Expired token
+    #[error("token expired")]
+    Expired,
+
     /// MSGPack Decryption
-    #[error("rmpv ext decryption error")]
-    RmpvExt {
+    #[error("rmp value error")]
+    RmpValue {
         /// The source of the error.
         #[from]
-        source: rmpv::ext::Error,
+        source: rmp::decode::ValueReadError,
     },
+
     #[error("uuid decryption error")]
     Uuid {
         /// The source of the error.
