@@ -1,5 +1,5 @@
 [files]
-extend-exclude = ["openstack_sdk/static/service-types.json"]
+extend-exclude = ["loadtest"]
 ignore-hidden = true
 ignore-files = true
 ignore-dot = true
@@ -29,7 +29,9 @@ ratatui = "ratatui"
 extend-glob = []
 extend-ignore-identifiers-re = []
 extend-ignore-words-re = []
-extend-ignore-re = []
+extend-ignore-re = [
+  "gAA.*\\b"
+]
 
 [type.rust.extend-identifiers]
 flate2 = "flate2"

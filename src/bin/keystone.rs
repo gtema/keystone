@@ -150,7 +150,7 @@ async fn main() -> Result<(), Report> {
         // Router::new()
         //.merge(api::router())
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api))
-        .route_layer(middleware::from_fn(auth))
+        .route_layer(middleware::from_fn_with_state(shared_state.clone(), auth))
         .layer(middleware)
         .with_state(shared_state.clone());
 

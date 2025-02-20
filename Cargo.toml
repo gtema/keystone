@@ -11,9 +11,14 @@ repository = "https://github.com/gtema/keystone"
 name="keystone"
 path="src/bin/keystone.rs"
 
+[[bench]]
+name = "fernet_token"
+harness = false
+
 [dependencies]
 async-trait = { version = "^0.1" }
 axum = { version = "^0.8", features = ["macros"] }
+base64 = "0.22.1"
 bcrypt = { version = "0.17", features = ["alloc"] }
 bytes = { version = "^1.10" }
 chrono = { version = "^0.4" }
@@ -21,17 +26,17 @@ clap = { version = "^4.5", features = ["derive"] }
 color-eyre = { version = "^0.6" }
 config = { version = "^0.15", features = ["ini"] }
 derive_builder = { version = "^0.20" }
-dyn-clone = "1.0.18"
+dyn-clone = { version = "^1.0" }
 eyre = { version = "^0.6" }
-#mockall_double = { version = "^0.3" } # Used for testing but need to be in main requirements
-pbkdf2 = { version = "^0.12", features = ["password-hash"] }
-pwhash = "1.0.0"
-regex = "1.11.1"
+fernet = { version = "^0.2" }
+regex = { version = "^1.11"}
+rmp = { version = "^0.8" }
 sea-orm = { version = "^1.1", features = ["sqlx-mysql", "sqlx-postgres", "runtime-tokio"] }
 serde = { version = "^1.0" }
+serde_bytes = "0.11.15"
 serde_json = { version = "^1.0" }
 thiserror = { version = "^2.0" }
-tokio = { version = "^1.43", features = ["macros", "signal", "rt-multi-thread"] }
+tokio = { version = "^1.43", features = ["fs", "macros", "signal", "rt-multi-thread"] }
 tower = { version = "^0.5" }
 tower-http = { version = "^0.6", features = ["compression-full", "request-id", "sensitive-headers", "trace", "util"] }
 tracing = { version = "^0.1" }
@@ -42,6 +47,13 @@ utoipa-swagger-ui = { version = "^9.0", features = ["axum", "vendored"], default
 uuid = { version = "^1.13", features = ["v4"] }
 
 [dev-dependencies]
+criterion = { version = "^0.5", features = ["async_tokio"] }
 http-body-util = "^0.1"
-# mockall = "^0.13"
 sea-orm = { version = "*", features = ["mock"]}
+tempfile = { version = "^3.17" }
+
+[profile.release]
+opt-level = 3
+strip = true
+debug = false
+lto = true

@@ -15,7 +15,7 @@
 use config::{File, FileFormat};
 use eyre::Report;
 use regex::Regex;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -24,6 +24,14 @@ pub struct Config {
     /// Global configuration options
     #[serde(rename = "DEFAULT")]
     pub default: Option<DefaultSection>,
+    ///
+    /// Auth
+    #[serde(default)]
+    pub auth: AuthSection,
+
+    /// Fernet tokens
+    #[serde(default)]
+    pub fernet_tokens: FernetTokenSection,
 
     /// Database configuration
     #[serde(default)]
@@ -37,6 +45,10 @@ pub struct Config {
     #[serde(default)]
     pub security_compliance: SecurityComplianceSection,
 
+    /// Token
+    #[serde(default)]
+    pub token: TokenSection,
+
     /// User options id to name mapping
     #[serde(default = "default_user_options_mapping")]
     pub user_options_id_name_mapping: HashMap<String, String>,
@@ -44,6 +56,28 @@ pub struct Config {
 
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct DefaultSection {}
+
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct AuthSection {
+    #[serde(deserialize_with = "csv")]
+    pub methods: Vec<String>,
+}
+
+pub fn csv<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(String::deserialize(deserializer)?
+        .split(',')
+        .map(Into::into)
+        .collect())
+}
+
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct FernetTokenSection {
+    pub key_repository: PathBuf,
+    pub max_active_keys: usize,
+}
 
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct DatabaseSection {
@@ -99,11 +133,26 @@ fn default_user_options_mapping() -> HashMap<String, String> {
     ])
 }
 
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct TokenSection {
+    #[serde(default)]
+    pub provider: TokenProvider,
+}
+
+#[derive(Debug, Default, Deserialize, Clone)]
+pub enum TokenProvider {
+    #[default]
+    Fernet,
+}
+
 impl Config {
     pub fn new(path: PathBuf) -> Result<Self, Report> {
         let mut builder = config::Config::builder();
 
-        builder = builder.set_default("identity.max_password_length", "4096")?;
+        builder = builder
+            .set_default("identity.max_password_length", "4096")?
+            .set_default("fernet_tokens.key_repository", "/etc/keystone/fernet-keys/")?
+            .set_default("fernet_tokens.max_active_keys", "3")?;
         if std::path::Path::new(&path).is_file() {
             builder = builder.add_source(File::from(path).format(FileFormat::Ini));
         }
