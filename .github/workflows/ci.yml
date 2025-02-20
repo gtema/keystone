@@ -52,6 +52,8 @@ jobs:
 
   bench_main:
     if: github.event_name == 'push' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      checks: write
     strategy:
       matrix:
         include:
@@ -86,12 +88,14 @@ jobs:
           --testbed ${{ matrix.os }} \
           --err \
           --github-actions '${{ secrets.GITHUB_TOKEN }}' \
-          --adapter rust_criterion |
+          --adapter rust_criterion \
           cargo bench
 
   bench_pr:
     # DO NOT REMOVE: For handling Fork PRs see Pull Requests from Forks
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      pull-requests: write
     strategy:
       matrix:
         include:
@@ -117,6 +121,7 @@ jobs:
         uses: swatinem/rust-cache@82a92a6e8fbeee089604da2575dc567ae9ddeaab # v2.7.5
 
       - uses: bencherdev/bencher@main
+
       - name: Track base branch benchmarks with Bencher
         run: |
           bencher run \
@@ -130,5 +135,5 @@ jobs:
           --testbed ${{ matrix.os }} \
           --err \
           --github-actions '${{ secrets.GITHUB_TOKEN }}' \
-          --adapter rust_criterion |
+          --adapter rust_criterion \
           cargo bench
