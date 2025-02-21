@@ -85,9 +85,13 @@ jobs:
           bencher run \
           --project keystone \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch "$GITHUB_HEAD_REF" \
+          --branch main \
           --testbed ${{ matrix.os }} \
-          --err \
+          --threshold-measure latency \
+          --threshold-test t_test \
+          --threshold-max-sample-size 64 \
+          --threshold-upper-boundary 0.99 \
+          --thresholds-reset \
           --github-actions '${{ secrets.GITHUB_TOKEN }}' \
           --adapter rust_criterion \
           cargo bench
@@ -134,7 +138,6 @@ jobs:
           --start-point-clone-thresholds \
           --start-point-reset \
           --testbed ${{ matrix.os }} \
-          --err \
           --github-actions '${{ secrets.GITHUB_TOKEN }}' \
           --adapter rust_criterion \
           cargo bench
