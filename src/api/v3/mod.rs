@@ -16,11 +16,13 @@ use utoipa_axum::router::OpenApiRouter;
 
 use crate::keystone::ServiceState;
 
+pub mod auth;
 pub mod group;
 pub mod user;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
-        .nest("/users", user::openapi_router())
+        .nest("/auth", auth::openapi_router())
         .nest("/groups", group::openapi_router())
+        .nest("/users", user::openapi_router())
 }

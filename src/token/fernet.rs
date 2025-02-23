@@ -12,21 +12,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE};
-use chrono::{DateTime, Utc};
 use fernet::{Fernet, MultiFernet};
 use rmp::{Marker, decode::*};
 use std::collections::BTreeMap;
 use std::fmt;
-use std::io;
-use std::io::Read;
-use uuid::Uuid;
 
 use crate::config::Config;
 use crate::token::{
-    TokenProviderError,
-    fernet_utils::FernetUtils,
-    types::{Token, TokenBackend},
+    TokenProviderError, application_credential::ApplicationCredentialToken,
+    domain_scoped::DomainScopeToken, fernet_utils::FernetUtils, project_scoped::ProjectScopeToken,
+    types::*, unscoped::UnscopedToken,
 };
 
 #[derive(Default, Clone)]
@@ -35,6 +30,14 @@ pub struct FernetTokenProvider {
     utils: FernetUtils,
     fernet: Option<MultiFernet>,
     auth_map: BTreeMap<usize, String>,
+}
+
+pub trait MsgPackToken {
+    type Token;
+    fn disassemble(
+        rd: &mut &[u8],
+        auth_map: &BTreeMap<usize, String>,
+    ) -> Result<Self::Token, TokenProviderError>;
 }
 
 impl fmt::Debug for FernetTokenProvider {
@@ -52,70 +55,8 @@ fn read_payload_token_type(rd: &mut &[u8]) -> Result<u8, TokenProviderError> {
     }
 }
 
-/// Read binary data from the payload
-fn read_bin_data<R: Read>(len: u32, rd: &mut R) -> Result<Vec<u8>, io::Error> {
-    let mut buf = Vec::with_capacity(len.min(1 << 16) as usize);
-    let bytes_read = rd.take(u64::from(len)).read_to_end(&mut buf)?;
-    if bytes_read != len as usize {
-        return Err(io::ErrorKind::UnexpectedEof.into());
-    }
-    Ok(buf)
-}
-
-/// Read string data
-fn read_str_data<R: Read>(len: u32, rd: &mut R) -> Result<String, io::Error> {
-    Ok(String::from_utf8_lossy(&read_bin_data(len, rd)?).into_owned())
-}
-
-/// Read the UUID from the payload
-/// It is represented as an Array[bool, bytes] where first bool indicates whether following bytes
-/// are UUID or just bytes that should be treated as a string (for cases where ID is not a valid
-/// UUID)
-fn read_uuid(rd: &mut &[u8]) -> Result<String, TokenProviderError> {
-    match read_marker(rd).map_err(ValueReadError::from)? {
-        Marker::FixArray(_) => {
-            match read_marker(rd).map_err(ValueReadError::from)? {
-                Marker::True => {
-                    // This is uuid as bytes
-                    // Technically we may fail reading it into bytes, but python part is
-                    // responsible that it doesn not happen
-                    if let Marker::Bin8 = read_marker(rd).map_err(ValueReadError::from)? {
-                        return Ok(Uuid::try_from(read_bin_data(read_pfix(rd)?.into(), rd)?)?
-                            .as_simple()
-                            .to_string());
-                    }
-                }
-                Marker::False => {
-                    // This is not uuid
-                    if let Marker::Bin8 = read_marker(rd).map_err(ValueReadError::from)? {
-                        return Ok(String::from_utf8_lossy(&read_bin_data(
-                            read_pfix(rd)?.into(),
-                            rd,
-                        )?)
-                        .to_string());
-                    }
-                }
-                _ => {
-                    return Err(TokenProviderError::InvalidTokenUuid);
-                }
-            }
-        }
-        Marker::FixStr(len) => return Ok(read_str_data(len.into(), rd)?),
-        other => {
-            return Err(TokenProviderError::InvalidTokenUuidMarker(other));
-        }
-    }
-    Err(TokenProviderError::InvalidTokenUuid)
-}
-
-/// Read the time represented as a f64 of the UTC seconds
-fn read_time(rd: &mut &[u8]) -> Result<DateTime<Utc>, TokenProviderError> {
-    DateTime::from_timestamp(read_f64(rd)?.round() as i64, 0)
-        .ok_or(TokenProviderError::InvalidToken)
-}
-
 /// Decode the integer into the list of auth_methods
-fn decode_auth_methods(
+pub(crate) fn decode_auth_methods(
     value: usize,
     auth_map: &BTreeMap<usize, String>,
 ) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
@@ -140,35 +81,15 @@ fn decode_auth_methods(
     Ok(results.into_iter())
 }
 
-/// Decode array of audit ids from the payload
-fn read_audit_ids(
-    rd: &mut &[u8],
-) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
-    if let Marker::FixArray(len) = read_marker(rd).map_err(ValueReadError::from)? {
-        let mut result: Vec<String> = Vec::new();
-        for _ in 0..len {
-            if let Marker::Bin8 = read_marker(rd).map_err(ValueReadError::from)? {
-                let dt = read_bin_data(read_pfix(rd)?.into(), rd)?;
-                let audit_id: String = URL_SAFE.encode(dt).trim_end_matches('=').to_string();
-                result.push(audit_id);
-            } else {
-                return Err(TokenProviderError::InvalidToken);
-            }
-        }
-        return Ok(result.into_iter());
-    }
-    Err(TokenProviderError::InvalidToken)
-}
-
 impl FernetTokenProvider {
     /// Parse binary blob as MessagePack after encrypting it with Fernet
     fn parse(&self, rd: &mut &[u8]) -> Result<Token, TokenProviderError> {
         if let Marker::FixArray(_) = read_marker(rd).map_err(ValueReadError::from)? {
             match read_payload_token_type(rd)? {
-                0 => Ok(UnscopedPayload::disassemble(rd, &self.auth_map)?.into()),
-                1 => Ok(DomainPayload::disassemble(rd, &self.auth_map)?.into()),
-                2 => Ok(ProjectPayload::disassemble(rd, &self.auth_map)?.into()),
-                9 => Ok(ApplicationCredentialPayload::disassemble(rd, &self.auth_map)?.into()),
+                0 => Ok(UnscopedToken::disassemble(rd, &self.auth_map)?.into()),
+                1 => Ok(DomainScopeToken::disassemble(rd, &self.auth_map)?.into()),
+                2 => Ok(ProjectScopeToken::disassemble(rd, &self.auth_map)?.into()),
+                9 => Ok(ApplicationCredentialToken::disassemble(rd, &self.auth_map)?.into()),
                 other => Err(TokenProviderError::InvalidTokenType(other)),
             }
         } else {
@@ -208,190 +129,6 @@ impl FernetTokenProvider {
     }
 }
 
-/// Unscoped MsgPack payload
-#[derive(Debug, Default)]
-pub struct UnscopedPayload {
-    pub user_id: String,
-    pub methods: Vec<String>,
-    pub audit_ids: Vec<String>,
-    pub expires_at: DateTime<Utc>,
-}
-
-impl From<UnscopedPayload> for Token {
-    fn from(value: UnscopedPayload) -> Self {
-        Self {
-            user_id: value.user_id.clone(),
-            methods: value.methods.clone(),
-            expires_at: value.expires_at,
-            audit_ids: value.audit_ids.clone(),
-            ..Default::default()
-        }
-    }
-}
-
-impl UnscopedPayload {
-    pub fn disassemble(
-        rd: &mut &[u8],
-        auth_map: &BTreeMap<usize, String>,
-    ) -> Result<Self, TokenProviderError> {
-        // Order of reading is important
-        let user_id = read_uuid(rd)?;
-        let methods: Vec<String> = decode_auth_methods(read_pfix(rd)?.into(), auth_map)?
-            .into_iter()
-            .collect();
-        let expires_at = read_time(rd)?;
-        let audit_ids: Vec<String> = read_audit_ids(rd)?.into_iter().collect();
-        Ok(Self {
-            user_id,
-            methods,
-            expires_at,
-            audit_ids,
-        })
-    }
-}
-
-/// Domain scoped payload
-#[derive(Debug, Default)]
-pub struct DomainPayload {
-    pub user_id: String,
-    pub methods: Vec<String>,
-    pub audit_ids: Vec<String>,
-    pub expires_at: DateTime<Utc>,
-    pub domain_id: String,
-}
-
-impl From<DomainPayload> for Token {
-    fn from(value: DomainPayload) -> Self {
-        Self {
-            user_id: value.user_id.clone(),
-            methods: value.methods.clone(),
-            expires_at: value.expires_at,
-            audit_ids: value.audit_ids.clone(),
-            domain_id: Some(value.domain_id.clone()),
-            ..Default::default()
-        }
-    }
-}
-
-impl DomainPayload {
-    pub fn disassemble(
-        rd: &mut &[u8],
-        auth_map: &BTreeMap<usize, String>,
-    ) -> Result<Self, TokenProviderError> {
-        // Order of reading is important
-        let user_id = read_uuid(rd)?;
-        let methods: Vec<String> = decode_auth_methods(read_pfix(rd)?.into(), auth_map)?
-            .into_iter()
-            .collect();
-        let domain_id = read_uuid(rd)?;
-        let expires_at = read_time(rd)?;
-        let audit_ids: Vec<String> = read_audit_ids(rd)?.into_iter().collect();
-        Ok(Self {
-            user_id,
-            methods,
-            domain_id,
-            expires_at,
-            audit_ids,
-        })
-    }
-}
-
-/// Project scoped payload
-#[derive(Debug, Default)]
-pub struct ProjectPayload {
-    pub user_id: String,
-    pub methods: Vec<String>,
-    pub audit_ids: Vec<String>,
-    pub expires_at: DateTime<Utc>,
-    pub project_id: String,
-}
-
-impl From<ProjectPayload> for Token {
-    fn from(value: ProjectPayload) -> Self {
-        Self {
-            user_id: value.user_id.clone(),
-            methods: value.methods.clone(),
-            expires_at: value.expires_at,
-            audit_ids: value.audit_ids.clone(),
-            project_id: Some(value.project_id.clone()),
-            ..Default::default()
-        }
-    }
-}
-
-impl ProjectPayload {
-    pub fn disassemble(
-        rd: &mut &[u8],
-        auth_map: &BTreeMap<usize, String>,
-    ) -> Result<Self, TokenProviderError> {
-        // Order of reading is important
-        let user_id = read_uuid(rd)?;
-        let methods: Vec<String> = decode_auth_methods(read_pfix(rd)?.into(), auth_map)?
-            .into_iter()
-            .collect();
-        let project_id = read_uuid(rd)?;
-        let expires_at = read_time(rd)?;
-        let audit_ids: Vec<String> = read_audit_ids(rd)?.into_iter().collect();
-        Ok(Self {
-            user_id,
-            methods,
-            project_id,
-            expires_at,
-            audit_ids,
-        })
-    }
-}
-
-/// Application credential payload
-#[derive(Debug, Default)]
-pub struct ApplicationCredentialPayload {
-    pub user_id: String,
-    pub methods: Vec<String>,
-    pub audit_ids: Vec<String>,
-    pub expires_at: DateTime<Utc>,
-    pub project_id: String,
-    pub application_credential_id: String,
-}
-
-impl From<ApplicationCredentialPayload> for Token {
-    fn from(value: ApplicationCredentialPayload) -> Self {
-        Self {
-            user_id: value.user_id.clone(),
-            methods: value.methods.clone(),
-            expires_at: value.expires_at,
-            audit_ids: value.audit_ids.clone(),
-            project_id: Some(value.project_id.clone()),
-            application_credential_id: Some(value.application_credential_id.clone()),
-            ..Default::default()
-        }
-    }
-}
-
-impl ApplicationCredentialPayload {
-    pub fn disassemble(
-        rd: &mut &[u8],
-        auth_map: &BTreeMap<usize, String>,
-    ) -> Result<Self, TokenProviderError> {
-        // Order of reading is important
-        let user_id = read_uuid(rd)?;
-        let methods: Vec<String> = decode_auth_methods(read_pfix(rd)?.into(), auth_map)?
-            .into_iter()
-            .collect();
-        let project_id = read_uuid(rd)?;
-        let expires_at = read_time(rd)?;
-        let audit_ids: Vec<String> = read_audit_ids(rd)?.into_iter().collect();
-        let application_credential_id = read_uuid(rd)?;
-        Ok(Self {
-            user_id,
-            methods,
-            project_id,
-            application_credential_id,
-            expires_at,
-            audit_ids,
-        })
-    }
-}
-
 impl TokenBackend for FernetTokenProvider {
     /// Set config
     fn set_config(&mut self, config: Config) {
@@ -417,7 +154,7 @@ impl TokenBackend for FernetTokenProvider {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use std::fs::File;
     use std::io::Write;
@@ -446,22 +183,24 @@ mod tests {
         let token = "gAAAAABnt12vpnYCuUxl1lWQfTxwkBcZcgdK5wYons4BFHxxZLk326To5afinp29in7f5ZHR5K61Pl2voIjfbPKlL51KempshD4shfSje4RutbeXq-NT498eEcorzige5XBYGaoWuDTOKEDH2eXCMHhw9722j9iPP3Z4r_1Zlmcqq1n2tndmvsA";
 
         let mut backend = FernetTokenProvider::default();
-        let config = setup_config();
+        let config = crate::tests::token::setup_config();
         backend.set_config(config);
         backend.load_keys().unwrap();
 
-        let decrypted = backend.decrypt(token.into()).unwrap();
-        assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
-        assert!(decrypted.project_id.is_none());
-        assert_eq!(decrypted.methods, vec!["token"]);
-        assert_eq!(
-            decrypted.expires_at.to_rfc3339(),
-            "2025-02-20T17:40:13+00:00"
-        );
-        assert_eq!(
-            decrypted.audit_ids,
-            vec!["sfROvzgjTdmbo8xZdcze-g", "FL7FbzBKQsK115_4TyyiIw"]
-        );
+        if let Token::Unscoped(decrypted) = backend.decrypt(token.into()).unwrap() {
+            assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
+            assert_eq!(decrypted.methods, vec!["token"]);
+            assert_eq!(
+                decrypted.expires_at.to_rfc3339(),
+                "2025-02-20T17:40:13+00:00"
+            );
+            assert_eq!(
+                decrypted.audit_ids,
+                vec!["sfROvzgjTdmbo8xZdcze-g", "FL7FbzBKQsK115_4TyyiIw"]
+            );
+        } else {
+            panic!()
+        }
     }
 
     #[tokio::test]
@@ -473,15 +212,18 @@ mod tests {
         backend.set_config(config);
         backend.load_keys().unwrap();
 
-        let decrypted = backend.decrypt(token.into()).unwrap();
-        assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
-        assert_eq!(decrypted.domain_id, Some("default".into()));
-        assert_eq!(decrypted.methods, vec!["password"]);
-        assert_eq!(
-            decrypted.expires_at.to_rfc3339(),
-            "2025-02-20T17:55:30+00:00"
-        );
-        assert_eq!(decrypted.audit_ids, vec!["eikbCiM0SsO5P9d_GbVhBQ"]);
+        if let Token::DomainScope(decrypted) = backend.decrypt(token.into()).unwrap() {
+            assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
+            assert_eq!(decrypted.domain_id, "default");
+            assert_eq!(decrypted.methods, vec!["password"]);
+            assert_eq!(
+                decrypted.expires_at.to_rfc3339(),
+                "2025-02-20T17:55:30+00:00"
+            );
+            assert_eq!(decrypted.audit_ids, vec!["eikbCiM0SsO5P9d_GbVhBQ"]);
+        } else {
+            panic!()
+        }
     }
 
     #[tokio::test]
@@ -493,18 +235,18 @@ mod tests {
         backend.set_config(config);
         backend.load_keys().unwrap();
 
-        let decrypted = backend.decrypt(token.into()).unwrap();
-        assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
-        assert_eq!(
-            decrypted.project_id,
-            Some("97cd761d581b485792a4afc8cc6a998d".into())
-        );
-        assert_eq!(decrypted.methods, vec!["password"]);
-        assert_eq!(
-            decrypted.expires_at.to_rfc3339(),
-            "2025-02-17T17:49:53+00:00"
-        );
-        assert_eq!(decrypted.audit_ids, vec!["fhRNUHHPTkitISpEYkY_mQ"]);
+        if let Token::ProjectScope(decrypted) = backend.decrypt(token.into()).unwrap() {
+            assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
+            assert_eq!(decrypted.project_id, "97cd761d581b485792a4afc8cc6a998d");
+            assert_eq!(decrypted.methods, vec!["password"]);
+            assert_eq!(
+                decrypted.expires_at.to_rfc3339(),
+                "2025-02-17T17:49:53+00:00"
+            );
+            assert_eq!(decrypted.audit_ids, vec!["fhRNUHHPTkitISpEYkY_mQ"]);
+        } else {
+            panic!()
+        }
     }
 
     #[tokio::test]
@@ -516,21 +258,21 @@ mod tests {
         backend.set_config(config);
         backend.load_keys().unwrap();
 
-        let decrypted = backend.decrypt(token.into()).unwrap();
-        assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
-        assert_eq!(
-            decrypted.project_id,
-            Some("97cd761d581b485792a4afc8cc6a998d".into())
-        );
-        assert_eq!(decrypted.methods, vec!["application_credential"]);
-        assert_eq!(
-            decrypted.expires_at.to_rfc3339(),
-            "2025-02-20T17:50:46+00:00"
-        );
-        assert_eq!(decrypted.audit_ids, vec!["kD7Cwc8fSZuWNPZhy0fLVg"]);
-        assert_eq!(
-            decrypted.application_credential_id,
-            Some("a67630c36e1b48839091c905177c5598".into())
-        );
+        if let Token::ApplicationCredential(decrypted) = backend.decrypt(token.into()).unwrap() {
+            assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
+            assert_eq!(decrypted.project_id, "97cd761d581b485792a4afc8cc6a998d");
+            assert_eq!(decrypted.methods, vec!["application_credential"]);
+            assert_eq!(
+                decrypted.expires_at.to_rfc3339(),
+                "2025-02-20T17:50:46+00:00"
+            );
+            assert_eq!(decrypted.audit_ids, vec!["kD7Cwc8fSZuWNPZhy0fLVg"]);
+            assert_eq!(
+                decrypted.application_credential_id,
+                "a67630c36e1b48839091c905177c5598"
+            );
+        } else {
+            panic!()
+        }
     }
 }

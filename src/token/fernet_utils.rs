@@ -11,11 +11,18 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
+
+use base64::{Engine as _, engine::general_purpose::URL_SAFE};
+use chrono::{DateTime, Utc};
+use rmp::{Marker, decode::*};
 use std::collections::BTreeMap;
 use std::fs;
+use std::io;
+use std::io::Read;
 use std::path::PathBuf;
 use tokio::fs as fs_async;
 use tracing::trace;
+use uuid::Uuid;
 
 use crate::token::error::TokenProviderError;
 
@@ -68,6 +75,88 @@ impl FernetUtils {
         }
         Ok(keys.into_values().rev())
     }
+}
+
+/// Read binary data from the payload
+pub fn read_bin_data<R: Read>(len: u32, rd: &mut R) -> Result<Vec<u8>, io::Error> {
+    let mut buf = Vec::with_capacity(len.min(1 << 16) as usize);
+    let bytes_read = rd.take(u64::from(len)).read_to_end(&mut buf)?;
+    if bytes_read != len as usize {
+        return Err(io::ErrorKind::UnexpectedEof.into());
+    }
+    Ok(buf)
+}
+
+/// Read string data
+pub fn read_str_data<R: Read>(len: u32, rd: &mut R) -> Result<String, io::Error> {
+    Ok(String::from_utf8_lossy(&read_bin_data(len, rd)?).into_owned())
+}
+
+/// Read the UUID from the payload
+/// It is represented as an Array[bool, bytes] where first bool indicates whether following bytes
+/// are UUID or just bytes that should be treated as a string (for cases where ID is not a valid
+/// UUID)
+pub fn read_uuid(rd: &mut &[u8]) -> Result<String, TokenProviderError> {
+    match read_marker(rd).map_err(ValueReadError::from)? {
+        Marker::FixArray(_) => {
+            match read_marker(rd).map_err(ValueReadError::from)? {
+                Marker::True => {
+                    // This is uuid as bytes
+                    // Technically we may fail reading it into bytes, but python part is
+                    // responsible that it doesn not happen
+                    if let Marker::Bin8 = read_marker(rd).map_err(ValueReadError::from)? {
+                        return Ok(Uuid::try_from(read_bin_data(read_pfix(rd)?.into(), rd)?)?
+                            .as_simple()
+                            .to_string());
+                    }
+                }
+                Marker::False => {
+                    // This is not uuid
+                    if let Marker::Bin8 = read_marker(rd).map_err(ValueReadError::from)? {
+                        return Ok(String::from_utf8_lossy(&read_bin_data(
+                            read_pfix(rd)?.into(),
+                            rd,
+                        )?)
+                        .to_string());
+                    }
+                }
+                _ => {
+                    return Err(TokenProviderError::InvalidTokenUuid);
+                }
+            }
+        }
+        Marker::FixStr(len) => return Ok(read_str_data(len.into(), rd)?),
+        other => {
+            return Err(TokenProviderError::InvalidTokenUuidMarker(other));
+        }
+    }
+    Err(TokenProviderError::InvalidTokenUuid)
+}
+
+/// Read the time represented as a f64 of the UTC seconds
+pub fn read_time(rd: &mut &[u8]) -> Result<DateTime<Utc>, TokenProviderError> {
+    DateTime::from_timestamp(read_f64(rd)?.round() as i64, 0)
+        .ok_or(TokenProviderError::InvalidToken)
+}
+
+/// Decode array of audit ids from the payload
+pub fn read_audit_ids(
+    rd: &mut &[u8],
+) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
+    if let Marker::FixArray(len) = read_marker(rd).map_err(ValueReadError::from)? {
+        let mut result: Vec<String> = Vec::new();
+        for _ in 0..len {
+            if let Marker::Bin8 = read_marker(rd).map_err(ValueReadError::from)? {
+                let dt = read_bin_data(read_pfix(rd)?.into(), rd)?;
+                let audit_id: String = URL_SAFE.encode(dt).trim_end_matches('=').to_string();
+                result.push(audit_id);
+            } else {
+                return Err(TokenProviderError::InvalidToken);
+            }
+        }
+        return Ok(result.into_iter());
+    }
+    Err(TokenProviderError::InvalidToken)
 }
 
 #[cfg(test)]
