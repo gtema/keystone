@@ -12,9 +12,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
-use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 
 use crate::config::Config;
@@ -30,7 +30,10 @@ pub async fn load_local_user_with_passwords<S: AsRef<str>>(
     db: &DatabaseConnection,
     user_id: S,
 ) -> Result<
-    Option<(local_user::Model, impl IntoIterator<Item = password::Model>)>,
+    Option<(
+        local_user::Model,
+        impl IntoIterator<Item = password::Model> + use<S>,
+    )>,
     IdentityDatabaseError,
 > {
     let results: Vec<(local_user::Model, Vec<password::Model>)> = LocalUser::find()
@@ -48,11 +51,7 @@ pub async fn load_local_user_with_passwords<S: AsRef<str>>(
 pub async fn load_local_users_passwords<L: IntoIterator<Item = Option<i32>>>(
     db: &DatabaseConnection,
     user_ids: L,
-) -> Result<
-    //impl IntoIterator<Item = Option<impl IntoIterator<Item = password::Model>>>,
-    Vec<Option<Vec<password::Model>>>,
-    IdentityDatabaseError,
-> {
+) -> Result<Vec<Option<Vec<password::Model>>>, IdentityDatabaseError> {
     let ids: Vec<Option<i32>> = user_ids.into_iter().collect();
     // Collect local user IDs that we need to query
     let keys: Vec<i32> = ids.iter().filter_map(Option::as_ref).copied().collect();

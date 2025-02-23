@@ -12,10 +12,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use base64::{engine::general_purpose::URL_SAFE, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{DateTime, Utc};
 use fernet::{Fernet, MultiFernet};
-use rmp::{decode::*, Marker};
+use rmp::{Marker, decode::*};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io;
@@ -24,9 +24,9 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::token::{
+    TokenProviderError,
     fernet_utils::FernetUtils,
     types::{Token, TokenBackend},
-    TokenProviderError,
 };
 
 #[derive(Default, Clone)]
@@ -118,7 +118,7 @@ fn read_time(rd: &mut &[u8]) -> Result<DateTime<Utc>, TokenProviderError> {
 fn decode_auth_methods(
     value: usize,
     auth_map: &BTreeMap<usize, String>,
-) -> Result<impl IntoIterator<Item = String>, TokenProviderError> {
+) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
     let mut results: Vec<String> = Vec::new();
     let mut auth: usize = value;
     for (idx, name) in auth_map.iter() {
@@ -141,7 +141,9 @@ fn decode_auth_methods(
 }
 
 /// Decode array of audit ids from the payload
-fn read_audit_ids(rd: &mut &[u8]) -> Result<impl IntoIterator<Item = String>, TokenProviderError> {
+fn read_audit_ids(
+    rd: &mut &[u8],
+) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
     if let Marker::FixArray(len) = read_marker(rd).map_err(ValueReadError::from)? {
         let mut result: Vec<String> = Vec::new();
         for _ in 0..len {
@@ -198,10 +200,9 @@ impl FernetTokenProvider {
     pub fn decrypt(&self, credential: String) -> Result<Token, TokenProviderError> {
         // TODO: Implement fernet keys change watching. Keystone loads them from FS on every
         // request and in the best case it costs 15µs.
-        let payload = if let Some(fernet) = &self.fernet {
-            fernet.decrypt(credential.as_ref())?
-        } else {
-            self.get_fernet()?.decrypt(credential.as_ref())?
+        let payload = match &self.fernet {
+            Some(fernet) => fernet.decrypt(credential.as_ref())?,
+            _ => self.get_fernet()?.decrypt(credential.as_ref())?,
         };
         self.parse(&mut payload.as_slice())
     }

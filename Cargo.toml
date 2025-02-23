@@ -1,10 +1,10 @@
 [package]
 name = "openstack_keystone"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0"
 authors = ["Artem Goncharov (gtema)"]
-rust-version = "1.83"  # MSRV
+rust-version = "1.85"  # MSRV
 repository = "https://github.com/gtema/keystone"
 
 [[bin]]
@@ -29,6 +29,7 @@ derive_builder = { version = "^0.20" }
 dyn-clone = { version = "^1.0" }
 eyre = { version = "^0.6" }
 fernet = { version = "^0.2" }
+mockall_double = { version = "^0.3" }
 regex = { version = "^1.11"}
 rmp = { version = "^0.8" }
 sea-orm = { version = "^1.1", features = ["sqlx-mysql", "sqlx-postgres", "runtime-tokio"] }
@@ -44,11 +45,12 @@ tracing-subscriber = { version = "^0.3" }
 utoipa = { version = "^5.3", features = ["axum_extras", "chrono"] }
 utoipa-axum = { version = "^0.2" }
 utoipa-swagger-ui = { version = "^9.0", features = ["axum", "vendored"], default-features = false }
-uuid = { version = "^1.13", features = ["v4"] }
+uuid = { version = "^1.14", features = ["v4"] }
 
 [dev-dependencies]
 criterion = { version = "^0.5", features = ["async_tokio"] }
 http-body-util = "^0.1"
+mockall = { version = "^0.13" }
 sea-orm = { version = "*", features = ["mock"]}
 tempfile = { version = "^3.17" }
 

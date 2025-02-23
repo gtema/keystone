@@ -13,9 +13,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
-use sea_orm::DatabaseConnection;
 
 mod common;
 mod federated_user;
@@ -33,9 +33,9 @@ use crate::db::entity::{
     prelude::{FederatedUser, LocalUser, NonlocalUser, User as DbUser, UserOption},
     user as db_user, user_option as db_user_option,
 };
+use crate::identity::IdentityProviderError;
 use crate::identity::backends::error::IdentityDatabaseError;
 use crate::identity::password_hashing;
-use crate::identity::IdentityProviderError;
 
 #[derive(Clone, Debug, Default)]
 pub struct SqlBackend {
@@ -231,26 +231,29 @@ pub async fn get_user(
     if let Some(user) = &user_entry {
         let user_opts: Vec<db_user_option::Model> = user.find_related(UserOption).all(db).await?;
 
-        let user_builder: UserBuilder = if let Some(local_user_with_passwords) =
-            local_user::load_local_user_with_passwords(db, &user_id).await?
-        {
-            common::get_local_user_builder(
-                conf,
-                user,
-                local_user_with_passwords.0,
-                Some(local_user_with_passwords.1),
-                user_opts,
-            )
-        } else if let Some(nonlocal_user) = user.find_related(NonlocalUser).one(db).await? {
-            common::get_nonlocal_user_builder(user, nonlocal_user, user_opts)
-        } else {
-            let federated_user = user.find_related(FederatedUser).all(db).await?;
-            if !federated_user.is_empty() {
-                common::get_federated_user_builder(user, federated_user, user_opts)
-            } else {
-                return Err(IdentityDatabaseError::MalformedUser(user_id.clone()))?;
-            }
-        };
+        let user_builder: UserBuilder =
+            match local_user::load_local_user_with_passwords(db, &user_id).await? {
+                Some(local_user_with_passwords) => common::get_local_user_builder(
+                    conf,
+                    user,
+                    local_user_with_passwords.0,
+                    Some(local_user_with_passwords.1),
+                    user_opts,
+                ),
+                _ => match user.find_related(NonlocalUser).one(db).await? {
+                    Some(nonlocal_user) => {
+                        common::get_nonlocal_user_builder(user, nonlocal_user, user_opts)
+                    }
+                    _ => {
+                        let federated_user = user.find_related(FederatedUser).all(db).await?;
+                        if !federated_user.is_empty() {
+                            common::get_federated_user_builder(user, federated_user, user_opts)
+                        } else {
+                            return Err(IdentityDatabaseError::MalformedUser(user_id.clone()))?;
+                        }
+                    }
+                },
+            };
 
         return Ok(Some(user_builder.build()?));
     }

@@ -12,12 +12,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::keystone::ServiceState;
-use crate::provider::Provider;
 
 pub mod auth;
 pub mod error;
@@ -27,9 +25,6 @@ pub mod v3;
 #[openapi(info(version = "3.14.0"))]
 pub struct ApiDoc;
 
-pub fn openapi_router<P>() -> OpenApiRouter<Arc<ServiceState<P>>>
-where
-    P: Provider + 'static,
-{
+pub fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new().nest("/v3", v3::openapi_router())
 }

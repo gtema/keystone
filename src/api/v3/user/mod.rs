@@ -13,27 +13,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
-    extract::{Extension, Path, Query, State},
+    Json,
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
-use std::sync::Arc;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
-use crate::provider::Provider;
 use types::{User, UserCreateRequest, UserList, UserListParameters, UserResponse};
 
 mod types;
 
-pub(super) fn openapi_router<P>() -> OpenApiRouter<Arc<ServiceState<P>>>
-where
-    P: Provider + 'static,
-{
+pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .routes(routes!(list, create))
         .routes(routes!(show, remove))
@@ -52,14 +47,11 @@ where
     tag="users"
 )]
 #[tracing::instrument(name = "api::user_list", level = "debug", skip(state))]
-async fn list<P>(
-    Extension(current_user): Extension<Auth>,
+async fn list(
+    Auth(user_auth): Auth,
     Query(query): Query<UserListParameters>,
-    State(state): State<Arc<ServiceState<P>>>,
-) -> Result<impl IntoResponse, KeystoneApiError>
-where
-    P: Provider,
-{
+    State(state): State<ServiceState>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
     let users: Vec<User> = state
         .provider
         .get_identity_provider()
@@ -84,17 +76,15 @@ where
     tag="users"
 )]
 #[tracing::instrument(name = "api::user_get", level = "debug", skip(state))]
-async fn show<P>(
+async fn show(
+    Auth(user_auth): Auth,
     Path(user_id): Path<String>,
-    State(state): State<Arc<ServiceState<P>>>,
-) -> Result<impl IntoResponse, KeystoneApiError>
-where
-    P: Provider,
-{
+    State(state): State<ServiceState>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
     state
         .provider
         .get_identity_provider()
-        .get_user(&state.db, &user_id)
+        .get_user(&state.db, user_id.clone())
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -115,14 +105,12 @@ where
     tag="users"
 )]
 #[tracing::instrument(name = "api::create_user", level = "debug", skip(state))]
-async fn create<P>(
+async fn create(
+    Auth(user_auth): Auth,
     Query(query): Query<UserListParameters>,
-    State(state): State<Arc<ServiceState<P>>>,
+    State(state): State<ServiceState>,
     Json(req): Json<UserCreateRequest>,
-) -> Result<impl IntoResponse, KeystoneApiError>
-where
-    P: Provider,
-{
+) -> Result<impl IntoResponse, KeystoneApiError> {
     let user = state
         .provider
         .get_identity_provider()
@@ -145,17 +133,15 @@ where
     tag="users"
 )]
 #[tracing::instrument(name = "api::user_delete", level = "debug", skip(state))]
-async fn remove<P>(
+async fn remove(
+    Auth(user_auth): Auth,
     Path(user_id): Path<String>,
-    State(state): State<Arc<ServiceState<P>>>,
-) -> Result<impl IntoResponse, KeystoneApiError>
-where
-    P: Provider,
-{
+    State(state): State<ServiceState>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
     state
         .provider
         .get_identity_provider()
-        .delete_user(&state.db, &user_id)
+        .delete_user(&state.db, user_id)
         .await
         .map_err(KeystoneApiError::identity)?;
     Ok((StatusCode::NO_CONTENT).into_response())
@@ -166,31 +152,44 @@ mod tests {
     use axum::{
         body::Body,
         http::{self, Request, StatusCode},
-        middleware,
     };
     use http_body_util::BodyExt; // for `collect`
     use sea_orm::DatabaseConnection;
-    use std::sync::Arc;
+    use serde_json::json;
+
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
 
     use super::openapi_router;
-    use crate::api::auth::auth;
-    use crate::api::v3::user::types::*;
-    use crate::config::Config;
-    use crate::identity::IdentityApi;
-    use crate::keystone::ServiceState;
-    use crate::provider::{FakeProviderApi, Provider};
+    use crate::api::v3::user::types::{
+        User as ApiUser, UserCreate as ApiUserCreate, UserCreateRequest, UserList, UserResponse,
+    };
+    use crate::identity::{
+        MockIdentityProvider,
+        error::IdentityProviderError,
+        types::{User, UserCreate, UserListParameters},
+    };
+
+    use crate::tests::api::{get_mocked_state, get_mocked_state_unauthed};
 
     #[tokio::test]
     async fn test_list() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let provider = FakeProviderApi::new(config.clone()).unwrap();
-        let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_list_users()
+            .withf(|_: &DatabaseConnection, _: &UserListParameters| true)
+            .returning(|_, _| {
+                Ok(vec![User {
+                    id: "1".into(),
+                    name: "2".into(),
+                    ..Default::default()
+                }])
+            });
+
+        let state = get_mocked_state(identity_mock);
+
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
-            .route_layer(middleware::from_fn_with_state(state.clone(), auth))
             .with_state(state);
 
         let response = api
@@ -208,22 +207,98 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let _users: UserList = serde_json::from_slice(&body).unwrap();
+        let res: UserList = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            vec![ApiUser {
+                id: "1".into(),
+                name: "2".into(),
+                // object
+                extra: Some(json!({})),
+                ..Default::default()
+            }],
+            res.users
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_qp() {
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_list_users()
+            .withf(|_: &DatabaseConnection, qp: &UserListParameters| {
+                UserListParameters {
+                    domain_id: Some("domain".into()),
+                    name: Some("name".into()),
+                } == *qp
+            })
+            .returning(|_, _| Ok(Vec::new()));
+
+        let state = get_mocked_state(identity_mock);
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
+
+        let response = api
+            .as_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/?domain_id=domain&name=name")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let _res: UserList = serde_json::from_slice(&body).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_list_unauth() {
+        let state = get_mocked_state_unauthed();
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
+
+        let response = api
+            .as_service()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
     async fn test_create() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let provider = FakeProviderApi::new(config.clone()).unwrap();
-        let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_create_user()
+            .withf(|_: &DatabaseConnection, req: &UserCreate| {
+                req.domain_id == "domain" && req.name == "name"
+            })
+            .returning(|_, req| {
+                Ok(User {
+                    id: "bar".into(),
+                    domain_id: req.domain_id,
+                    name: req.name,
+                    ..Default::default()
+                })
+            });
+
+        let state = get_mocked_state(identity_mock);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
 
         let user = UserCreateRequest {
-            user: UserCreate {
+            user: ApiUserCreate {
                 domain_id: "domain".into(),
                 name: "name".into(),
                 ..Default::default()
@@ -237,6 +312,7 @@ mod tests {
                     .method("POST")
                     .header(http::header::CONTENT_TYPE, "application/json")
                     .uri("/")
+                    .header("x-auth-token", "foo")
                     .body(Body::from(serde_json::to_string(&user).unwrap()))
                     .unwrap(),
             )
@@ -252,31 +328,37 @@ mod tests {
 
     #[tokio::test]
     async fn test_get() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let provider = FakeProviderApi::new(config.clone()).unwrap();
-        let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_get_user()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "foo")
+            .returning(|_, _| Ok(None));
+
+        identity_mock
+            .expect_get_user()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
+            .returning(|_, _| {
+                Ok(Some(User {
+                    id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
+
+        let state = get_mocked_state(identity_mock);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
 
-        let user = crate::identity::types::UserCreate {
-            domain_id: "domain".into(),
-            name: "name".into(),
-            ..Default::default()
-        };
-
-        let created_user = state
-            .provider
-            .get_identity_provider()
-            .create_user(&DatabaseConnection::Disconnected, user)
-            .await
-            .unwrap();
-
         let response = api
             .as_service()
-            .oneshot(Request::builder().uri("/foo").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/foo")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -286,7 +368,8 @@ mod tests {
             .as_service()
             .oneshot(
                 Request::builder()
-                    .uri(format!("/{}", created_user.id))
+                    .uri("/bar")
+                    .header("x-auth-token", "foo")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -296,32 +379,35 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let _user: UserResponse = serde_json::from_slice(&body).unwrap();
+        let res: UserResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            ApiUser {
+                id: "bar".into(),
+                extra: Some(json!({})),
+                ..Default::default()
+            },
+            res.user,
+        );
     }
 
     #[tokio::test]
     async fn test_delete() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let provider = FakeProviderApi::new(config.clone()).unwrap();
-        let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_delete_user()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "foo")
+            .returning(|_, _| Err(IdentityProviderError::UserNotFound("foo".into())));
+
+        identity_mock
+            .expect_delete_user()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
+            .returning(|_, _| Ok(()));
+
+        let state = get_mocked_state(identity_mock);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
-
-        let user = crate::identity::types::UserCreate {
-            domain_id: "domain".into(),
-            name: "name".into(),
-            ..Default::default()
-        };
-
-        let created_user = state
-            .provider
-            .get_identity_provider()
-            .create_user(&DatabaseConnection::Disconnected, user)
-            .await
-            .unwrap();
 
         let response = api
             .as_service()
@@ -329,6 +415,7 @@ mod tests {
                 Request::builder()
                     .method("DELETE")
                     .uri("/foo")
+                    .header("x-auth-token", "foo")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -342,7 +429,8 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("DELETE")
-                    .uri(format!("/{}", created_user.id))
+                    .uri("/bar")
+                    .header("x-auth-token", "foo")
                     .body(Body::empty())
                     .unwrap(),
             )

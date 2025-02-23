@@ -13,51 +13,45 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
-    extract::{Request, State},
-    http::StatusCode,
-    middleware::Next,
-    response::Response,
+    extract::{FromRef, FromRequestParts},
+    http::{StatusCode, request::Parts},
 };
 use std::sync::Arc;
 
 use crate::keystone::ServiceState;
-use crate::provider::Provider;
 use crate::token::{Token, TokenApi};
 
 #[derive(Debug, Clone)]
-pub struct Auth {
-    pub token: Token,
-}
+pub struct Auth(pub Token);
 
-pub async fn auth<P>(
-    State(state): State<Arc<ServiceState<P>>>,
-    mut req: Request,
-    next: Next,
-) -> Result<Response, StatusCode>
+impl<S> FromRequestParts<S> for Auth
 where
-    P: Provider,
+    ServiceState: FromRef<S>,
+    S: Send + Sync,
 {
-    let auth_header = req
-        .headers()
-        .get("X-Auth-Token")
-        .and_then(|header| header.to_str().ok());
+    type Rejection = (StatusCode, &'static str);
 
-    let auth_header = if let Some(auth_header) = auth_header {
-        auth_header
-    } else {
-        return Err(StatusCode::UNAUTHORIZED);
-    };
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let auth_header = parts
+            .headers
+            .get("X-Auth-Token")
+            .and_then(|header| header.to_str().ok());
 
-    // insert the current user into a request extension so the handler can
-    // extract it
-    state
-        .provider
-        .get_token_provider()
-        .validate_token(auth_header.to_string(), None)
-        .await
-        .map(|token| {
-            req.extensions_mut().insert(Auth { token });
-        })
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
-    Ok(next.run(req).await)
+        let auth_header = if let Some(auth_header) = auth_header {
+            auth_header
+        } else {
+            return Err((StatusCode::UNAUTHORIZED, "not authorized"));
+        };
+
+        let state = Arc::from_ref(state);
+
+        Ok(Self(
+            state
+                .provider
+                .get_token_provider()
+                .validate_token(auth_header.to_string(), None)
+                .await
+                .map_err(|_| (StatusCode::UNAUTHORIZED, "not authorized"))?,
+        ))
+    }
 }

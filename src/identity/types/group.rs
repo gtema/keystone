@@ -32,7 +32,7 @@ pub struct Group {
     pub name: String,
 }
 
-#[derive(Builder, Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[builder(setter(strip_option, into))]
 pub struct GroupListParameters {
     /// Filter groups by the domain
@@ -41,7 +41,7 @@ pub struct GroupListParameters {
     pub name: Option<String>,
 }
 
-#[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[builder(setter(strip_option, into))]
 pub struct GroupCreate {
     /// The description of the group.
@@ -52,7 +52,7 @@ pub struct GroupCreate {
     #[builder(default)]
     pub extra: Option<Value>,
     /// The ID of the group.
-    pub id: String,
+    pub id: Option<String>,
     /// The user name. Must be unique within the owning domain.
     pub name: String,
 }

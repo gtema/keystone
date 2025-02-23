@@ -24,4 +24,4 @@ pub mod resource;
 pub mod token;
 
 #[cfg(test)]
-mod tests {}
+mod tests;

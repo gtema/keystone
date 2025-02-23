@@ -11,28 +11,35 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
+use derive_builder::Builder;
+use mockall_double::double;
 
 use crate::config::Config;
 use crate::error::KeystoneError;
-use crate::identity::{IdentityApi, IdentityProvider};
+use crate::identity::IdentityApi;
+#[double]
+use crate::identity::IdentityProvider;
 use crate::plugin_manager::PluginManager;
-use crate::token::{TokenApi, TokenProvider};
-#[cfg(test)]
-use crate::{identity::FakeIdentityProvider, token::FakeTokenProvider};
+use crate::token::TokenApi;
+#[double]
+use crate::token::TokenProvider;
 
-pub trait Provider: Clone + Send + Sync {
-    fn get_identity_provider(&self) -> &impl IdentityApi;
-    fn get_token_provider(&self) -> &impl TokenApi;
-}
+//pub trait Provider: Clone + Send + Sync {
+//    fn get_identity_provider(&self) -> &impl IdentityApi;
+//    fn get_token_provider(&self) -> &impl TokenApi;
+//}
 
-#[derive(Clone)]
-pub struct ProviderApi {
+#[derive(Builder, Clone)]
+// It is necessary to use the owned pattern since otherwise builder invokes clone which immediately
+// confuses mockall used in tests
+#[builder(pattern = "owned")]
+pub struct Provider {
     pub config: Config,
     identity: IdentityProvider,
     token: TokenProvider,
 }
 
-impl ProviderApi {
+impl Provider {
     pub fn new(cfg: Config, plugin_manager: PluginManager) -> Result<Self, KeystoneError> {
         let identity_provider = IdentityProvider::new(&cfg, &plugin_manager)?;
         let token_provider = TokenProvider::new(&cfg)?;
@@ -43,47 +50,12 @@ impl ProviderApi {
             token: token_provider,
         })
     }
-}
 
-impl Provider for ProviderApi {
-    fn get_identity_provider(&self) -> &impl IdentityApi {
+    pub fn get_identity_provider(&self) -> &impl IdentityApi {
         &self.identity
     }
 
-    fn get_token_provider(&self) -> &impl TokenApi {
-        &self.token
-    }
-}
-
-#[cfg(test)]
-#[derive(Clone)]
-pub struct FakeProviderApi {
-    pub config: Config,
-    identity: FakeIdentityProvider,
-    token: FakeTokenProvider,
-}
-
-#[cfg(test)]
-impl FakeProviderApi {
-    pub fn new(cfg: Config) -> Result<Self, KeystoneError> {
-        let identity_provider = FakeIdentityProvider::default();
-        let token_provider = FakeTokenProvider::default();
-
-        Ok(Self {
-            config: cfg,
-            identity: identity_provider,
-            token: token_provider,
-        })
-    }
-}
-
-#[cfg(test)]
-impl Provider for FakeProviderApi {
-    fn get_identity_provider(&self) -> &impl IdentityApi {
-        &self.identity
-    }
-
-    fn get_token_provider(&self) -> &impl TokenApi {
+    pub fn get_token_provider(&self) -> &impl TokenApi {
         &self.token
     }
 }

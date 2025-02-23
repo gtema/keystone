@@ -12,9 +12,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use axum::extract::FromRef;
 use sea_orm::DatabaseConnection;
-//use tokio::sync::RwLock;
-
+use std::sync::Arc;
 use tracing::info;
 
 use crate::config::Config;
@@ -24,17 +24,22 @@ use crate::provider::Provider;
 // Placing ServiceState behind Arc is necessary to address DatabaseConnection not implementing
 // Clone
 //#[derive(Clone)]
-pub struct ServiceState<P> {
+#[derive(FromRef)]
+pub struct Service {
     pub config: Config,
-    pub provider: P,
+    pub provider: Provider,
+    #[from_ref(skip)]
     pub db: DatabaseConnection,
 }
 
-impl<P> ServiceState<P>
-where
-    P: Provider,
-{
-    pub fn new(cfg: Config, db: DatabaseConnection, provider: P) -> Result<Self, KeystoneError> {
+pub type ServiceState = Arc<Service>;
+
+impl Service {
+    pub fn new(
+        cfg: Config,
+        db: DatabaseConnection,
+        provider: Provider,
+    ) -> Result<Self, KeystoneError> {
         Ok(Self {
             config: cfg.clone(),
             provider,
