@@ -12,10 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{
-    http::{self, header, HeaderName, Request},
-    middleware::{self},
-};
+use axum::http::{self, HeaderName, Request, header};
 use clap::Parser;
 use color_eyre::eyre::{Report, Result};
 use sea_orm::ConnectOptions;
@@ -23,15 +20,14 @@ use sea_orm::Database;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
-use tokio::net::TcpListener;
-use tokio::signal;
+use tokio::{net::TcpListener, signal};
 use tower::ServiceBuilder;
 use tower_http::{
+    LatencyUnit, ServiceBuilderExt,
     request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
-    LatencyUnit, ServiceBuilderExt,
 };
-use tracing::{info_span, Level};
+use tracing::{Level, info_span};
 use tracing_subscriber::{filter::LevelFilter, prelude::*};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
@@ -39,11 +35,10 @@ use utoipa_swagger_ui::SwaggerUi;
 use uuid::Uuid;
 
 use openstack_keystone::api;
-use openstack_keystone::api::auth::auth;
 use openstack_keystone::config::Config;
-use openstack_keystone::keystone::ServiceState;
+use openstack_keystone::keystone::{Service, ServiceState};
 use openstack_keystone::plugin_manager::PluginManager;
-use openstack_keystone::provider::{Provider, ProviderApi};
+use openstack_keystone::provider::Provider;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -101,12 +96,12 @@ async fn main() -> Result<(), Report> {
 
     let plugin_manager = PluginManager::default();
 
-    let provider = ProviderApi::new(cfg.clone(), plugin_manager)?;
+    let provider = Provider::new(cfg.clone(), plugin_manager)?;
 
-    let shared_state = Arc::new(ServiceState::new(cfg, conn, provider).unwrap());
+    let shared_state = Arc::new(Service::new(cfg, conn, provider).unwrap());
 
     let (router, api) = OpenApiRouter::with_openapi(api::ApiDoc::openapi())
-        .merge(api::openapi_router::<ProviderApi>())
+        .merge(api::openapi_router())
         .split_for_parts();
 
     let x_request_id = HeaderName::from_static("x-openstack-request-id");
@@ -147,21 +142,18 @@ async fn main() -> Result<(), Report> {
         .layer(PropagateRequestIdLayer::new(x_request_id));
 
     let app = router
-        // Router::new()
-        //.merge(api::router())
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", api))
-        .route_layer(middleware::from_fn_with_state(shared_state.clone(), auth))
         .layer(middleware)
         .with_state(shared_state.clone());
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
     let listener = TcpListener::bind(&address).await?;
     Ok(axum::serve(listener, app.into_make_service())
-        .with_graceful_shutdown(shutdown_signal(shared_state.clone()))
+        .with_graceful_shutdown(shutdown_signal(shared_state))
         .await?)
 }
 
-async fn shutdown_signal<P: Provider>(state: Arc<ServiceState<P>>) {
+async fn shutdown_signal(state: ServiceState) {
     let ctrl_c = async {
         signal::ctrl_c()
             .await

@@ -30,7 +30,9 @@ impl FernetUtils {
         Ok(self.key_repository.exists())
     }
 
-    pub fn load_keys(&self) -> Result<impl IntoIterator<Item = String>, TokenProviderError> {
+    pub fn load_keys(
+        &self,
+    ) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
         let mut keys: BTreeMap<i8, String> = BTreeMap::new();
         if self.validate_key_repository()? {
             for entry in fs::read_dir(&self.key_repository)? {
@@ -49,7 +51,7 @@ impl FernetUtils {
     }
     pub async fn load_keys_async(
         &self,
-    ) -> Result<impl IntoIterator<Item = String>, TokenProviderError> {
+    ) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
         let mut keys: BTreeMap<i8, String> = BTreeMap::new();
         if self.validate_key_repository()? {
             let mut entries = fs_async::read_dir(&self.key_repository).await?;

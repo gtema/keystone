@@ -14,6 +14,8 @@
 
 use async_trait::async_trait;
 use chrono::{Local, TimeDelta};
+#[cfg(test)]
+use mockall::mock;
 
 mod error;
 pub mod fernet;
@@ -75,22 +77,22 @@ impl TokenApi for TokenProvider {
 }
 
 #[cfg(test)]
-#[derive(Clone, Debug, Default)]
-pub(crate) struct FakeTokenProvider {}
-
-#[cfg(test)]
-#[async_trait]
-impl TokenApi for FakeTokenProvider {
-    /// Validate token
-    #[tracing::instrument(level = "info", skip(self))]
-    async fn validate_token(
-        &self,
-        _credential: String,
-        _window_seconds: Option<i64>,
-    ) -> Result<Token, TokenProviderError> {
-        Ok(Token {
-            user_id: String::new(),
-            ..Default::default()
-        })
+mock! {
+    pub TokenProvider {
+        pub fn new(cfg: &Config) -> Result<Self, TokenProviderError>;
     }
+
+    #[async_trait]
+    impl TokenApi for TokenProvider {
+        async fn validate_token(
+            &self,
+            credential: String,
+            window_seconds: Option<i64>,
+        ) -> Result<Token, TokenProviderError>;
+    }
+
+    impl Clone for TokenProvider {
+        fn clone(&self) -> Self;
+    }
+
 }

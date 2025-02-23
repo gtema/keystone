@@ -12,15 +12,16 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
-use sea_orm::DatabaseConnection;
 use serde_json::Value;
+use serde_json::json;
 
 use crate::db::entity::{group, prelude::Group as DbGroup};
+use crate::identity::Config;
 use crate::identity::backends::sql::IdentityDatabaseError;
 use crate::identity::types::{Group, GroupCreate, GroupListParameters};
-use crate::identity::Config;
 
 pub async fn list(
     _conf: &Config,
@@ -60,7 +61,7 @@ pub async fn create(
     group: GroupCreate,
 ) -> Result<Group, IdentityDatabaseError> {
     let entry = group::ActiveModel {
-        id: Set(group.id.clone()),
+        id: Set(group.id.clone().unwrap_or_default()),
         domain_id: Set(group.domain_id.clone()),
         name: Set(group.name.clone()),
         description: Set(group.description.clone()),
@@ -94,7 +95,7 @@ impl From<group::Model> for Group {
             domain_id: value.domain_id.clone(),
             extra: value
                 .extra
-                .map(|x| serde_json::from_str::<Value>(&x).unwrap_or(Value::Null)),
+                .map(|x| serde_json::from_str::<Value>(&x).unwrap_or(json!(true))),
         }
     }
 }
@@ -107,8 +108,8 @@ mod tests {
     use serde_json::json;
 
     use crate::db::entity::group;
-    use crate::identity::types::group::GroupListParametersBuilder;
     use crate::identity::Config;
+    use crate::identity::types::group::GroupListParametersBuilder;
 
     use super::*;
 
@@ -236,7 +237,7 @@ mod tests {
         let config = Config::default();
 
         let req = GroupCreate {
-            id: "1".into(),
+            id: Some("1".into()),
             domain_id: "foo_domain".into(),
             name: "group".into(),
             description: Some("fake".into()),

@@ -13,9 +13,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde_json::json;
 use thiserror::Error;

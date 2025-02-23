@@ -13,8 +13,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use chrono::Local;
-use sea_orm::entity::*;
 use sea_orm::DatabaseConnection;
+use sea_orm::entity::*;
 
 use crate::config::Config;
 use crate::db::entity::{prelude::User as DbUser, user};

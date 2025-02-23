@@ -13,9 +13,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -23,7 +23,7 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::identity::types;
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct Group {
     /// Group ID
     pub id: String,
@@ -33,17 +33,17 @@ pub struct Group {
     pub name: String,
     /// Group description
     pub description: Option<String>,
-    #[serde(flatten)]
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub extra: Option<Value>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct GroupResponse {
     /// group object
     pub group: Group,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct GroupCreate {
     /// Group domain ID
     pub domain_id: String,
@@ -51,11 +51,11 @@ pub struct GroupCreate {
     pub name: String,
     /// Group description
     pub description: Option<String>,
-    #[serde(flatten)]
+    #[serde(default, flatten, skip_serializing_if = "Option::is_none")]
     pub extra: Option<Value>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct GroupCreateRequest {
     /// Group object
     pub group: GroupCreate,
@@ -77,7 +77,7 @@ impl From<GroupCreateRequest> for types::GroupCreate {
     fn from(value: GroupCreateRequest) -> Self {
         let group = value.group;
         Self {
-            id: String::new(),
+            id: None,
             name: group.name,
             domain_id: group.domain_id,
             extra: group.extra,
@@ -105,7 +105,7 @@ impl IntoResponse for types::Group {
 }
 
 /// Groups
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct GroupList {
     /// Collection of group objects
     pub groups: Vec<Group>,

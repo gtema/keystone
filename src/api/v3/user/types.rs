@@ -13,9 +13,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::identity::types;
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct User {
     /// User ID
     pub id: String,
@@ -41,25 +41,28 @@ pub struct User {
     /// default project, the default project is ignored at token creation. (Since v3.1)
     /// Additionally, if your default project is not valid, a token is issued without an explicit
     /// scope of authorization.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub default_project_id: Option<String>,
-    #[serde(flatten)]
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub extra: Option<Value>,
     /// The date and time when the password expires. The time zone is UTC.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub password_expires_at: Option<DateTime<Utc>>,
     /// The resource options for the user. Available resource options are
     /// ignore_change_password_upon_first_use, ignore_password_expiry,
     /// ignore_lockout_failure_attempts, lock_password, multi_factor_auth_enabled, and
     /// multi_factor_auth_rules ignore_user_inactivity.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub options: Option<UserOptions>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserResponse {
     /// User object
     pub user: User,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserCreate {
     /// User domain ID
     pub domain_id: String,
@@ -87,7 +90,7 @@ pub struct UserCreate {
     pub extra: Option<Value>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserUpdateRequest {
     /// The user name. Must be unique within the owning domain.
     pub name: Option<String>,
@@ -113,7 +116,7 @@ pub struct UserUpdateRequest {
     pub extra: Option<Value>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore_change_password_upon_first_use: Option<bool>,
@@ -159,7 +162,7 @@ impl From<UserOptions> for types::UserOptions {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserCreateRequest {
     /// User object
     pub user: UserCreate,
@@ -167,6 +170,20 @@ pub struct UserCreateRequest {
 
 impl From<types::User> for User {
     fn from(value: types::User) -> Self {
+        let opts: UserOptions = value.options.clone().into();
+        // We only want to see user options if there is at least 1 option set
+        let opts = if opts.ignore_change_password_upon_first_use.is_some()
+            || opts.ignore_password_expiry.is_some()
+            || opts.ignore_lockout_failure_attempts.is_some()
+            || opts.lock_password.is_some()
+            || opts.ignore_user_inactivity.is_some()
+            || opts.multi_factor_auth_rules.is_some()
+            || opts.multi_factor_auth_enabled.is_some()
+        {
+            Some(opts)
+        } else {
+            None
+        };
         Self {
             id: value.id,
             domain_id: value.domain_id,
@@ -175,7 +192,7 @@ impl From<types::User> for User {
             default_project_id: value.default_project_id,
             extra: value.extra,
             password_expires_at: value.password_expires_at,
-            options: Some(value.options.into()),
+            options: opts,
         }
     }
 }
@@ -216,7 +233,7 @@ impl IntoResponse for types::User {
 }
 
 /// Users
-#[derive(Clone, Debug, Default, Deserialize, Serialize, ToSchema)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserList {
     /// Collection of user objects
     pub users: Vec<User>,
@@ -235,7 +252,7 @@ impl IntoResponse for UserList {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, IntoParams)]
 pub struct UserListParameters {
     /// Filter users by Domain ID
     pub domain_id: Option<String>,

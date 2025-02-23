@@ -13,26 +13,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
+    Json, debug_handler,
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
-use std::sync::Arc;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
+use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
-use crate::provider::Provider;
 use types::{Group, GroupCreateRequest, GroupList, GroupListParameters, GroupResponse};
 
 mod types;
 
-pub(super) fn openapi_router<P>() -> OpenApiRouter<Arc<ServiceState<P>>>
-where
-    P: Provider + 'static,
-{
+pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .routes(routes!(list, create))
         .routes(routes!(show, remove))
@@ -51,13 +47,11 @@ where
     tag="groups"
 )]
 #[tracing::instrument(name = "api::group_list", level = "debug", skip(state))]
-async fn list<P>(
+async fn list(
+    Auth(user_auth): Auth,
     Query(query): Query<GroupListParameters>,
-    State(state): State<Arc<ServiceState<P>>>,
-) -> Result<impl IntoResponse, KeystoneApiError>
-where
-    P: Provider,
-{
+    State(state): State<ServiceState>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
     let groups: Vec<Group> = state
         .provider
         .get_identity_provider()
@@ -83,17 +77,15 @@ where
     tag="groups"
 )]
 #[tracing::instrument(name = "api::group_get", level = "debug", skip(state))]
-async fn show<P>(
+async fn show(
+    Auth(user_auth): Auth,
     Path(group_id): Path<String>,
-    State(state): State<Arc<ServiceState<P>>>,
-) -> Result<impl IntoResponse, KeystoneApiError>
-where
-    P: Provider,
-{
+    State(state): State<ServiceState>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
     state
         .provider
         .get_identity_provider()
-        .get_group(&state.db, &group_id)
+        .get_group(&state.db, group_id.clone())
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -114,13 +106,12 @@ where
     tag="groups"
 )]
 #[tracing::instrument(name = "api::create_group", level = "debug", skip(state))]
-async fn create<P>(
-    State(state): State<Arc<ServiceState<P>>>,
+#[debug_handler]
+async fn create(
+    Auth(user_auth): Auth,
+    State(state): State<ServiceState>,
     Json(req): Json<GroupCreateRequest>,
-) -> Result<impl IntoResponse, KeystoneApiError>
-where
-    P: Provider,
-{
+) -> Result<impl IntoResponse, KeystoneApiError> {
     let res = state
         .provider
         .get_identity_provider()
@@ -143,17 +134,15 @@ where
     tag="groups"
 )]
 #[tracing::instrument(name = "api::group_delete", level = "debug", skip(state))]
-async fn remove<P>(
+async fn remove(
+    Auth(user_auth): Auth,
     Path(group_id): Path<String>,
-    State(state): State<Arc<ServiceState<P>>>,
-) -> Result<impl IntoResponse, KeystoneApiError>
-where
-    P: Provider,
-{
+    State(state): State<ServiceState>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
     state
         .provider
         .get_identity_provider()
-        .delete_group(&state.db, &group_id)
+        .delete_group(&state.db, group_id)
         .await
         .map_err(KeystoneApiError::identity)?;
     Ok((StatusCode::NO_CONTENT).into_response())
@@ -163,32 +152,105 @@ where
 mod tests {
     use axum::{
         body::Body,
-        http::{self, Request, StatusCode},
+        http::{Request, StatusCode, header},
     };
     use http_body_util::BodyExt; // for `collect`
     use sea_orm::DatabaseConnection;
-    use std::sync::Arc;
+    use serde_json::json;
+
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
 
     use super::openapi_router;
-    use crate::api::v3::group::types::*;
-    use crate::config::Config;
-    use crate::identity::IdentityApi;
-    use crate::keystone::ServiceState;
-    use crate::provider::{FakeProviderApi, Provider};
+    use crate::api::v3::group::types::{
+        Group as ApiGroup, GroupCreate as ApiGroupCreate, GroupCreateRequest, GroupList,
+        GroupResponse,
+    };
+    use crate::identity::{
+        MockIdentityProvider,
+        error::IdentityProviderError,
+        types::{Group, GroupCreate, GroupListParameters},
+    };
+
+    use crate::tests::api::{get_mocked_state, get_mocked_state_unauthed};
 
     #[tokio::test]
     async fn test_list() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let provider = FakeProviderApi::new(config.clone()).unwrap();
-        let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
-        let mut api = openapi_router().with_state(state);
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_list_groups()
+            .withf(|_: &DatabaseConnection, _: &GroupListParameters| true)
+            .returning(|_, _| {
+                Ok(vec![Group {
+                    id: "1".into(),
+                    name: "2".into(),
+                    ..Default::default()
+                }])
+            });
+
+        let state = get_mocked_state(identity_mock);
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
 
         let response = api
             .as_service()
-            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let res: GroupList = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            vec![ApiGroup {
+                id: "1".into(),
+                name: "2".into(),
+                // for some reason when deserializing missing value appears still as an empty
+                // object
+                extra: Some(json!({})),
+                ..Default::default()
+            }],
+            res.groups
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_qp() {
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_list_groups()
+            .withf(|_: &DatabaseConnection, qp: &GroupListParameters| {
+                GroupListParameters {
+                    domain_id: Some("domain".into()),
+                    name: Some("name".into()),
+                } == *qp
+            })
+            .returning(|_, _| Ok(Vec::new()));
+
+        let state = get_mocked_state(identity_mock);
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
+
+        let response = api
+            .as_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/?domain_id=domain&name=name")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -199,32 +261,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_list_unauth() {
+        let state = get_mocked_state_unauthed();
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
+
+        let response = api
+            .as_service()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
     async fn test_get() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let provider = FakeProviderApi::new(config.clone()).unwrap();
-        let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_get_group()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "foo")
+            .returning(|_, _| Ok(None));
+
+        identity_mock
+            .expect_get_group()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
+            .returning(|_, _| {
+                Ok(Some(Group {
+                    id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
+
+        let state = get_mocked_state(identity_mock);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
 
-        let group = crate::identity::types::GroupCreate {
-            domain_id: "domain".into(),
-            name: "name".into(),
-            ..Default::default()
-        };
-
-        let created_group = state
-            .provider
-            .get_identity_provider()
-            .create_group(&DatabaseConnection::Disconnected, group)
-            .await
-            .unwrap();
-
         let response = api
             .as_service()
-            .oneshot(Request::builder().uri("/foo").body(Body::empty()).unwrap())
+            .oneshot(
+                Request::builder()
+                    .uri("/foo")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -234,7 +319,8 @@ mod tests {
             .as_service()
             .oneshot(
                 Request::builder()
-                    .uri(format!("/{}", created_group.id))
+                    .uri("/bar")
+                    .header("x-auth-token", "foo")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -244,22 +330,42 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let _user: GroupResponse = serde_json::from_slice(&body).unwrap();
+        let res: GroupResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            ApiGroup {
+                id: "bar".into(),
+                extra: Some(json!({})),
+                ..Default::default()
+            },
+            res.group,
+        );
     }
 
     #[tokio::test]
     async fn test_create() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let provider = FakeProviderApi::new(config.clone()).unwrap();
-        let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_create_group()
+            .withf(|_: &DatabaseConnection, req: &GroupCreate| {
+                req.domain_id == "domain" && req.name == "name"
+            })
+            .returning(|_, req| {
+                Ok(Group {
+                    id: "bar".into(),
+                    domain_id: req.domain_id,
+                    name: req.name,
+                    ..Default::default()
+                })
+            });
+
+        let state = get_mocked_state(identity_mock);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
 
         let req = GroupCreateRequest {
-            group: GroupCreate {
+            group: ApiGroupCreate {
                 domain_id: "domain".into(),
                 name: "name".into(),
                 ..Default::default()
@@ -271,8 +377,9 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("POST")
-                    .header(http::header::CONTENT_TYPE, "application/json")
+                    .header(header::CONTENT_TYPE, "application/json")
                     .uri("/")
+                    .header("x-auth-token", "foo")
                     .body(Body::from(serde_json::to_string(&req).unwrap()))
                     .unwrap(),
             )
@@ -284,31 +391,27 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let res: GroupResponse = serde_json::from_slice(&body).unwrap();
         assert_eq!(res.group.name, req.group.name);
+        assert_eq!(res.group.domain_id, req.group.domain_id);
     }
 
     #[tokio::test]
     async fn test_delete() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let provider = FakeProviderApi::new(config.clone()).unwrap();
-        let state = Arc::new(ServiceState::new(config, db, provider).unwrap());
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_delete_group()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "foo")
+            .returning(|_, _| Err(IdentityProviderError::GroupNotFound("foo".into())));
+
+        identity_mock
+            .expect_delete_group()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
+            .returning(|_, _| Ok(()));
+
+        let state = get_mocked_state(identity_mock);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
-
-        let group = crate::identity::types::GroupCreate {
-            domain_id: "domain".into(),
-            name: "name".into(),
-            ..Default::default()
-        };
-
-        let created_group = state
-            .provider
-            .get_identity_provider()
-            .create_group(&DatabaseConnection::Disconnected, group)
-            .await
-            .unwrap();
 
         let response = api
             .as_service()
@@ -316,6 +419,7 @@ mod tests {
                 Request::builder()
                     .method("DELETE")
                     .uri("/foo")
+                    .header("x-auth-token", "foo")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -329,7 +433,8 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .method("DELETE")
-                    .uri(format!("/{}", created_group.id))
+                    .uri("/bar")
+                    .header("x-auth-token", "foo")
                     .body(Body::empty())
                     .unwrap(),
             )

@@ -140,7 +140,7 @@ pub struct FederationProtocol {
     pub unique_id: String,
 }
 
-#[derive(Builder, Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct UserListParameters {
     /// Filter users by the domain
     pub domain_id: Option<String>,
