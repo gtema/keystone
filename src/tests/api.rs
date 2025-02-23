@@ -19,7 +19,7 @@ use crate::config::Config;
 use crate::identity::MockIdentityProvider;
 use crate::keystone::{Service, ServiceState};
 use crate::provider::ProviderBuilder;
-use crate::token::{MockTokenProvider, Token, TokenProviderError};
+use crate::token::{MockTokenProvider, Token, TokenProviderError, UnscopedToken};
 
 pub(crate) fn get_mocked_state_unauthed() -> ServiceState {
     let db = DatabaseConnection::Disconnected;
@@ -46,7 +46,7 @@ pub(crate) fn get_mocked_state(identity_mock: MockIdentityProvider) -> ServiceSt
     let mut token_mock = MockTokenProvider::default();
     token_mock
         .expect_validate_token()
-        .returning(|_, _| Ok(Token::default()));
+        .returning(|_, _| Ok(Token::Unscoped(UnscopedToken::default())));
 
     let provider = ProviderBuilder::default()
         .config(config.clone())

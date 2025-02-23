@@ -37,6 +37,21 @@ pub enum KeystoneApiError {
     #[error("missing authorization")]
     Unauthorized(String),
 
+    #[error("missing x-subject-token header")]
+    SubjectTokenMissing,
+
+    #[error("invalid header")]
+    InvalidHeader,
+
+    #[error("invalid token")]
+    InvalidToken,
+
+    #[error("error building token data: {}", source)]
+    TokenBuilder {
+        #[from]
+        source: crate::api::v3::auth::token::types::TokenBuilderError,
+    },
+
     #[error("internal server error")]
     InternalError(String),
 
@@ -72,6 +87,11 @@ impl IntoResponse for KeystoneApiError {
             KeystoneApiError::IdentityError { .. } => {
                 (StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
+              ).into_response()
+            }
+            KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::TokenBuilder{..} => {
+                (StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": StatusCode::BAD_REQUEST.as_u16(), "message": self.to_string()}})),
               ).into_response()
             }
         }

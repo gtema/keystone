@@ -17,16 +17,25 @@ use chrono::{Local, TimeDelta};
 #[cfg(test)]
 use mockall::mock;
 
+pub mod application_credential;
+pub mod domain_scoped;
 mod error;
 pub mod fernet;
 pub mod fernet_utils;
+pub mod project_scoped;
 pub mod types;
+pub mod unscoped;
 
 use crate::config::{Config, TokenProvider as TokenProviderType};
 pub use error::TokenProviderError;
 use types::TokenBackend;
 
+pub use application_credential::ApplicationCredentialToken;
+pub use domain_scoped::DomainScopeToken;
+pub use project_scoped::ProjectScopeToken;
 pub use types::Token;
+use types::TokenData;
+pub use unscoped::UnscopedToken;
 
 #[derive(Clone, Debug)]
 pub struct TokenProvider {
@@ -66,9 +75,9 @@ impl TokenApi for TokenProvider {
         let token = self.backend_driver.extract(credential)?;
         if Local::now().to_utc()
             > token
-                .expires_at
+                .expires_at()
                 .checked_add_signed(TimeDelta::seconds(window_seconds.unwrap_or(0)))
-                .unwrap_or(token.expires_at)
+                .unwrap_or(*token.expires_at())
         {
             return Err(TokenProviderError::Expired);
         }

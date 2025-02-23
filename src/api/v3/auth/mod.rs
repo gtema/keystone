@@ -12,5 +12,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-pub(crate) mod api;
-pub(crate) mod token;
+use utoipa_axum::router::OpenApiRouter;
+
+use crate::keystone::ServiceState;
+
+pub mod token;
+
+pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
+    OpenApiRouter::new().nest("/tokens", token::openapi_router())
+}
