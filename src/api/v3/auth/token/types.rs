@@ -22,6 +22,8 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::identity::types as provider_types;
+
 /// Authorization token
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
@@ -53,6 +55,10 @@ pub struct Token {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub project: Option<Project>,
+
+    /// A user object.
+    #[builder(default)]
+    pub user: User,
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -75,4 +81,27 @@ pub struct Project {
     id: String,
     /// Project Name
     name: String,
+}
+
+/// User information
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(into))]
+pub struct User {
+    /// User ID
+    id: String,
+    /// User Name
+    name: String,
+    /// User password expiry date
+    #[serde(skip_serializing_if = "Option::is_none")]
+    password_expires_at: Option<DateTime<Utc>>,
+}
+
+impl From<provider_types::User> for User {
+    fn from(value: provider_types::User) -> Self {
+        Self {
+            id: value.id.clone(),
+            name: value.name.clone(),
+            password_expires_at: value.password_expires_at.clone(),
+        }
+    }
 }

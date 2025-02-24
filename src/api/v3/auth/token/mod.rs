@@ -17,9 +17,10 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
+use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
 use crate::token::TokenApi;
-use types::{TokenBuilder, TokenResponse};
+use types::{TokenBuilder, TokenResponse, User};
 
 pub mod types;
 
@@ -62,6 +63,21 @@ async fn validate(
     response.audit_ids(token.audit_ids().clone());
     response.methods(token.methods().clone());
     response.expires_at(*token.expires_at());
+
+    let user = state
+        .provider
+        .get_identity_provider()
+        .get_user(&state.db, token.user_id().clone())
+        .await
+        .map_err(KeystoneApiError::identity)?
+        .ok_or_else(|| KeystoneApiError::NotFound {
+            resource: "user".into(),
+            identifier: token.user_id().clone(),
+        })?;
+
+    let user_response: User = user.into();
+    response.user(user_response);
+
     Ok(TokenResponse {
         token: response.build()?,
     })
@@ -74,17 +90,28 @@ mod tests {
         http::{Request, StatusCode},
     };
     use http_body_util::BodyExt; // for `collect`
+    use sea_orm::DatabaseConnection;
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
 
     use super::openapi_router;
     use crate::api::v3::auth::token::types::TokenResponse;
-    use crate::identity::MockIdentityProvider;
+    use crate::identity::{MockIdentityProvider, types::User};
     use crate::tests::api::{get_mocked_state, get_mocked_state_unauthed};
 
     #[tokio::test]
     async fn test_get() {
-        let identity_mock = MockIdentityProvider::default();
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_get_user()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
+            .returning(|_, _| {
+                Ok(Some(User {
+                    id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
+
         let state = get_mocked_state(identity_mock);
 
         let mut api = openapi_router()
