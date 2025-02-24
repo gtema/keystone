@@ -41,6 +41,10 @@ pub struct Config {
     #[serde(default)]
     pub identity: IdentitySection,
 
+    /// Resource provider related configuration
+    #[serde(default)]
+    pub resource: ResourceSection,
+
     /// Security compliance
     #[serde(default)]
     pub security_compliance: SecurityComplianceSection,
@@ -106,6 +110,11 @@ pub struct IdentitySection {
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
+pub struct ResourceSection {
+    pub driver: String,
+}
+
+#[derive(Debug, Default, Deserialize, Clone)]
 pub enum PasswordHashingAlgo {
     #[default]
     Bcrypt,
@@ -152,7 +161,8 @@ impl Config {
         builder = builder
             .set_default("identity.max_password_length", "4096")?
             .set_default("fernet_tokens.key_repository", "/etc/keystone/fernet-keys/")?
-            .set_default("fernet_tokens.max_active_keys", "3")?;
+            .set_default("fernet_tokens.max_active_keys", "3")?
+            .set_default("resource.driver", "sql")?;
         if std::path::Path::new(&path).is_file() {
             builder = builder.add_source(File::from(path).format(FileFormat::Ini));
         }

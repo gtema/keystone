@@ -19,8 +19,9 @@ use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
+use crate::resource::ResourceApi;
 use crate::token::TokenApi;
-use types::{TokenBuilder, TokenResponse, User};
+use types::{TokenBuilder, TokenResponse, UserBuilder};
 
 pub mod types;
 
@@ -75,8 +76,23 @@ async fn validate(
             identifier: token.user_id().clone(),
         })?;
 
-    let user_response: User = user.into();
-    response.user(user_response);
+    let user_domain = state
+        .provider
+        .get_resource_provider()
+        .get_domain(&state.db, user.domain_id.clone())
+        .await
+        .map_err(KeystoneApiError::resource)?
+        .ok_or_else(|| KeystoneApiError::NotFound {
+            resource: "domain".into(),
+            identifier: user.domain_id.clone(),
+        })?;
+
+    let mut user_response: UserBuilder = UserBuilder::default();
+    user_response.id(user.id);
+    user_response.name(user.name);
+    user_response.password_expires_at(user.password_expires_at);
+    user_response.domain(user_domain);
+    response.user(user_response.build()?);
 
     Ok(TokenResponse {
         token: response.build()?,
@@ -91,16 +107,24 @@ mod tests {
     };
     use http_body_util::BodyExt; // for `collect`
     use sea_orm::DatabaseConnection;
+    use std::sync::Arc;
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
 
     use super::openapi_router;
     use crate::api::v3::auth::token::types::TokenResponse;
+    use crate::config::Config;
     use crate::identity::{MockIdentityProvider, types::User};
-    use crate::tests::api::{get_mocked_state, get_mocked_state_unauthed};
+    use crate::keystone::Service;
+    use crate::provider::ProviderBuilder;
+    use crate::resource::{MockResourceProvider, types::Domain};
+    use crate::tests::api::get_mocked_state_unauthed;
+    use crate::token::{MockTokenProvider, Token, UnscopedToken};
 
     #[tokio::test]
     async fn test_get() {
+        let db = DatabaseConnection::Disconnected;
+        let config = Config::default();
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
@@ -108,11 +132,38 @@ mod tests {
             .returning(|_, _| {
                 Ok(Some(User {
                     id: "bar".into(),
+                    domain_id: "domain_id".into(),
                     ..Default::default()
                 }))
             });
 
-        let state = get_mocked_state(identity_mock);
+        let mut resource_mock = MockResourceProvider::default();
+        resource_mock
+            .expect_get_domain()
+            .withf(|_: &DatabaseConnection, id: &String| *id == "domain_id")
+            .returning(|_, _| {
+                Ok(Some(Domain {
+                    id: "domain_id".into(),
+                    ..Default::default()
+                }))
+            });
+        let mut token_mock = MockTokenProvider::default();
+        token_mock.expect_validate_token().returning(|_, _| {
+            Ok(Token::Unscoped(UnscopedToken {
+                user_id: "bar".into(),
+                ..Default::default()
+            }))
+        });
+
+        let provider = ProviderBuilder::default()
+            .config(config.clone())
+            .identity(identity_mock)
+            .resource(resource_mock)
+            .token(token_mock)
+            .build()
+            .unwrap();
+
+        let state = Arc::new(Service::new(config, db, provider).unwrap());
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())

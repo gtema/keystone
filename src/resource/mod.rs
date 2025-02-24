@@ -12,16 +12,88 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-pub struct ResourceSrv {}
+use async_trait::async_trait;
+#[cfg(test)]
+use mockall::mock;
+use sea_orm::DatabaseConnection;
 
-impl Default for ResourceSrv {
-    fn default() -> Self {
-        Self::new()
+pub mod backends;
+pub mod error;
+pub(crate) mod types;
+
+use crate::config::Config;
+use crate::plugin_manager::PluginManager;
+use crate::resource::backends::sql::SqlBackend;
+use crate::resource::error::ResourceProviderError;
+use crate::resource::types::{Domain, ResourceBackend};
+
+#[derive(Clone, Debug)]
+pub struct ResourceProvider {
+    backend_driver: Box<dyn ResourceBackend>,
+}
+
+#[async_trait]
+pub trait ResourceApi: Send + Sync + Clone {
+    async fn get_domain(
+        &self,
+        db: &DatabaseConnection,
+        domain_id: String,
+    ) -> Result<Option<Domain>, ResourceProviderError>;
+}
+
+#[cfg(test)]
+mock! {
+    pub ResourceProvider {
+        pub fn new(cfg: &Config, plugin_manager: &PluginManager) -> Result<Self, ResourceProviderError>;
+    }
+
+    #[async_trait]
+    impl ResourceApi for ResourceProvider {
+       async fn get_domain(
+           &self,
+           db: &DatabaseConnection,
+           domain_id: String,
+       ) -> Result<Option<Domain>, ResourceProviderError>;
+    }
+
+    impl Clone for ResourceProvider {
+        fn clone(&self) -> Self;
     }
 }
 
-impl ResourceSrv {
-    pub fn new() -> Self {
-        Self {}
+impl ResourceProvider {
+    pub fn new(
+        config: &Config,
+        plugin_manager: &PluginManager,
+    ) -> Result<Self, ResourceProviderError> {
+        let mut backend_driver = if let Some(driver) =
+            plugin_manager.get_resource_backend(config.resource.driver.clone())
+        {
+            driver.clone()
+        } else {
+            match config.resource.driver.as_str() {
+                "sql" => Box::new(SqlBackend::default()),
+                _ => {
+                    return Err(ResourceProviderError::UnsupportedDriver(
+                        config.resource.driver.clone(),
+                    ));
+                }
+            }
+        };
+        backend_driver.set_config(config.clone());
+        Ok(Self { backend_driver })
+    }
+}
+
+#[async_trait]
+impl ResourceApi for ResourceProvider {
+    /// Get single domain
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn get_domain(
+        &self,
+        db: &DatabaseConnection,
+        domain_id: String,
+    ) -> Result<Option<Domain>, ResourceProviderError> {
+        self.backend_driver.get_domain(db, domain_id).await
     }
 }
