@@ -30,44 +30,40 @@ pub enum Token {
     ApplicationCredential(ApplicationCredentialToken),
 }
 
-pub trait TokenData {
-    fn user_id(&self) -> &String;
-    fn expires_at(&self) -> &DateTime<Utc>;
-    fn methods(&self) -> &Vec<String>;
-    fn audit_ids(&self) -> &Vec<String>;
-}
+impl Token {
+    pub fn user_id(&self) -> &String {
+        match self {
+            Token::Unscoped(x) => &x.user_id,
+            Token::ProjectScope(x) => &x.user_id,
+            Token::DomainScope(x) => &x.user_id,
+            Token::ApplicationCredential(x) => &x.user_id,
+        }
+    }
 
-impl TokenData for Token {
-    fn user_id(&self) -> &String {
+    pub fn expires_at(&self) -> &DateTime<Utc> {
         match self {
-            Token::Unscoped(x) => x.user_id(),
-            Token::ProjectScope(x) => x.user_id(),
-            Token::DomainScope(x) => x.user_id(),
-            Token::ApplicationCredential(x) => x.user_id(),
+            Token::Unscoped(x) => &x.expires_at,
+            Token::ProjectScope(x) => &x.expires_at,
+            Token::DomainScope(x) => &x.expires_at,
+            Token::ApplicationCredential(x) => &x.expires_at,
         }
     }
-    fn expires_at(&self) -> &DateTime<Utc> {
+
+    pub fn methods(&self) -> &Vec<String> {
         match self {
-            Token::Unscoped(x) => x.expires_at(),
-            Token::ProjectScope(x) => x.expires_at(),
-            Token::DomainScope(x) => x.expires_at(),
-            Token::ApplicationCredential(x) => x.expires_at(),
+            Token::Unscoped(x) => &x.methods,
+            Token::ProjectScope(x) => &x.methods,
+            Token::DomainScope(x) => &x.methods,
+            Token::ApplicationCredential(x) => &x.methods,
         }
     }
-    fn methods(&self) -> &Vec<String> {
+
+    pub fn audit_ids(&self) -> &Vec<String> {
         match self {
-            Token::Unscoped(x) => x.methods(),
-            Token::ProjectScope(x) => x.methods(),
-            Token::DomainScope(x) => x.methods(),
-            Token::ApplicationCredential(x) => x.methods(),
-        }
-    }
-    fn audit_ids(&self) -> &Vec<String> {
-        match self {
-            Token::Unscoped(x) => x.audit_ids(),
-            Token::ProjectScope(x) => x.audit_ids(),
-            Token::DomainScope(x) => x.audit_ids(),
-            Token::ApplicationCredential(x) => x.audit_ids(),
+            Token::Unscoped(x) => &x.audit_ids,
+            Token::ProjectScope(x) => &x.audit_ids,
+            Token::DomainScope(x) => &x.audit_ids,
+            Token::ApplicationCredential(x) => &x.audit_ids,
         }
     }
 }

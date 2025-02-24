@@ -21,7 +21,7 @@ use crate::token::{
     error::TokenProviderError,
     fernet::{self, MsgPackToken},
     fernet_utils,
-    types::{Token, TokenData},
+    types::Token,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -31,21 +31,6 @@ pub struct DomainScopeToken {
     pub audit_ids: Vec<String>,
     pub expires_at: DateTime<Utc>,
     pub domain_id: String,
-}
-
-impl TokenData for DomainScopeToken {
-    fn user_id(&self) -> &String {
-        &self.user_id
-    }
-    fn expires_at(&self) -> &DateTime<Utc> {
-        &self.expires_at
-    }
-    fn methods(&self) -> &Vec<String> {
-        &self.methods
-    }
-    fn audit_ids(&self) -> &Vec<String> {
-        &self.audit_ids
-    }
 }
 
 impl From<DomainScopeToken> for Token {
