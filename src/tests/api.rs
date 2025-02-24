@@ -44,9 +44,12 @@ pub(crate) fn get_mocked_state(identity_mock: MockIdentityProvider) -> ServiceSt
     let db = DatabaseConnection::Disconnected;
     let config = Config::default();
     let mut token_mock = MockTokenProvider::default();
-    token_mock
-        .expect_validate_token()
-        .returning(|_, _| Ok(Token::Unscoped(UnscopedToken::default())));
+    token_mock.expect_validate_token().returning(|_, _| {
+        Ok(Token::Unscoped(UnscopedToken {
+            user_id: "bar".into(),
+            ..Default::default()
+        }))
+    });
 
     let provider = ProviderBuilder::default()
         .config(config.clone())
