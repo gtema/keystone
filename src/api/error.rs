@@ -21,6 +21,7 @@ use serde_json::json;
 use thiserror::Error;
 
 use crate::identity::error::IdentityProviderError;
+use crate::resource::error::ResourceProviderError;
 
 /// Keystone API operation errors
 #[derive(Debug, Error)]
@@ -52,6 +53,12 @@ pub enum KeystoneApiError {
         source: crate::api::v3::auth::token::types::TokenBuilderError,
     },
 
+    #[error("error building token user data: {}", source)]
+    TokenUserBuilder {
+        #[from]
+        source: crate::api::v3::auth::token::types::UserBuilderError,
+    },
+
     #[error("internal server error")]
     InternalError(String),
 
@@ -59,6 +66,12 @@ pub enum KeystoneApiError {
     IdentityError {
         #[from]
         source: IdentityProviderError,
+    },
+
+    #[error(transparent)]
+    ResourceError {
+        #[from]
+        source: ResourceProviderError,
     },
 }
 
@@ -84,12 +97,12 @@ impl IntoResponse for KeystoneApiError {
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
                 ).into_response()
             }
-            KeystoneApiError::IdentityError { .. } => {
+            KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } => {
                 (StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
               ).into_response()
             }
-            KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::TokenBuilder{..} => {
+            KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::TokenBuilder{..} | KeystoneApiError::TokenUserBuilder {..}=> {
                 (StatusCode::BAD_REQUEST,
                 Json(json!({"error": {"code": StatusCode::BAD_REQUEST.as_u16(), "message": self.to_string()}})),
               ).into_response()
@@ -110,6 +123,15 @@ impl KeystoneApiError {
                 identifier: x,
             },
             _ => Self::IdentityError { source },
+        }
+    }
+    pub fn resource(source: ResourceProviderError) -> Self {
+        match source {
+            ResourceProviderError::DomainNotFound(x) => Self::NotFound {
+                resource: "domain".into(),
+                identifier: x,
+            },
+            _ => Self::ResourceError { source },
         }
     }
 }

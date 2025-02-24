@@ -22,7 +22,7 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-use crate::identity::types as provider_types;
+use crate::resource::types as resource_provider_types;
 
 /// Authorization token
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -78,9 +78,9 @@ impl IntoResponse for TokenResponse {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct Project {
     /// Project ID
-    id: String,
+    pub id: String,
     /// Project Name
-    name: String,
+    pub name: String,
 }
 
 /// User information
@@ -88,20 +88,40 @@ pub struct Project {
 #[builder(setter(into))]
 pub struct User {
     /// User ID
-    id: String,
+    pub id: String,
     /// User Name
-    name: String,
+    pub name: String,
+    /// User domain
+    pub domain: Domain,
     /// User password expiry date
     #[serde(skip_serializing_if = "Option::is_none")]
-    password_expires_at: Option<DateTime<Utc>>,
+    pub password_expires_at: Option<DateTime<Utc>>,
 }
 
-impl From<provider_types::User> for User {
-    fn from(value: provider_types::User) -> Self {
+/// Domain information
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(into))]
+pub struct Domain {
+    /// Domain ID
+    pub id: String,
+    /// Domain Name
+    pub name: String,
+}
+
+//impl From<identity_provider_types::User> for User {
+//    fn from(value: identity_provider_types::User) -> Self {
+//        Self {
+//            id: value.id.clone(),
+//            name: value.name.clone(),
+//        }
+//    }
+//}
+
+impl From<resource_provider_types::Domain> for Domain {
+    fn from(value: resource_provider_types::Domain) -> Self {
         Self {
             id: value.id.clone(),
             name: value.name.clone(),
-            password_expires_at: value.password_expires_at.clone(),
         }
     }
 }

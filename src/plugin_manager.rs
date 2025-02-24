@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 
 use crate::identity::types::IdentityBackend;
+use crate::resource::types::ResourceBackend;
 
 /// Plugin manager allowing to pass custom backend plugins implementing required trait during the
 /// service start
@@ -22,6 +23,7 @@ use crate::identity::types::IdentityBackend;
 pub struct PluginManager {
     /// Identity backend plugins
     identity_backends: HashMap<String, Box<dyn IdentityBackend>>,
+    resource_backends: HashMap<String, Box<dyn ResourceBackend>>,
 }
 
 impl PluginManager {
@@ -42,5 +44,14 @@ impl PluginManager {
         name: S,
     ) -> Option<&Box<dyn IdentityBackend>> {
         self.identity_backends.get(name.as_ref())
+    }
+
+    /// Get registered resource backend
+    #[allow(clippy::borrowed_box)]
+    pub fn get_resource_backend<S: AsRef<str>>(
+        &self,
+        name: S,
+    ) -> Option<&Box<dyn ResourceBackend>> {
+        self.resource_backends.get(name.as_ref())
     }
 }

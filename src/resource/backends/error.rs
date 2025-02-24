@@ -14,38 +14,28 @@
 
 use thiserror::Error;
 
-use crate::identity::error::*;
-use crate::resource::error::*;
-use crate::token::TokenProviderError;
+use crate::resource::types::*;
 
-#[derive(Debug, Error)]
-pub enum KeystoneError {
-    #[error(transparent)]
-    IdentityError {
-        #[from]
-        source: IdentityProviderError,
-    },
+#[derive(Error, Debug)]
+pub enum ResourceDatabaseError {
+    #[error("domain {0} not found")]
+    DomainNotFound(String),
 
-    #[error(transparent)]
-    ResourceError {
-        #[from]
-        source: ResourceProviderError,
-    },
-
-    #[error(transparent)]
-    TokenProvider {
-        #[from]
-        source: TokenProviderError,
-    },
-
-    #[error("cloud {0} is not present in clouds.yaml")]
-    CloudConfig(String),
-
-    /// Json serialization error.
-    #[error("json serde error: {}", source)]
-    JsonError {
-        /// The source of the error.
+    #[error("data serialization error")]
+    Serde {
         #[from]
         source: serde_json::Error,
+    },
+
+    #[error("building domain data")]
+    DomainBuilderError {
+        #[from]
+        source: DomainBuilderError,
+    },
+
+    #[error("database data")]
+    Database {
+        #[from]
+        source: sea_orm::DbErr,
     },
 }

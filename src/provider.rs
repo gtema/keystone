@@ -20,6 +20,9 @@ use crate::identity::IdentityApi;
 #[double]
 use crate::identity::IdentityProvider;
 use crate::plugin_manager::PluginManager;
+use crate::resource::ResourceApi;
+#[double]
+use crate::resource::ResourceProvider;
 use crate::token::TokenApi;
 #[double]
 use crate::token::TokenProvider;
@@ -36,23 +39,30 @@ use crate::token::TokenProvider;
 pub struct Provider {
     pub config: Config,
     identity: IdentityProvider,
+    resource: ResourceProvider,
     token: TokenProvider,
 }
 
 impl Provider {
     pub fn new(cfg: Config, plugin_manager: PluginManager) -> Result<Self, KeystoneError> {
         let identity_provider = IdentityProvider::new(&cfg, &plugin_manager)?;
+        let resource_provider = ResourceProvider::new(&cfg, &plugin_manager)?;
         let token_provider = TokenProvider::new(&cfg)?;
 
         Ok(Self {
             config: cfg,
             identity: identity_provider,
+            resource: resource_provider,
             token: token_provider,
         })
     }
 
     pub fn get_identity_provider(&self) -> &impl IdentityApi {
         &self.identity
+    }
+
+    pub fn get_resource_provider(&self) -> &impl ResourceApi {
+        &self.resource
     }
 
     pub fn get_token_provider(&self) -> &impl TokenApi {
