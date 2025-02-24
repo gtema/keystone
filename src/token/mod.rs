@@ -34,7 +34,6 @@ pub use application_credential::ApplicationCredentialToken;
 pub use domain_scoped::DomainScopeToken;
 pub use project_scoped::ProjectScopeToken;
 pub use types::Token;
-use types::TokenData;
 pub use unscoped::UnscopedToken;
 
 #[derive(Clone, Debug)]

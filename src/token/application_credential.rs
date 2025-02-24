@@ -21,7 +21,7 @@ use crate::token::{
     error::TokenProviderError,
     fernet::{self, MsgPackToken},
     fernet_utils,
-    types::{Token, TokenData},
+    types::Token,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -32,21 +32,6 @@ pub struct ApplicationCredentialToken {
     pub expires_at: DateTime<Utc>,
     pub project_id: String,
     pub application_credential_id: String,
-}
-
-impl TokenData for ApplicationCredentialToken {
-    fn user_id(&self) -> &String {
-        &self.user_id
-    }
-    fn expires_at(&self) -> &DateTime<Utc> {
-        &self.expires_at
-    }
-    fn methods(&self) -> &Vec<String> {
-        &self.methods
-    }
-    fn audit_ids(&self) -> &Vec<String> {
-        &self.audit_ids
-    }
 }
 
 impl From<ApplicationCredentialToken> for Token {

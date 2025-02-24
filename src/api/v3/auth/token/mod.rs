@@ -18,7 +18,7 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::keystone::ServiceState;
-use crate::token::{TokenApi, types::TokenData};
+use crate::token::TokenApi;
 use types::{TokenBuilder, TokenResponse};
 
 pub mod types;
