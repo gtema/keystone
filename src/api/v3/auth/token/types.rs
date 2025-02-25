@@ -50,15 +50,21 @@ pub struct Token {
     /// The date and time when the token expires.
     pub expires_at: DateTime<Utc>,
 
+    /// A user object.
+    #[builder(default)]
+    pub user: User,
+
     /// A project object including the id, name and domain object representing the project the
     /// token is scoped to. This is only included in tokens that are scoped to a project.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub project: Option<Project>,
 
-    /// A user object.
+    /// A domain object including the id and name representing the domain the token is scoped to.
+    /// This is only included in tokens that are scoped to a domain.
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
-    pub user: User,
+    pub domain: Option<Domain>,
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -75,12 +81,15 @@ impl IntoResponse for TokenResponse {
 }
 
 /// Project information
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct Project {
     /// Project ID
     pub id: String,
     /// Project Name
     pub name: String,
+
+    /// project domain
+    pub domain: Domain,
 }
 
 /// User information
@@ -94,7 +103,6 @@ pub struct User {
     /// User domain
     pub domain: Domain,
     /// User password expiry date
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub password_expires_at: Option<DateTime<Utc>>,
 }
 
@@ -107,15 +115,6 @@ pub struct Domain {
     /// Domain Name
     pub name: String,
 }
-
-//impl From<identity_provider_types::User> for User {
-//    fn from(value: identity_provider_types::User) -> Self {
-//        Self {
-//            id: value.id.clone(),
-//            name: value.name.clone(),
-//        }
-//    }
-//}
 
 impl From<resource_provider_types::Domain> for Domain {
     fn from(value: resource_provider_types::Domain) -> Self {

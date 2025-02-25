@@ -85,7 +85,7 @@ async fn show(
     state
         .provider
         .get_identity_provider()
-        .get_group(&state.db, group_id.clone())
+        .get_group(&state.db, &group_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -142,7 +142,7 @@ async fn remove(
     state
         .provider
         .get_identity_provider()
-        .delete_group(&state.db, group_id)
+        .delete_group(&state.db, &group_id)
         .await
         .map_err(KeystoneApiError::identity)?;
     Ok((StatusCode::NO_CONTENT).into_response())
@@ -282,12 +282,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_group()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "foo")
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
 
         identity_mock
             .expect_get_group()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(Group {
                     id: "bar".into(),
@@ -399,12 +399,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_delete_group()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "foo")
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
             .returning(|_, _| Err(IdentityProviderError::GroupNotFound("foo".into())));
 
         identity_mock
             .expect_delete_group()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| Ok(()));
 
         let state = get_mocked_state(identity_mock);

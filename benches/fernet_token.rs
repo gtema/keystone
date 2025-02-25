@@ -9,7 +9,7 @@ use openstack_keystone::token::fernet::FernetTokenProvider;
 use openstack_keystone::token::types::TokenBackend;
 
 fn decode(backend: &FernetTokenProvider, token: &str) {
-    backend.decrypt(token.into()).unwrap();
+    backend.decrypt(token).unwrap();
 }
 
 fn bench_decrypt_token(c: &mut Criterion) {

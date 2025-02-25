@@ -13,6 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod domain;
+pub mod project;
 
 use async_trait::async_trait;
 use dyn_clone::DynClone;
@@ -22,6 +23,7 @@ use crate::config::Config;
 use crate::resource::ResourceProviderError;
 
 pub use crate::resource::types::domain::{Domain, DomainBuilder, DomainBuilderError};
+pub use crate::resource::types::project::{Project, ProjectBuilder, ProjectBuilderError};
 
 #[async_trait]
 pub trait ResourceBackend: DynClone + Send + Sync + std::fmt::Debug {
@@ -29,11 +31,18 @@ pub trait ResourceBackend: DynClone + Send + Sync + std::fmt::Debug {
     fn set_config(&mut self, config: Config);
 
     /// Get single domain by ID
-    async fn get_domain(
+    async fn get_domain<'a>(
         &self,
         db: &DatabaseConnection,
-        domain_id: String,
+        domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError>;
+
+    /// Get single project by ID
+    async fn get_project<'a>(
+        &self,
+        db: &DatabaseConnection,
+        project_id: &'a str,
+    ) -> Result<Option<Project>, ResourceProviderError>;
 }
 
 dyn_clone::clone_trait_object!(ResourceBackend);

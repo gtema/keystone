@@ -73,7 +73,7 @@ pub trait TokenBackend: DynClone + Send + Sync + std::fmt::Debug {
     fn set_config(&mut self, g: Config);
 
     /// Extract the token from string
-    fn extract(&self, credential: String) -> Result<Token, TokenProviderError>;
+    fn extract(&self, credential: &str) -> Result<Token, TokenProviderError>;
 }
 
 dyn_clone::clone_trait_object!(TokenBackend);

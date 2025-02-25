@@ -17,16 +17,15 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
-use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
-use crate::resource::ResourceApi;
 use crate::token::TokenApi;
-use types::{TokenBuilder, TokenResponse, UserBuilder};
+use types::{Token as ApiResponseToken, TokenResponse};
 
+mod common;
 pub mod types;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
-    OpenApiRouter::new().routes(routes!(validate))
+    OpenApiRouter::new().routes(routes!(show))
 }
 
 /// Validate token
@@ -41,7 +40,7 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     tag="auth"
 )]
 #[tracing::instrument(name = "api::token_get", level = "debug", skip(state))]
-async fn validate(
+async fn show(
     Auth(user_auth): Auth,
     headers: HeaderMap,
     State(state): State<ServiceState>,
@@ -56,46 +55,14 @@ async fn validate(
     let token = state
         .provider
         .get_token_provider()
-        .validate_token(subject_token, None)
+        .validate_token(&subject_token, None)
         .await
         .map_err(|_| KeystoneApiError::InvalidToken)?;
 
-    let mut response = TokenBuilder::default();
-    response.audit_ids(token.audit_ids().clone());
-    response.methods(token.methods().clone());
-    response.expires_at(*token.expires_at());
-
-    let user = state
-        .provider
-        .get_identity_provider()
-        .get_user(&state.db, token.user_id().clone())
-        .await
-        .map_err(KeystoneApiError::identity)?
-        .ok_or_else(|| KeystoneApiError::NotFound {
-            resource: "user".into(),
-            identifier: token.user_id().clone(),
-        })?;
-
-    let user_domain = state
-        .provider
-        .get_resource_provider()
-        .get_domain(&state.db, user.domain_id.clone())
-        .await
-        .map_err(KeystoneApiError::resource)?
-        .ok_or_else(|| KeystoneApiError::NotFound {
-            resource: "domain".into(),
-            identifier: user.domain_id.clone(),
-        })?;
-
-    let mut user_response: UserBuilder = UserBuilder::default();
-    user_response.id(user.id);
-    user_response.name(user.name);
-    user_response.password_expires_at(user.password_expires_at);
-    user_response.domain(user_domain);
-    response.user(user_response.build()?);
+    let response_token = ApiResponseToken::from_provider_token(&token, &state).await?;
 
     Ok(TokenResponse {
-        token: response.build()?,
+        token: response_token,
     })
 }
 
@@ -119,31 +86,28 @@ mod tests {
     use crate::provider::ProviderBuilder;
     use crate::resource::{MockResourceProvider, types::Domain};
     use crate::tests::api::get_mocked_state_unauthed;
-    use crate::token::{MockTokenProvider, Token, UnscopedToken};
+    use crate::token::*;
 
     #[tokio::test]
     async fn test_get() {
         let db = DatabaseConnection::Disconnected;
         let config = Config::default();
         let mut identity_mock = MockIdentityProvider::default();
-        identity_mock
-            .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
-            .returning(|_, _| {
-                Ok(Some(User {
-                    id: "bar".into(),
-                    domain_id: "domain_id".into(),
-                    ..Default::default()
-                }))
-            });
+        identity_mock.expect_get_user().returning(|_, id: &'_ str| {
+            Ok(Some(User {
+                id: id.to_string(),
+                domain_id: "user_domain_id".into(),
+                ..Default::default()
+            }))
+        });
 
         let mut resource_mock = MockResourceProvider::default();
         resource_mock
             .expect_get_domain()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "domain_id")
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "user_domain_id")
             .returning(|_, _| {
                 Ok(Some(Domain {
-                    id: "domain_id".into(),
+                    id: "user_domain_id".into(),
                     ..Default::default()
                 }))
             });

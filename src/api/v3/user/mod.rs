@@ -84,7 +84,7 @@ async fn show(
     state
         .provider
         .get_identity_provider()
-        .get_user(&state.db, user_id.clone())
+        .get_user(&state.db, &user_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -141,7 +141,7 @@ async fn remove(
     state
         .provider
         .get_identity_provider()
-        .delete_user(&state.db, user_id)
+        .delete_user(&state.db, &user_id)
         .await
         .map_err(KeystoneApiError::identity)?;
     Ok((StatusCode::NO_CONTENT).into_response())
@@ -331,12 +331,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "foo")
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
 
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(User {
                     id: "bar".into(),
@@ -395,12 +395,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_delete_user()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "foo")
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
             .returning(|_, _| Err(IdentityProviderError::UserNotFound("foo".into())));
 
         identity_mock
             .expect_delete_user()
-            .withf(|_: &DatabaseConnection, id: &String| *id == "bar")
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| Ok(()));
 
         let state = get_mocked_state(identity_mock);

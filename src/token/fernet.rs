@@ -118,12 +118,12 @@ impl FernetTokenProvider {
     ///
     /// 1. Decrypt as Fernet
     /// 2. Unpack MessagePack payload
-    pub fn decrypt(&self, credential: String) -> Result<Token, TokenProviderError> {
+    pub fn decrypt(&self, credential: &str) -> Result<Token, TokenProviderError> {
         // TODO: Implement fernet keys change watching. Keystone loads them from FS on every
         // request and in the best case it costs 15µs.
         let payload = match &self.fernet {
-            Some(fernet) => fernet.decrypt(credential.as_ref())?,
-            _ => self.get_fernet()?.decrypt(credential.as_ref())?,
+            Some(fernet) => fernet.decrypt(credential)?,
+            _ => self.get_fernet()?.decrypt(credential)?,
         };
         self.parse(&mut payload.as_slice())
     }
@@ -148,7 +148,7 @@ impl TokenBackend for FernetTokenProvider {
     }
 
     /// Extract token
-    fn extract(&self, credential: String) -> Result<Token, TokenProviderError> {
+    fn extract(&self, credential: &str) -> Result<Token, TokenProviderError> {
         self.decrypt(credential)
     }
 }
@@ -187,7 +187,7 @@ pub(super) mod tests {
         backend.set_config(config);
         backend.load_keys().unwrap();
 
-        if let Token::Unscoped(decrypted) = backend.decrypt(token.into()).unwrap() {
+        if let Token::Unscoped(decrypted) = backend.decrypt(token).unwrap() {
             assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
             assert_eq!(decrypted.methods, vec!["token"]);
             assert_eq!(
@@ -212,7 +212,7 @@ pub(super) mod tests {
         backend.set_config(config);
         backend.load_keys().unwrap();
 
-        if let Token::DomainScope(decrypted) = backend.decrypt(token.into()).unwrap() {
+        if let Token::DomainScope(decrypted) = backend.decrypt(token).unwrap() {
             assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
             assert_eq!(decrypted.domain_id, "default");
             assert_eq!(decrypted.methods, vec!["password"]);
@@ -235,7 +235,7 @@ pub(super) mod tests {
         backend.set_config(config);
         backend.load_keys().unwrap();
 
-        if let Token::ProjectScope(decrypted) = backend.decrypt(token.into()).unwrap() {
+        if let Token::ProjectScope(decrypted) = backend.decrypt(token).unwrap() {
             assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
             assert_eq!(decrypted.project_id, "97cd761d581b485792a4afc8cc6a998d");
             assert_eq!(decrypted.methods, vec!["password"]);
@@ -258,7 +258,7 @@ pub(super) mod tests {
         backend.set_config(config);
         backend.load_keys().unwrap();
 
-        if let Token::ApplicationCredential(decrypted) = backend.decrypt(token.into()).unwrap() {
+        if let Token::ApplicationCredential(decrypted) = backend.decrypt(token).unwrap() {
             assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
             assert_eq!(decrypted.project_id, "97cd761d581b485792a4afc8cc6a998d");
             assert_eq!(decrypted.methods, vec!["application_credential"]);

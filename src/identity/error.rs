@@ -32,6 +32,7 @@ pub enum IdentityProviderError {
 
     #[error("user {0} not found")]
     UserNotFound(String),
+
     #[error("group {0} not found")]
     GroupNotFound(String),
 

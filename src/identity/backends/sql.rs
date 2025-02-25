@@ -63,10 +63,10 @@ impl IdentityBackend for SqlBackend {
 
     /// Get single user by ID
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn get_user(
+    async fn get_user<'a>(
         &self,
         db: &DatabaseConnection,
-        user_id: String,
+        user_id: &'a str,
     ) -> Result<Option<User>, IdentityProviderError> {
         Ok(get_user(&self.config, db, user_id).await?)
     }
@@ -83,10 +83,10 @@ impl IdentityBackend for SqlBackend {
 
     /// Delete user
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn delete_user(
+    async fn delete_user<'a>(
         &self,
         db: &DatabaseConnection,
-        user_id: String,
+        user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         user::delete(&self.config, db, user_id)
             .await
@@ -105,10 +105,10 @@ impl IdentityBackend for SqlBackend {
 
     /// Get single group by ID
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn get_group(
+    async fn get_group<'a>(
         &self,
         db: &DatabaseConnection,
-        group_id: String,
+        group_id: &'a str,
     ) -> Result<Option<Group>, IdentityProviderError> {
         Ok(group::get(&self.config, db, group_id).await?)
     }
@@ -125,10 +125,10 @@ impl IdentityBackend for SqlBackend {
 
     /// Delete group
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn delete_group(
+    async fn delete_group<'a>(
         &self,
         db: &DatabaseConnection,
-        group_id: String,
+        group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         group::delete(&self.config, db, group_id)
             .await
@@ -222,9 +222,9 @@ async fn list_users(
 pub async fn get_user(
     conf: &Config,
     db: &DatabaseConnection,
-    user_id: String,
+    user_id: &str,
 ) -> Result<Option<User>, IdentityDatabaseError> {
-    let user_select = DbUser::find_by_id(&user_id);
+    let user_select = DbUser::find_by_id(user_id);
 
     let user_entry: Option<db_user::Model> = user_select.one(db).await?;
 
@@ -249,7 +249,7 @@ pub async fn get_user(
                         if !federated_user.is_empty() {
                             common::get_federated_user_builder(user, federated_user, user_opts)
                         } else {
-                            return Err(IdentityDatabaseError::MalformedUser(user_id.clone()))?;
+                            return Err(IdentityDatabaseError::MalformedUser(user_id.to_string()))?;
                         }
                     }
                 },
@@ -369,7 +369,7 @@ mod tests {
             .into_connection();
         let config = Config::default();
         assert_eq!(
-            get_user(&config, &db, "1".into()).await.unwrap().unwrap(),
+            get_user(&config, &db, "1").await.unwrap().unwrap(),
             User {
                 id: "1".into(),
                 domain_id: "foo_domain".into(),

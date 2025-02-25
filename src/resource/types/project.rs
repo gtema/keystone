@@ -12,13 +12,24 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//use chrono::Local;
-//use sea_orm::DatabaseConnection;
-//use sea_orm::entity::*;
-//
-//use crate::config::Config;
-// use crate::db::entity::{prelude::Domain as DbDomain, domain};
-//use crate::resource::backends::error::ResourceDatabaseError;
+use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
-#[cfg(test)]
-mod tests {}
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[builder(setter(strip_option, into))]
+pub struct Project {
+    /// The project ID.
+    pub id: String,
+    /// The project name.
+    pub name: String,
+    /// The project domain_id.
+    pub domain_id: String,
+    pub enabled: bool,
+    /// The resource description
+    #[builder(default)]
+    pub description: Option<String>,
+    /// Additional project properties
+    #[builder(default)]
+    pub extra: Option<Value>,
+}
