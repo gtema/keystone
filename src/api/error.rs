@@ -48,15 +48,9 @@ pub enum KeystoneApiError {
     InvalidToken,
 
     #[error("error building token data: {}", source)]
-    TokenBuilder {
+    Token {
         #[from]
-        source: crate::api::v3::auth::token::types::TokenBuilderError,
-    },
-
-    #[error("error building token user data: {}", source)]
-    TokenUserBuilder {
-        #[from]
-        source: crate::api::v3::auth::token::types::UserBuilderError,
+        source: TokenError,
     },
 
     #[error("internal server error")]
@@ -102,7 +96,7 @@ impl IntoResponse for KeystoneApiError {
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
               ).into_response()
             }
-            KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::TokenBuilder{..} | KeystoneApiError::TokenUserBuilder {..}=> {
+            KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} => {
                 (StatusCode::BAD_REQUEST,
                 Json(json!({"error": {"code": StatusCode::BAD_REQUEST.as_u16(), "message": self.to_string()}})),
               ).into_response()
@@ -134,4 +128,24 @@ impl KeystoneApiError {
             _ => Self::ResourceError { source },
         }
     }
+}
+
+#[derive(Debug, Error)]
+pub enum TokenError {
+    #[error("error building token data: {}", source)]
+    Builder {
+        #[from]
+        source: crate::api::v3::auth::token::types::TokenBuilderError,
+    },
+
+    #[error("error building token user data: {}", source)]
+    UserBuilder {
+        #[from]
+        source: crate::api::v3::auth::token::types::UserBuilderError,
+    },
+    #[error("error building token user data: {}", source)]
+    ProjectBuilder {
+        #[from]
+        source: crate::api::v3::auth::token::types::ProjectBuilderError,
+    },
 }

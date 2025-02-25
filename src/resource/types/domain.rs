@@ -27,7 +27,7 @@ pub struct Domain {
     /// The resource description
     #[builder(default)]
     pub description: Option<String>,
-    /// Additional user properties
+    /// Additional domain properties
     #[builder(default)]
     pub extra: Option<Value>,
 }

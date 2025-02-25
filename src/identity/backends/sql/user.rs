@@ -58,13 +58,13 @@ pub(super) async fn create(
 pub async fn delete(
     _conf: &Config,
     db: &DatabaseConnection,
-    user_id: String,
+    user_id: &str,
 ) -> Result<(), IdentityDatabaseError> {
-    let res = DbUser::delete_by_id(&user_id).exec(db).await?;
+    let res = DbUser::delete_by_id(user_id).exec(db).await?;
     if res.rows_affected == 1 {
         Ok(())
     } else {
-        Err(IdentityDatabaseError::UserNotFound(user_id))
+        Err(IdentityDatabaseError::UserNotFound(user_id.to_string()))
     }
 }
 
@@ -89,7 +89,7 @@ mod tests {
             .into_connection();
         let config = Config::default();
 
-        delete(&config, &db, "id".into()).await.unwrap();
+        delete(&config, &db, "id").await.unwrap();
         // Checking transaction log
         assert_eq!(
             db.into_transaction_log(),

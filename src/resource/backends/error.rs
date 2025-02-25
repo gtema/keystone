@@ -27,10 +27,16 @@ pub enum ResourceDatabaseError {
         source: serde_json::Error,
     },
 
-    #[error("building domain data")]
+    #[error("error building domain data")]
     DomainBuilderError {
         #[from]
         source: DomainBuilderError,
+    },
+
+    #[error("error building project data")]
+    ProjectBuilderError {
+        #[from]
+        source: ProjectBuilderError,
     },
 
     #[error("database data")]

@@ -55,9 +55,9 @@ impl TokenProvider {
 
 #[async_trait]
 pub trait TokenApi: Send + Sync + Clone {
-    async fn validate_token(
+    async fn validate_token<'a>(
         &self,
-        credential: String,
+        credential: &'a str,
         window_seconds: Option<i64>,
     ) -> Result<Token, TokenProviderError>;
 }
@@ -66,9 +66,9 @@ pub trait TokenApi: Send + Sync + Clone {
 impl TokenApi for TokenProvider {
     /// Validate token
     #[tracing::instrument(level = "info", skip(self))]
-    async fn validate_token(
+    async fn validate_token<'a>(
         &self,
-        credential: String,
+        credential: &'a str,
         window_seconds: Option<i64>,
     ) -> Result<Token, TokenProviderError> {
         let token = self.backend_driver.extract(credential)?;
@@ -92,9 +92,9 @@ mock! {
 
     #[async_trait]
     impl TokenApi for TokenProvider {
-        async fn validate_token(
+        async fn validate_token<'a>(
             &self,
-            credential: String,
+            credential: &'a str,
             window_seconds: Option<i64>,
         ) -> Result<Token, TokenProviderError>;
     }

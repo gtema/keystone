@@ -18,8 +18,6 @@ use sea_orm::entity::*;
 use sea_orm::query::*;
 use serde_json::Value;
 
-mod domain;
-
 use super::super::types::*;
 use crate::config::Config;
 use crate::db::entity::{prelude::Project as DbProject, project as db_project};
@@ -42,41 +40,86 @@ impl ResourceBackend for SqlBackend {
 
     /// Get single domain by ID
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn get_domain(
+    async fn get_domain<'a>(
         &self,
         db: &DatabaseConnection,
-        domain_id: String,
+        domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError> {
         Ok(get_domain(&self.config, db, domain_id).await?)
+    }
+
+    /// Get single project by ID
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn get_project<'a>(
+        &self,
+        db: &DatabaseConnection,
+        project_id: &'a str,
+    ) -> Result<Option<Project>, ResourceProviderError> {
+        Ok(get_project(&self.config, db, project_id).await?)
     }
 }
 
 pub async fn get_domain(
-    conf: &Config,
+    _conf: &Config,
     db: &DatabaseConnection,
-    domain_id: String,
+    domain_id: &str,
 ) -> Result<Option<Domain>, ResourceDatabaseError> {
     let domain_select =
-        DbProject::find_by_id(&domain_id).filter(db_project::Column::IsDomain.eq(true));
+        DbProject::find_by_id(domain_id).filter(db_project::Column::IsDomain.eq(true));
 
     let domain_entry: Option<db_project::Model> = domain_select.one(db).await?;
+    domain_entry.map(TryInto::try_into).transpose()
+}
 
-    if let Some(domain) = &domain_entry {
+pub async fn get_project(
+    _conf: &Config,
+    db: &DatabaseConnection,
+    domain_id: &str,
+) -> Result<Option<Project>, ResourceDatabaseError> {
+    let project_select =
+        DbProject::find_by_id(domain_id).filter(db_project::Column::IsDomain.eq(false));
+
+    let project_entry: Option<db_project::Model> = project_select.one(db).await?;
+    project_entry.map(TryInto::try_into).transpose()
+}
+
+impl TryFrom<db_project::Model> for Project {
+    type Error = ResourceDatabaseError;
+
+    fn try_from(value: db_project::Model) -> Result<Self, Self::Error> {
+        let mut project_builder = ProjectBuilder::default();
+        project_builder.id(value.id.clone());
+        project_builder.name(value.name.clone());
+        project_builder.domain_id(value.domain_id.clone());
+        if let Some(description) = &value.description {
+            project_builder.description(description.clone());
+        }
+        project_builder.enabled(value.enabled.unwrap_or(false));
+        if let Some(extra) = &value.extra {
+            project_builder.extra(serde_json::from_str::<Value>(extra).unwrap());
+        }
+
+        Ok(project_builder.build()?)
+    }
+}
+
+impl TryFrom<db_project::Model> for Domain {
+    type Error = ResourceDatabaseError;
+
+    fn try_from(value: db_project::Model) -> Result<Self, Self::Error> {
         let mut domain_builder = DomainBuilder::default();
-        domain_builder.id(domain.id.clone());
-        domain_builder.name(domain.name.clone());
-        if let Some(description) = &domain.description {
+        domain_builder.id(value.id.clone());
+        domain_builder.name(value.name.clone());
+        if let Some(description) = &value.description {
             domain_builder.description(description.clone());
         }
-        domain_builder.enabled(domain.enabled.unwrap_or(false));
-        if let Some(extra) = &domain.extra {
+        domain_builder.enabled(value.enabled.unwrap_or(false));
+        if let Some(extra) = &value.extra {
             domain_builder.extra(serde_json::from_str::<Value>(extra).unwrap());
         }
 
-        return Ok(Some(domain_builder.build()?));
+        Ok(domain_builder.build()?)
     }
-
-    Ok(None)
 }
 
 //#[cfg(test)]

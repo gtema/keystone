@@ -25,7 +25,7 @@ use crate::config::Config;
 use crate::plugin_manager::PluginManager;
 use crate::resource::backends::sql::SqlBackend;
 use crate::resource::error::ResourceProviderError;
-use crate::resource::types::{Domain, ResourceBackend};
+use crate::resource::types::{Domain, Project, ResourceBackend};
 
 #[derive(Clone, Debug)]
 pub struct ResourceProvider {
@@ -34,11 +34,17 @@ pub struct ResourceProvider {
 
 #[async_trait]
 pub trait ResourceApi: Send + Sync + Clone {
-    async fn get_domain(
+    async fn get_domain<'a>(
         &self,
         db: &DatabaseConnection,
-        domain_id: String,
+        domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError>;
+
+    async fn get_project<'a>(
+        &self,
+        db: &DatabaseConnection,
+        project_id: &'a str,
+    ) -> Result<Option<Project>, ResourceProviderError>;
 }
 
 #[cfg(test)]
@@ -49,11 +55,17 @@ mock! {
 
     #[async_trait]
     impl ResourceApi for ResourceProvider {
-       async fn get_domain(
+       async fn get_domain<'a>(
            &self,
            db: &DatabaseConnection,
-           domain_id: String,
+           domain_id: &'a str,
        ) -> Result<Option<Domain>, ResourceProviderError>;
+
+       async fn get_project<'a>(
+           &self,
+           db: &DatabaseConnection,
+           project_id: &'a str,
+       ) -> Result<Option<Project>, ResourceProviderError>;
     }
 
     impl Clone for ResourceProvider {
@@ -89,11 +101,21 @@ impl ResourceProvider {
 impl ResourceApi for ResourceProvider {
     /// Get single domain
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn get_domain(
+    async fn get_domain<'a>(
         &self,
         db: &DatabaseConnection,
-        domain_id: String,
+        domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError> {
         self.backend_driver.get_domain(db, domain_id).await
+    }
+
+    /// Get single project
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn get_project<'a>(
+        &self,
+        db: &DatabaseConnection,
+        project_id: &'a str,
+    ) -> Result<Option<Project>, ResourceProviderError> {
+        self.backend_driver.get_project(db, project_id).await
     }
 }

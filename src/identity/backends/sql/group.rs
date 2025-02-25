@@ -47,16 +47,13 @@ pub async fn list(
 pub async fn get(
     _conf: &Config,
     db: &DatabaseConnection,
-    group_id: String,
+    group_id: &str,
 ) -> Result<Option<Group>, IdentityDatabaseError> {
-    Ok(DbGroup::find_by_id(&group_id)
-        .one(db)
-        .await?
-        .map(Into::into))
+    Ok(DbGroup::find_by_id(group_id).one(db).await?.map(Into::into))
 }
 
 pub async fn create(
-    conf: &Config,
+    _conf: &Config,
     db: &DatabaseConnection,
     group: GroupCreate,
 ) -> Result<Group, IdentityDatabaseError> {
@@ -76,13 +73,13 @@ pub async fn create(
 pub async fn delete(
     _conf: &Config,
     db: &DatabaseConnection,
-    group_id: String,
+    group_id: &str,
 ) -> Result<(), IdentityDatabaseError> {
-    let res = DbGroup::delete_by_id(&group_id).exec(db).await?;
+    let res = DbGroup::delete_by_id(group_id).exec(db).await?;
     if res.rows_affected == 1 {
         Ok(())
     } else {
-        Err(IdentityDatabaseError::GroupNotFound(group_id))
+        Err(IdentityDatabaseError::GroupNotFound(group_id.to_string()))
     }
 }
 
@@ -199,7 +196,7 @@ mod tests {
         let config = Config::default();
 
         assert_eq!(
-            get(&config, &db, "id".into()).await.unwrap(),
+            get(&config, &db, "id").await.unwrap(),
             Some(Group {
                 id: "1".into(),
                 domain_id: "foo_domain".into(),
@@ -208,7 +205,7 @@ mod tests {
                 extra: Some(json!({"foo": "bar"}))
             })
         );
-        assert!(get(&config, &db, "missing".into()).await.unwrap().is_none());
+        assert!(get(&config, &db, "missing").await.unwrap().is_none());
 
         // Checking transaction log
         assert_eq!(
@@ -275,7 +272,7 @@ mod tests {
             .into_connection();
         let config = Config::default();
 
-        delete(&config, &db, "id".into()).await.unwrap();
+        delete(&config, &db, "id").await.unwrap();
         // Checking transaction log
         assert_eq!(
             db.into_transaction_log(),

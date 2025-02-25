@@ -49,7 +49,7 @@ where
             state
                 .provider
                 .get_token_provider()
-                .validate_token(auth_header.to_string(), None)
+                .validate_token(auth_header, None)
                 .await
                 .map_err(|_| (StatusCode::UNAUTHORIZED, "not authorized"))?,
         ))

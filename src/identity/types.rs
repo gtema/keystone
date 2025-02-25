@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use dyn_clone::DynClone;
 use sea_orm::DatabaseConnection;
 
-use crate::identity::Config;
+use crate::config::Config;
 use crate::identity::IdentityProviderError;
 
 pub use crate::identity::types::group::{Group, GroupCreate, GroupListParameters};
@@ -40,10 +40,10 @@ pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
     ) -> Result<Vec<User>, IdentityProviderError>;
 
     /// Get single user by ID
-    async fn get_user(
+    async fn get_user<'a>(
         &self,
         db: &DatabaseConnection,
-        user_id: String,
+        user_id: &'a str,
     ) -> Result<Option<User>, IdentityProviderError>;
 
     /// Create user
@@ -54,10 +54,10 @@ pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
     ) -> Result<User, IdentityProviderError>;
 
     /// Delete user
-    async fn delete_user(
+    async fn delete_user<'a>(
         &self,
         db: &DatabaseConnection,
-        user_id: String,
+        user_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 
     /// List groups
@@ -68,10 +68,10 @@ pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
     ) -> Result<Vec<Group>, IdentityProviderError>;
 
     /// Get single group by ID
-    async fn get_group(
+    async fn get_group<'a>(
         &self,
         db: &DatabaseConnection,
-        group_id: String,
+        group_id: &'a str,
     ) -> Result<Option<Group>, IdentityProviderError>;
 
     /// Create group
@@ -82,10 +82,10 @@ pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
     ) -> Result<Group, IdentityProviderError>;
 
     /// Delete group by ID
-    async fn delete_group(
+    async fn delete_group<'a>(
         &self,
         db: &DatabaseConnection,
-        group_id: String,
+        group_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 }
 

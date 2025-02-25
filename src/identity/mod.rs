@@ -45,10 +45,10 @@ pub trait IdentityApi: Send + Sync + Clone {
         params: &UserListParameters,
     ) -> Result<impl IntoIterator<Item = User>, IdentityProviderError>;
 
-    async fn get_user(
+    async fn get_user<'a>(
         &self,
         db: &DatabaseConnection,
-        user_id: String,
+        user_id: &'a str,
     ) -> Result<Option<User>, IdentityProviderError>;
 
     async fn create_user(
@@ -57,10 +57,10 @@ pub trait IdentityApi: Send + Sync + Clone {
         user: UserCreate,
     ) -> Result<User, IdentityProviderError>;
 
-    async fn delete_user(
+    async fn delete_user<'a>(
         &self,
         db: &DatabaseConnection,
-        user_id: String,
+        user_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 
     async fn list_groups(
@@ -69,10 +69,10 @@ pub trait IdentityApi: Send + Sync + Clone {
         params: &GroupListParameters,
     ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError>;
 
-    async fn get_group(
+    async fn get_group<'a>(
         &self,
         db: &DatabaseConnection,
-        group_id: String,
+        group_id: &'a str,
     ) -> Result<Option<Group>, IdentityProviderError>;
 
     async fn create_group(
@@ -81,10 +81,10 @@ pub trait IdentityApi: Send + Sync + Clone {
         group: GroupCreate,
     ) -> Result<Group, IdentityProviderError>;
 
-    async fn delete_group(
+    async fn delete_group<'a>(
         &self,
         db: &DatabaseConnection,
-        group_id: String,
+        group_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 }
 
@@ -102,10 +102,10 @@ mock! {
            params: &UserListParameters,
        ) -> Result<Vec<User>, IdentityProviderError>;
 
-       async fn get_user(
+       async fn get_user<'a>(
            &self,
            db: &DatabaseConnection,
-           user_id: String,
+           user_id: &'a str,
        ) -> Result<Option<User>, IdentityProviderError>;
 
        async fn create_user(
@@ -114,10 +114,10 @@ mock! {
            user: UserCreate,
        ) -> Result<User, IdentityProviderError>;
 
-       async fn delete_user(
+       async fn delete_user<'a>(
            &self,
            db: &DatabaseConnection,
-           user_id: String,
+           user_id: &'a str,
        ) -> Result<(), IdentityProviderError>;
 
        async fn list_groups(
@@ -126,10 +126,10 @@ mock! {
            params: &GroupListParameters,
        ) -> Result<Vec<Group>, IdentityProviderError>;
 
-       async fn get_group(
+       async fn get_group<'a>(
            &self,
            db: &DatabaseConnection,
-           group_id: String,
+           group_id: &'a str,
        ) -> Result<Option<Group>, IdentityProviderError>;
 
        async fn create_group(
@@ -138,10 +138,10 @@ mock! {
            group: GroupCreate,
        ) -> Result<Group, IdentityProviderError>;
 
-       async fn delete_group(
+       async fn delete_group<'a>(
            &self,
            db: &DatabaseConnection,
-           group_id: String,
+           group_id: &'a str,
        ) -> Result<(), IdentityProviderError>;
     }
 
@@ -189,10 +189,10 @@ impl IdentityApi for IdentityProvider {
 
     /// Get single user
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn get_user(
+    async fn get_user<'a>(
         &self,
         db: &DatabaseConnection,
-        user_id: String,
+        user_id: &'a str,
     ) -> Result<Option<User>, IdentityProviderError> {
         self.backend_driver.get_user(db, user_id).await
     }
@@ -214,10 +214,10 @@ impl IdentityApi for IdentityProvider {
 
     /// Delete user
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn delete_user(
+    async fn delete_user<'a>(
         &self,
         db: &DatabaseConnection,
-        user_id: String,
+        user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver.delete_user(db, user_id).await
     }
@@ -234,10 +234,10 @@ impl IdentityApi for IdentityProvider {
 
     /// Get single group
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn get_group(
+    async fn get_group<'a>(
         &self,
         db: &DatabaseConnection,
-        group_id: String,
+        group_id: &'a str,
     ) -> Result<Option<Group>, IdentityProviderError> {
         self.backend_driver.get_group(db, group_id).await
     }
@@ -256,10 +256,10 @@ impl IdentityApi for IdentityProvider {
 
     /// Delete group
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn delete_group(
+    async fn delete_group<'a>(
         &self,
         db: &DatabaseConnection,
-        group_id: String,
+        group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver.delete_group(db, group_id).await
     }
