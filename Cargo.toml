@@ -45,7 +45,7 @@ tracing-subscriber = { version = "^0.3" }
 utoipa = { version = "^5.3", features = ["axum_extras", "chrono"] }
 utoipa-axum = { version = "^0.2" }
 utoipa-swagger-ui = { version = "^9.0", features = ["axum", "vendored"], default-features = false }
-uuid = { version = "^1.14", features = ["v4"] }
+uuid = { version = "^1.15", features = ["v4"] }
 
 [dev-dependencies]
 criterion = { version = "^0.5", features = ["async_tokio"] }
