@@ -1,0 +1,258 @@
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+use axum::{
+    Json,
+    http::StatusCode,
+    response::{IntoResponse, Response},
+};
+use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
+
+use crate::api::error::KeystoneApiError;
+use crate::assignment::types;
+
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(strip_option, into))]
+pub struct Assignment {
+    /// Role ID
+    pub role: Role,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
+    pub user: Option<User>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
+    pub group: Option<Group>,
+    pub scope: Scope,
+}
+
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct Role {
+    pub id: String,
+}
+
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct User {
+    pub id: String,
+}
+
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct Group {
+    pub id: String,
+}
+
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct Project {
+    pub id: String,
+}
+
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct Domain {
+    pub id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Scope {
+    Project(Project),
+    Domain(Domain),
+}
+
+impl TryFrom<types::Assignment> for Assignment {
+    type Error = KeystoneApiError;
+
+    fn try_from(value: types::Assignment) -> Result<Self, Self::Error> {
+        let mut builder = AssignmentBuilder::default();
+        builder.role(Role { id: value.role_id });
+        match value.r#type {
+            types::AssignmentType::GroupDomain => {
+                builder.group(Group {
+                    id: value.actor_id.clone(),
+                });
+                builder.scope(Scope::Domain(Domain {
+                    id: value.target_id.clone(),
+                }));
+            }
+            types::AssignmentType::GroupProject => {
+                builder.group(Group {
+                    id: value.actor_id.clone(),
+                });
+                builder.scope(Scope::Project(Project {
+                    id: value.target_id.clone(),
+                }));
+            }
+            types::AssignmentType::UserDomain => {
+                builder.user(User {
+                    id: value.actor_id.clone(),
+                });
+                builder.scope(Scope::Domain(Domain {
+                    id: value.target_id.clone(),
+                }));
+            }
+            types::AssignmentType::UserProject => {
+                builder.user(User {
+                    id: value.actor_id.clone(),
+                });
+                builder.scope(Scope::Project(Project {
+                    id: value.target_id.clone(),
+                }));
+            }
+        }
+        Ok(builder.build()?)
+    }
+}
+
+impl From<AssignmentBuilderError> for KeystoneApiError {
+    fn from(err: AssignmentBuilderError) -> Self {
+        Self::InternalError(err.to_string())
+    }
+}
+
+impl From<types::RoleAssignmentListParametersBuilderError> for KeystoneApiError {
+    fn from(err: types::RoleAssignmentListParametersBuilderError) -> Self {
+        Self::InternalError(err.to_string())
+    }
+}
+
+/// Assignments
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct AssignmentList {
+    /// Collection of role assignment objects
+    pub role_assignments: Vec<Assignment>,
+}
+
+impl IntoResponse for AssignmentList {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
+pub struct RoleAssignmentListParameters {
+    #[serde(rename = "role.id")]
+    pub role_id: Option<String>,
+    #[serde(rename = "user.id")]
+    pub user_id: Option<String>,
+    #[serde(rename = "group.id")]
+    pub group_id: Option<String>,
+    #[serde(rename = "scope.project.id")]
+    pub project_id: Option<String>,
+    #[serde(rename = "scope.domain.id")]
+    pub domain_id: Option<String>,
+}
+
+impl TryFrom<RoleAssignmentListParameters> for types::RoleAssignmentListParameters {
+    type Error = KeystoneApiError;
+
+    fn try_from(value: RoleAssignmentListParameters) -> Result<Self, Self::Error> {
+        let mut builder = types::RoleAssignmentListParametersBuilder::default();
+        if let Some(val) = &value.role_id {
+            builder.role_id(val.clone());
+        }
+        if let Some(val) = &value.user_id {
+            builder.actor_id(val.clone());
+        } else if let Some(val) = &value.group_id {
+            builder.actor_id(val.clone());
+        }
+        if let Some(val) = &value.project_id {
+            builder.target_id(val.clone());
+        } else if let Some(val) = &value.domain_id {
+            builder.target_id(val.clone());
+        }
+        Ok(builder.build()?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::assignment::types;
+
+    #[test]
+    fn test_assignment_conversion() {
+        assert_eq!(
+            Assignment {
+                role: Role { id: "role".into() },
+                user: Some(User { id: "actor".into() }),
+                scope: Scope::Project(Project {
+                    id: "target".into()
+                }),
+                group: None,
+            },
+            Assignment::try_from(types::Assignment {
+                role_id: "role".into(),
+                actor_id: "actor".into(),
+                target_id: "target".into(),
+                r#type: types::AssignmentType::UserProject,
+                inherited: false,
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            Assignment {
+                role: Role { id: "role".into() },
+                user: Some(User { id: "actor".into() }),
+                scope: Scope::Domain(Domain {
+                    id: "target".into()
+                }),
+                group: None,
+            },
+            Assignment::try_from(types::Assignment {
+                role_id: "role".into(),
+                actor_id: "actor".into(),
+                target_id: "target".into(),
+                r#type: types::AssignmentType::UserDomain,
+                inherited: false,
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            Assignment {
+                role: Role { id: "role".into() },
+                group: Some(Group { id: "actor".into() }),
+                scope: Scope::Project(Project {
+                    id: "target".into()
+                }),
+                user: None,
+            },
+            Assignment::try_from(types::Assignment {
+                role_id: "role".into(),
+                actor_id: "actor".into(),
+                target_id: "target".into(),
+                r#type: types::AssignmentType::GroupProject,
+                inherited: false,
+            })
+            .unwrap()
+        );
+        assert_eq!(
+            Assignment {
+                role: Role { id: "role".into() },
+                group: Some(Group { id: "actor".into() }),
+                scope: Scope::Domain(Domain {
+                    id: "target".into()
+                }),
+                user: None,
+            },
+            Assignment::try_from(types::Assignment {
+                role_id: "role".into(),
+                actor_id: "actor".into(),
+                target_id: "target".into(),
+                r#type: types::AssignmentType::GroupDomain,
+                inherited: false,
+            })
+            .unwrap()
+        );
+    }
+}

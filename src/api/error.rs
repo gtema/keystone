@@ -20,6 +20,7 @@ use axum::{
 use serde_json::json;
 use thiserror::Error;
 
+use crate::assignment::error::AssignmentProviderError;
 use crate::identity::error::IdentityProviderError;
 use crate::resource::error::ResourceProviderError;
 
@@ -53,8 +54,14 @@ pub enum KeystoneApiError {
         source: TokenError,
     },
 
-    #[error("internal server error")]
+    #[error("internal server error: {0}")]
     InternalError(String),
+
+    #[error(transparent)]
+    AssignmentError {
+        #[from]
+        source: AssignmentProviderError,
+    },
 
     #[error(transparent)]
     IdentityError {
@@ -91,7 +98,7 @@ impl IntoResponse for KeystoneApiError {
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
                 ).into_response()
             }
-            KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } => {
+            KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } => {
                 (StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
               ).into_response()
@@ -106,6 +113,15 @@ impl IntoResponse for KeystoneApiError {
 }
 
 impl KeystoneApiError {
+    pub fn assignment(source: AssignmentProviderError) -> Self {
+        match source {
+            AssignmentProviderError::RoleNotFound(x) => Self::NotFound {
+                resource: "role".into(),
+                identifier: x,
+            },
+            _ => Self::AssignmentError { source },
+        }
+    }
     pub fn identity(source: IdentityProviderError) -> Self {
         match source {
             IdentityProviderError::UserNotFound(x) => Self::NotFound {

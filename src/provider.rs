@@ -14,6 +14,9 @@
 use derive_builder::Builder;
 use mockall_double::double;
 
+use crate::assignment::AssignmentApi;
+#[double]
+use crate::assignment::AssignmentProvider;
 use crate::config::Config;
 use crate::error::KeystoneError;
 use crate::identity::IdentityApi;
@@ -38,6 +41,7 @@ use crate::token::TokenProvider;
 #[builder(pattern = "owned")]
 pub struct Provider {
     pub config: Config,
+    assignment: AssignmentProvider,
     identity: IdentityProvider,
     resource: ResourceProvider,
     token: TokenProvider,
@@ -45,16 +49,22 @@ pub struct Provider {
 
 impl Provider {
     pub fn new(cfg: Config, plugin_manager: PluginManager) -> Result<Self, KeystoneError> {
+        let assignment_provider = AssignmentProvider::new(&cfg, &plugin_manager)?;
         let identity_provider = IdentityProvider::new(&cfg, &plugin_manager)?;
         let resource_provider = ResourceProvider::new(&cfg, &plugin_manager)?;
         let token_provider = TokenProvider::new(&cfg)?;
 
         Ok(Self {
             config: cfg,
+            assignment: assignment_provider,
             identity: identity_provider,
             resource: resource_provider,
             token: token_provider,
         })
+    }
+
+    pub fn get_assignment_provider(&self) -> &impl AssignmentApi {
+        &self.assignment
     }
 
     pub fn get_identity_provider(&self) -> &impl IdentityApi {

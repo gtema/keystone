@@ -303,8 +303,8 @@ mod tests {
     use chrono::Local;
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
 
+    use crate::config::Config;
     use crate::db::entity::{local_user, password, user, user_option};
-    use crate::identity::Config;
 
     use super::*;
 
