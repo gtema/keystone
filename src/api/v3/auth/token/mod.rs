@@ -80,6 +80,7 @@ mod tests {
 
     use super::openapi_router;
     use crate::api::v3::auth::token::types::TokenResponse;
+    use crate::assignment::MockAssignmentProvider;
     use crate::config::Config;
     use crate::identity::{MockIdentityProvider, types::User};
     use crate::keystone::Service;
@@ -92,6 +93,7 @@ mod tests {
     async fn test_get() {
         let db = DatabaseConnection::Disconnected;
         let config = Config::default();
+        let assignment_mock = MockAssignmentProvider::default();
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock.expect_get_user().returning(|_, id: &'_ str| {
             Ok(Some(User {
@@ -121,6 +123,7 @@ mod tests {
 
         let provider = ProviderBuilder::default()
             .config(config.clone())
+            .assignment(assignment_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)

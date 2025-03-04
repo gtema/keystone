@@ -14,12 +14,19 @@
 
 use thiserror::Error;
 
+use crate::assignment::error::*;
 use crate::identity::error::*;
 use crate::resource::error::*;
 use crate::token::TokenProviderError;
 
 #[derive(Debug, Error)]
 pub enum KeystoneError {
+    #[error(transparent)]
+    AssignmentError {
+        #[from]
+        source: AssignmentProviderError,
+    },
+
     #[error(transparent)]
     IdentityError {
         #[from]

@@ -67,6 +67,18 @@ pub mod user_group_membership;
 pub mod user_option;
 pub mod whitelisted_config;
 
+impl Default for role::Model {
+    fn default() -> Self {
+        Self {
+            description: None,
+            domain_id: String::new(),
+            extra: None,
+            id: String::new(),
+            name: String::new(),
+        }
+    }
+}
+
 impl Default for user::Model {
     fn default() -> Self {
         Self {

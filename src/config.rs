@@ -25,6 +25,10 @@ pub struct Config {
     #[serde(rename = "DEFAULT")]
     pub default: Option<DefaultSection>,
     ///
+    /// Assignments (roles) related configuration
+    #[serde(default)]
+    pub assignment: AssignmentSection,
+
     /// Auth
     #[serde(default)]
     pub auth: AuthSection,
@@ -99,6 +103,11 @@ impl DatabaseSection {
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
+pub struct AssignmentSection {
+    pub driver: String,
+}
+
+#[derive(Debug, Default, Deserialize, Clone)]
 pub struct IdentitySection {
     #[serde(default = "default_identity_driver")]
     pub driver: String,
@@ -162,6 +171,7 @@ impl Config {
             .set_default("identity.max_password_length", "4096")?
             .set_default("fernet_tokens.key_repository", "/etc/keystone/fernet-keys/")?
             .set_default("fernet_tokens.max_active_keys", "3")?
+            .set_default("assignment.driver", "sql")?
             .set_default("resource.driver", "sql")?;
         if std::path::Path::new(&path).is_file() {
             builder = builder.add_source(File::from(path).format(FileFormat::Ini));

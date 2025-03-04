@@ -18,11 +18,15 @@ use crate::keystone::ServiceState;
 
 pub mod auth;
 pub mod group;
+pub mod role;
+pub mod role_assignment;
 pub mod user;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .nest("/auth", auth::openapi_router())
         .nest("/groups", group::openapi_router())
+        .nest("/role_assignments", role_assignment::openapi_router())
+        .nest("/roles", role::openapi_router())
         .nest("/users", user::openapi_router())
 }

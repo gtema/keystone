@@ -125,18 +125,15 @@ mod tests {
     use std::sync::Arc;
 
     use crate::api::v3::auth::token::types::Token;
+    use crate::assignment::MockAssignmentProvider;
     use crate::config::Config;
-
     use crate::identity::{MockIdentityProvider, types::User};
     use crate::keystone::Service;
-
     use crate::provider::ProviderBuilder;
-
     use crate::resource::{
         MockResourceProvider,
         types::{Domain, Project},
     };
-
     use crate::token::{
         DomainScopeToken, MockTokenProvider, ProjectScopeToken, Token as ProviderToken,
         UnscopedToken,
@@ -169,8 +166,10 @@ mod tests {
                 }))
             });
         let token_mock = MockTokenProvider::default();
+        let assignment_mock = MockAssignmentProvider::default();
         let provider = ProviderBuilder::default()
             .config(config.clone())
+            .assignment(assignment_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)
@@ -220,8 +219,10 @@ mod tests {
                 }))
             });
         let token_mock = MockTokenProvider::default();
+        let assignment_mock = MockAssignmentProvider::default();
         let provider = ProviderBuilder::default()
             .config(config.clone())
+            .assignment(assignment_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)
@@ -282,8 +283,10 @@ mod tests {
                 }))
             });
         let token_mock = MockTokenProvider::default();
+        let assignment_mock = MockAssignmentProvider::default();
         let provider = ProviderBuilder::default()
             .config(config.clone())
+            .assignment(assignment_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)
