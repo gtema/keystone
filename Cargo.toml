@@ -52,7 +52,7 @@ criterion = { version = "^0.5", features = ["async_tokio"] }
 http-body-util = "^0.1"
 mockall = { version = "^0.13" }
 sea-orm = { version = "*", features = ["mock"]}
-tempfile = { version = "^3.17" }
+tempfile = { version = "^3.18" }
 
 [profile.release]
 opt-level = 3
