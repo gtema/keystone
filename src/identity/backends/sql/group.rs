@@ -18,7 +18,11 @@ use sea_orm::query::*;
 use serde_json::Value;
 use serde_json::json;
 
-use crate::db::entity::{group, prelude::Group as DbGroup};
+use crate::db::entity::{
+    group,
+    prelude::{Group as DbGroup, UserGroupMembership as DbUserGroupMembership},
+    user_group_membership,
+};
 use crate::identity::Config;
 use crate::identity::backends::sql::IdentityDatabaseError;
 use crate::identity::types::{Group, GroupCreate, GroupListParameters};
@@ -97,6 +101,27 @@ impl From<group::Model> for Group {
     }
 }
 
+pub async fn list_for_user(
+    _conf: &Config,
+    db: &DatabaseConnection,
+    user_id: &str,
+) -> Result<Vec<Group>, IdentityDatabaseError> {
+    let groups: Vec<(user_group_membership::Model, Vec<group::Model>)> =
+        DbUserGroupMembership::find()
+            .filter(user_group_membership::Column::UserId.eq(user_id))
+            .find_with_related(DbGroup)
+            .all(db)
+            .await?;
+
+    let results: Vec<Group> = groups
+        .into_iter()
+        .map(|(_, x)| x.into_iter())
+        .flatten()
+        .map(Into::into)
+        .collect();
+    Ok(results)
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::derivable_impls)]
@@ -110,9 +135,9 @@ mod tests {
 
     use super::*;
 
-    fn get_group_mock(id: String) -> group::Model {
+    fn get_group_mock<S: AsRef<str>>(id: S) -> group::Model {
         group::Model {
-            id: id.clone(),
+            id: id.as_ref().to_string(),
             domain_id: "foo_domain".into(),
             name: "group".into(),
             description: Some("fake".into()),
@@ -126,7 +151,7 @@ mod tests {
         let db = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([
                 // First query result - select user itself
-                vec![get_group_mock("1".into())],
+                vec![get_group_mock("1")],
             ])
             .into_connection();
         let config = Config::default();
@@ -191,7 +216,7 @@ mod tests {
     async fn test_get() {
         // Create MockDatabase with mock query results
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([vec![get_group_mock("1".into())], vec![]])
+            .append_query_results([vec![get_group_mock("1")], vec![]])
             .into_connection();
         let config = Config::default();
 
@@ -229,7 +254,7 @@ mod tests {
     async fn test_create() {
         // Create MockDatabase with mock query results
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([vec![get_group_mock("1".into())], vec![]])
+            .append_query_results([vec![get_group_mock("1")], vec![]])
             .into_connection();
         let config = Config::default();
 
@@ -242,7 +267,7 @@ mod tests {
         };
         assert_eq!(
             create(&config, &db, req).await.unwrap(),
-            get_group_mock("1".into()).into()
+            get_group_mock("1").into()
         );
         // Checking transaction log
         assert_eq!(
@@ -280,6 +305,25 @@ mod tests {
                 DatabaseBackend::Postgres,
                 r#"DELETE FROM "group" WHERE "group"."id" = $1"#,
                 ["id".into()]
+            ),]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_for_user() {
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([vec![], vec![get_group_mock("1"), get_group_mock("2")]])
+            .into_connection();
+        let config = Config::default();
+        assert_eq!(list_for_user(&config, &db, "foo").await.unwrap(), vec![]);
+
+        // Checking transaction log
+        assert_eq!(
+            db.into_transaction_log(),
+            [Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"SELECT "user_group_membership"."user_id" AS "A_user_id", "user_group_membership"."group_id" AS "A_group_id", "group"."id" AS "B_id", "group"."domain_id" AS "B_domain_id", "group"."name" AS "B_name", "group"."description" AS "B_description", "group"."extra" AS "B_extra" FROM "user_group_membership" LEFT JOIN "group" ON "user_group_membership"."group_id" = "group"."id" WHERE "user_group_membership"."user_id" = $1 ORDER BY "user_group_membership"."user_id" ASC, "user_group_membership"."group_id" ASC"#,
+                ["foo".into()]
             ),]
         );
     }

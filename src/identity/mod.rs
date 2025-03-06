@@ -86,6 +86,12 @@ pub trait IdentityApi: Send + Sync + Clone {
         db: &DatabaseConnection,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
+
+    async fn list_groups_for_user<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError>;
 }
 
 #[cfg(test)]
@@ -96,53 +102,59 @@ mock! {
 
     #[async_trait]
     impl IdentityApi for IdentityProvider {
-       async fn list_users(
-           &self,
-           db: &DatabaseConnection,
-           params: &UserListParameters,
-       ) -> Result<Vec<User>, IdentityProviderError>;
+        async fn list_users(
+            &self,
+            db: &DatabaseConnection,
+            params: &UserListParameters,
+        ) -> Result<Vec<User>, IdentityProviderError>;
 
-       async fn get_user<'a>(
-           &self,
-           db: &DatabaseConnection,
-           user_id: &'a str,
-       ) -> Result<Option<User>, IdentityProviderError>;
+        async fn get_user<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+        ) -> Result<Option<User>, IdentityProviderError>;
 
-       async fn create_user(
-           &self,
-           db: &DatabaseConnection,
-           user: UserCreate,
-       ) -> Result<User, IdentityProviderError>;
+        async fn create_user(
+            &self,
+            db: &DatabaseConnection,
+            user: UserCreate,
+        ) -> Result<User, IdentityProviderError>;
 
-       async fn delete_user<'a>(
-           &self,
-           db: &DatabaseConnection,
-           user_id: &'a str,
-       ) -> Result<(), IdentityProviderError>;
+        async fn delete_user<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+        ) -> Result<(), IdentityProviderError>;
 
-       async fn list_groups(
-           &self,
-           db: &DatabaseConnection,
-           params: &GroupListParameters,
-       ) -> Result<Vec<Group>, IdentityProviderError>;
+        async fn list_groups(
+            &self,
+            db: &DatabaseConnection,
+            params: &GroupListParameters,
+        ) -> Result<Vec<Group>, IdentityProviderError>;
 
-       async fn get_group<'a>(
-           &self,
-           db: &DatabaseConnection,
-           group_id: &'a str,
-       ) -> Result<Option<Group>, IdentityProviderError>;
+        async fn get_group<'a>(
+            &self,
+            db: &DatabaseConnection,
+            group_id: &'a str,
+        ) -> Result<Option<Group>, IdentityProviderError>;
 
-       async fn create_group(
-           &self,
-           db: &DatabaseConnection,
-           group: GroupCreate,
-       ) -> Result<Group, IdentityProviderError>;
+        async fn create_group(
+            &self,
+            db: &DatabaseConnection,
+            group: GroupCreate,
+        ) -> Result<Group, IdentityProviderError>;
 
-       async fn delete_group<'a>(
-           &self,
-           db: &DatabaseConnection,
-           group_id: &'a str,
-       ) -> Result<(), IdentityProviderError>;
+        async fn delete_group<'a>(
+            &self,
+            db: &DatabaseConnection,
+            group_id: &'a str,
+        ) -> Result<(), IdentityProviderError>;
+
+        async fn list_groups_for_user<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+        ) -> Result<Vec<Group>, IdentityProviderError>;
     }
 
     impl Clone for IdentityProvider {
@@ -262,5 +274,15 @@ impl IdentityApi for IdentityProvider {
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver.delete_group(db, group_id).await
+    }
+
+    /// List groups a user is a member of
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn list_groups_for_user<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError> {
+        self.backend_driver.list_groups_for_user(db, user_id).await
     }
 }
