@@ -26,7 +26,7 @@ use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
 use types::{Group, GroupCreateRequest, GroupList, GroupListParameters, GroupResponse};
 
-mod types;
+pub mod types;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()

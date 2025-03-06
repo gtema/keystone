@@ -22,16 +22,18 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
+use crate::api::v3::group::types::{Group, GroupList};
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
 use types::{User, UserCreateRequest, UserList, UserListParameters, UserResponse};
 
-mod types;
+pub mod types;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .routes(routes!(list, create))
         .routes(routes!(show, remove))
+        .routes(routes!(groups))
 }
 
 /// List users
@@ -147,6 +149,35 @@ async fn remove(
     Ok((StatusCode::NO_CONTENT).into_response())
 }
 
+/// List groups a user is member of
+#[utoipa::path(
+    get,
+    path = "/{user_id}/groups",
+    description = "List groups a user is member of",
+    responses(
+        (status = OK, description = "List of user groups", body = GroupList),
+        (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
+    ),
+    tag="users"
+)]
+#[tracing::instrument(name = "api::user_list", level = "debug", skip(state))]
+async fn groups(
+    Auth(user_auth): Auth,
+    Path(user_id): Path<String>,
+    State(state): State<ServiceState>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
+    let groups: Vec<Group> = state
+        .provider
+        .get_identity_provider()
+        .list_groups_for_user(&state.db, &user_id)
+        .await
+        .map_err(KeystoneApiError::identity)?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    Ok(GroupList { groups })
+}
+
 #[cfg(test)]
 mod tests {
     use axum::{
@@ -161,13 +192,14 @@ mod tests {
     use tower_http::trace::TraceLayer;
 
     use super::openapi_router;
+    use crate::api::v3::group::types::{Group as ApiGroup, GroupList};
     use crate::api::v3::user::types::{
         User as ApiUser, UserCreate as ApiUserCreate, UserCreateRequest, UserList, UserResponse,
     };
     use crate::identity::{
         MockIdentityProvider,
         error::IdentityProviderError,
-        types::{User, UserCreate, UserListParameters},
+        types::{Group, User, UserCreate, UserListParameters},
     };
 
     use crate::tests::api::{get_mocked_state, get_mocked_state_unauthed};
@@ -438,5 +470,52 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    }
+
+    #[tokio::test]
+    async fn test_groups() {
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_list_groups_for_user()
+            .withf(|_: &DatabaseConnection, uid: &str| uid == "foo")
+            .returning(|_, _| {
+                Ok(vec![Group {
+                    id: "1".into(),
+                    name: "2".into(),
+                    ..Default::default()
+                }])
+            });
+
+        let state = get_mocked_state(identity_mock);
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
+
+        let response = api
+            .as_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/foo/groups")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let res: GroupList = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            vec![ApiGroup {
+                id: "1".into(),
+                name: "2".into(),
+                extra: Some(json!({})),
+                ..Default::default()
+            }],
+            res.groups
+        );
     }
 }

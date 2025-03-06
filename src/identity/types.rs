@@ -87,6 +87,13 @@ pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
         db: &DatabaseConnection,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
+
+    /// List groups a user is member of
+    async fn list_groups_for_user<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Vec<Group>, IdentityProviderError>;
 }
 
 dyn_clone::clone_trait_object!(IdentityBackend);

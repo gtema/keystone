@@ -134,6 +134,16 @@ impl IdentityBackend for SqlBackend {
             .await
             .map_err(IdentityProviderError::database)
     }
+
+    /// List groups a user is member of
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn list_groups_for_user<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Vec<Group>, IdentityProviderError> {
+        Ok(group::list_for_user(&self.config, db, user_id).await?)
+    }
 }
 
 async fn list_users(
