@@ -115,8 +115,7 @@ pub async fn list_for_user(
 
     let results: Vec<Group> = groups
         .into_iter()
-        .map(|(_, x)| x.into_iter())
-        .flatten()
+        .flat_map(|(_, x)| x.into_iter())
         .map(Into::into)
         .collect();
     Ok(results)

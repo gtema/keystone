@@ -24,8 +24,10 @@ use crate::config::Config;
 
 pub use crate::assignment::types::assignment::{
     Assignment, AssignmentBuilder, AssignmentBuilderError, AssignmentType,
-    RoleAssignmentListParameters, RoleAssignmentListParametersBuilder,
-    RoleAssignmentListParametersBuilderError,
+    RoleAssignmentListForMultipleActorTargetParameters,
+    RoleAssignmentListForMultipleActorTargetParametersBuilder, RoleAssignmentListParameters,
+    RoleAssignmentListParametersBuilder, RoleAssignmentListParametersBuilderError,
+    RoleAssignmentTarget,
 };
 pub use crate::assignment::types::role::{Role, RoleBuilder, RoleBuilderError, RoleListParameters};
 
@@ -53,6 +55,17 @@ pub trait AssignmentBackend: DynClone + Send + Sync + std::fmt::Debug {
         &self,
         db: &DatabaseConnection,
         params: &RoleAssignmentListParameters,
+    ) -> Result<Vec<Assignment>, AssignmentProviderError>;
+
+    /// List all role assignments for multiple actors on multiple targets
+    ///
+    /// It is a naive interpretation of the effective role assignments where we check all roles
+    /// assigned to the user (including groups) on a concrete target (including all higher targets
+    /// the role can be inherited from)
+    async fn list_assignments_for_multiple_actors_and_targets(
+        &self,
+        db: &DatabaseConnection,
+        params: &RoleAssignmentListForMultipleActorTargetParameters,
     ) -> Result<Vec<Assignment>, AssignmentProviderError>;
 }
 

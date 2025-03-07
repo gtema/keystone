@@ -139,18 +139,32 @@ impl IntoResponse for AssignmentList {
     }
 }
 
+/// List role assignments query parameters
 #[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
 pub struct RoleAssignmentListParameters {
-    #[serde(rename = "role.id")]
-    pub role_id: Option<String>,
-    #[serde(rename = "user.id")]
-    pub user_id: Option<String>,
-    #[serde(rename = "group.id")]
-    pub group_id: Option<String>,
-    #[serde(rename = "scope.project.id")]
-    pub project_id: Option<String>,
+    /// Filters the response by a domain ID.
     #[serde(rename = "scope.domain.id")]
     pub domain_id: Option<String>,
+
+    /// Filters the response by a group ID.
+    #[serde(rename = "group.id")]
+    pub group_id: Option<String>,
+
+    /// Returns the effective assignments, including any assignments gained by virtue of group
+    /// membership.
+    pub effective: Option<bool>,
+
+    /// Filters the response by a project ID.
+    #[serde(rename = "scope.project.id")]
+    pub project_id: Option<String>,
+
+    /// Filters the response by a role ID.
+    #[serde(rename = "role.id")]
+    pub role_id: Option<String>,
+
+    /// Filters the response by a user ID.
+    #[serde(rename = "user.id")]
+    pub user_id: Option<String>,
 }
 
 impl TryFrom<RoleAssignmentListParameters> for types::RoleAssignmentListParameters {
@@ -158,18 +172,27 @@ impl TryFrom<RoleAssignmentListParameters> for types::RoleAssignmentListParamete
 
     fn try_from(value: RoleAssignmentListParameters) -> Result<Self, Self::Error> {
         let mut builder = types::RoleAssignmentListParametersBuilder::default();
+        // Filter by role
         if let Some(val) = &value.role_id {
             builder.role_id(val.clone());
         }
+
+        // Filter by actor
         if let Some(val) = &value.user_id {
-            builder.actor_id(val.clone());
+            builder.user_id(val.clone());
         } else if let Some(val) = &value.group_id {
-            builder.actor_id(val.clone());
+            builder.group_id(val.clone());
         }
+
+        // Filter by target
         if let Some(val) = &value.project_id {
-            builder.target_id(val.clone());
+            builder.project_id(val.clone());
         } else if let Some(val) = &value.domain_id {
-            builder.target_id(val.clone());
+            builder.domain_id(val.clone());
+        }
+
+        if let Some(val) = value.effective {
+            builder.effective(val);
         }
         Ok(builder.build()?)
     }

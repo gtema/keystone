@@ -24,10 +24,13 @@ pub(crate) mod types;
 use crate::assignment::backends::sql::SqlBackend;
 use crate::assignment::error::AssignmentProviderError;
 use crate::assignment::types::{
-    Assignment, AssignmentBackend, Role, RoleAssignmentListParameters, RoleListParameters,
+    Assignment, AssignmentBackend, Role, RoleAssignmentListForMultipleActorTargetParametersBuilder,
+    RoleAssignmentListParameters, RoleAssignmentTarget, RoleListParameters,
 };
 use crate::config::Config;
+use crate::identity::IdentityApi;
 use crate::plugin_manager::PluginManager;
+use crate::provider::Provider;
 
 #[derive(Clone, Debug)]
 pub struct AssignmentProvider {
@@ -43,15 +46,18 @@ pub trait AssignmentApi: Send + Sync + Clone {
         params: &RoleListParameters,
     ) -> Result<Vec<Role>, AssignmentProviderError>;
 
+    /// Get a single role
     async fn get_role<'a>(
         &self,
         db: &DatabaseConnection,
         role_id: &'a str,
     ) -> Result<Option<Role>, AssignmentProviderError>;
 
+    /// List role assignments for given target/role/actor
     async fn list_role_assignments(
         &self,
         db: &DatabaseConnection,
+        provider: &Provider,
         params: &RoleAssignmentListParameters,
     ) -> Result<Vec<Assignment>, AssignmentProviderError>;
 }
@@ -79,6 +85,7 @@ mock! {
         async fn list_role_assignments(
             &self,
             db: &DatabaseConnection,
+            provider: &Provider,
             params: &RoleAssignmentListParameters,
         ) -> Result<Vec<Assignment>, AssignmentProviderError>;
     }
@@ -135,12 +142,38 @@ impl AssignmentApi for AssignmentProvider {
     }
 
     /// List role assignments
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, db, provider))]
     async fn list_role_assignments(
         &self,
         db: &DatabaseConnection,
+        provider: &Provider,
         params: &RoleAssignmentListParameters,
     ) -> Result<Vec<Assignment>, AssignmentProviderError> {
-        self.backend_driver.list_assignments(db, params).await
+        let mut request = RoleAssignmentListForMultipleActorTargetParametersBuilder::default();
+        let mut actors: Vec<String> = Vec::new();
+        let mut targets: Vec<RoleAssignmentTarget> = Vec::new();
+        if let Some(role_id) = &params.role_id {
+            request.role_id(role_id);
+        }
+        if let Some(true) = &params.effective {
+            if let Some(uid) = &params.user_id {
+                let users = provider
+                    .get_identity_provider()
+                    .list_groups_for_user(db, uid)
+                    .await?;
+                actors.extend(users.into_iter().map(|x| x.id));
+            };
+        }
+        if let Some(val) = &params.project_id {
+            targets.push(RoleAssignmentTarget {
+                target_id: val.clone(),
+                ..Default::default()
+            });
+        }
+        request.targets(targets);
+        request.actors(actors);
+        self.backend_driver
+            .list_assignments_for_multiple_actors_and_targets(db, &request.build()?)
+            .await
     }
 }

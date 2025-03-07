@@ -42,16 +42,20 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     ),
     tag="roles"
 )]
-#[tracing::instrument(name = "api::role_assignment_list", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::role_assignment_list",
+    level = "debug",
+    skip(state, _user_auth)
+)]
 async fn list(
-    Auth(user_auth): Auth,
+    Auth(_user_auth): Auth,
     Query(query): Query<RoleAssignmentListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
     let assignments: Result<Vec<Assignment>, _> = state
         .provider
         .get_assignment_provider()
-        .list_role_assignments(&state.db, &query.try_into()?)
+        .list_role_assignments(&state.db, &state.provider, &query.try_into()?)
         .await
         .map_err(KeystoneApiError::assignment)?
         .into_iter()
@@ -87,7 +91,7 @@ mod tests {
     use crate::config::Config;
     use crate::identity::MockIdentityProvider;
     use crate::keystone::{Service, ServiceState};
-    use crate::provider::ProviderBuilder;
+    use crate::provider::{Provider, ProviderBuilder};
     use crate::resource::MockResourceProvider;
     use crate::token::{MockTokenProvider, Token, UnscopedToken};
 
@@ -121,8 +125,8 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .withf(|_: &DatabaseConnection, _: &RoleAssignmentListParameters| true)
-            .returning(|_, _| {
+            .withf(|_: &DatabaseConnection, _: &Provider, _: &RoleAssignmentListParameters| true)
+            .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     actor_id: "actor".into(),
@@ -173,16 +177,16 @@ mod tests {
         assignment_mock
             .expect_list_role_assignments()
             .withf(
-                |_: &DatabaseConnection, qp: &RoleAssignmentListParameters| {
+                |_: &DatabaseConnection, _: &Provider, qp: &RoleAssignmentListParameters| {
                     RoleAssignmentListParameters {
                         role_id: Some("role".into()),
-                        actor_id: Some("user1".into()),
-                        target_id: Some("project1".into()),
+                        user_id: Some("user1".into()),
+                        project_id: Some("project1".into()),
                         ..Default::default()
                     } == *qp
                 },
             )
-            .returning(|_, _| {
+            .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     actor_id: "actor".into(),
@@ -195,16 +199,16 @@ mod tests {
         assignment_mock
             .expect_list_role_assignments()
             .withf(
-                |_: &DatabaseConnection, qp: &RoleAssignmentListParameters| {
+                |_: &DatabaseConnection, _: &Provider, qp: &RoleAssignmentListParameters| {
                     RoleAssignmentListParameters {
                         role_id: Some("role".into()),
-                        actor_id: Some("user2".into()),
-                        target_id: Some("domain2".into()),
+                        user_id: Some("user2".into()),
+                        domain_id: Some("domain2".into()),
                         ..Default::default()
                     } == *qp
                 },
             )
-            .returning(|_, _| {
+            .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     actor_id: "actor".into(),
@@ -217,15 +221,15 @@ mod tests {
         assignment_mock
             .expect_list_role_assignments()
             .withf(
-                |_: &DatabaseConnection, qp: &RoleAssignmentListParameters| {
+                |_: &DatabaseConnection, _: &Provider, qp: &RoleAssignmentListParameters| {
                     RoleAssignmentListParameters {
-                        actor_id: Some("user3".into()),
-                        target_id: Some("project3".into()),
+                        group_id: Some("group3".into()),
+                        project_id: Some("project3".into()),
                         ..Default::default()
                     } == *qp
                 },
             )
-            .returning(|_, _| {
+            .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     actor_id: "actor".into(),
@@ -276,7 +280,7 @@ mod tests {
             .as_service()
             .oneshot(
                 Request::builder()
-                    .uri("/?group.id=user3&scope.project.id=project3")
+                    .uri("/?group.id=group3&scope.project.id=project3")
                     .header("x-auth-token", "foo")
                     .body(Body::empty())
                     .unwrap(),
