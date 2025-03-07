@@ -15,7 +15,9 @@
 use thiserror::Error;
 
 use crate::assignment::backends::error::*;
-use crate::assignment::types::RoleBuilderError;
+use crate::assignment::types::assignment::RoleAssignmentListForMultipleActorTargetParametersBuilderError;
+use crate::assignment::types::*;
+use crate::identity::error::IdentityProviderError;
 
 #[derive(Error, Debug)]
 pub enum AssignmentProviderError {
@@ -38,6 +40,19 @@ pub enum AssignmentProviderError {
     AssignmentDatabaseError {
         #[from]
         source: AssignmentDatabaseError,
+    },
+
+    /// Identity provider error
+    #[error(transparent)]
+    IdentityProvider {
+        #[from]
+        source: IdentityProviderError,
+    },
+
+    #[error("building role assignment query: {}", source)]
+    RoleAssignmentParametersBuilder {
+        #[from]
+        source: RoleAssignmentListForMultipleActorTargetParametersBuilderError,
     },
 
     #[error("building role data: {}", source)]

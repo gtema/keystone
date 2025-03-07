@@ -65,4 +65,14 @@ impl AssignmentBackend for SqlBackend {
     ) -> Result<Vec<Assignment>, AssignmentProviderError> {
         Ok(assignment::list(&self.config, db, params).await?)
     }
+
+    /// List role assignments for multiple actors/targets
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn list_assignments_for_multiple_actors_and_targets(
+        &self,
+        db: &DatabaseConnection,
+        params: &RoleAssignmentListForMultipleActorTargetParameters,
+    ) -> Result<Vec<Assignment>, AssignmentProviderError> {
+        Ok(assignment::list_for_multiple_actors_and_targets(&self.config, db, params).await?)
+    }
 }
