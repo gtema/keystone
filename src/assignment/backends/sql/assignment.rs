@@ -20,7 +20,9 @@ use crate::assignment::backends::error::AssignmentDatabaseError;
 use crate::assignment::types::*;
 use crate::config::Config;
 use crate::db::entity::{
-    assignment as db_assignment, prelude::Assignment as DbAssignment,
+    assignment as db_assignment,
+    prelude::{Assignment as DbAssignment, Role as DbRole},
+    role as db_role,
     sea_orm_active_enums::Type as DbAssignmentType,
 };
 
@@ -88,7 +90,8 @@ pub async fn list_for_multiple_actors_and_targets(
         select = select.filter(cond);
     }
 
-    let db_entities: Vec<db_assignment::Model> = select.all(db).await?;
+    let db_entities: Vec<(db_assignment::Model, Option<db_role::Model>)> =
+        select.find_also_related(DbRole).all(db).await?;
     let results: Result<Vec<Assignment>, _> = db_entities
         .into_iter()
         .map(TryInto::<Assignment>::try_into)
@@ -112,6 +115,26 @@ impl TryFrom<db_assignment::Model> for Assignment {
     }
 }
 
+impl TryFrom<(db_assignment::Model, Option<db_role::Model>)> for Assignment {
+    type Error = AssignmentDatabaseError;
+
+    fn try_from(
+        value: (db_assignment::Model, Option<db_role::Model>),
+    ) -> Result<Self, Self::Error> {
+        let mut builder = AssignmentBuilder::default();
+        builder.role_id(value.0.role_id.clone());
+        builder.actor_id(value.0.actor_id.clone());
+        builder.target_id(value.0.target_id.clone());
+        builder.inherited(value.0.inherited);
+        builder.r#type(value.0.r#type);
+        if let Some(val) = &value.1 {
+            builder.role_name(val.name.clone());
+        }
+
+        Ok(builder.build()?)
+    }
+}
+
 impl From<DbAssignmentType> for AssignmentType {
     fn from(value: DbAssignmentType) -> Self {
         match value {
@@ -128,7 +151,7 @@ mod tests {
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
 
     use crate::config::Config;
-    use crate::db::entity::{assignment, sea_orm_active_enums};
+    use crate::db::entity::{assignment, role, sea_orm_active_enums};
 
     use super::*;
 
@@ -140,6 +163,25 @@ mod tests {
             r#type: sea_orm_active_enums::Type::UserProject,
             inherited: false,
         }
+    }
+
+    fn get_role_assignment_with_role_mock(role_id: String) -> (assignment::Model, role::Model) {
+        (
+            assignment::Model {
+                role_id: role_id.clone(),
+                actor_id: "actor".into(),
+                target_id: "target".into(),
+                r#type: sea_orm_active_enums::Type::UserProject,
+                inherited: false,
+            },
+            role::Model {
+                id: role_id.clone(),
+                name: role_id.clone(),
+                extra: None,
+                domain_id: String::new(),
+                description: None,
+            },
+        )
     }
 
     #[tokio::test]
@@ -158,6 +200,7 @@ mod tests {
                 .unwrap(),
             vec![Assignment {
                 role_id: "1".into(),
+                role_name: None,
                 actor_id: "actor".into(),
                 target_id: "target".into(),
                 r#type: AssignmentType::UserProject,
@@ -236,10 +279,10 @@ mod tests {
     async fn test_list_for_multuple_actor_targets() {
         // Create MockDatabase with mock query results
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_with_role_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_with_role_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_with_role_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_with_role_mock("1".into())]])
             .append_query_results([Vec::<assignment::Model>::new()])
             .into_connection();
         let config = Config::default();
@@ -261,6 +304,7 @@ mod tests {
             .unwrap(),
             vec![Assignment {
                 role_id: "1".into(),
+                role_name: Some("1".into()),
                 actor_id: "actor".into(),
                 target_id: "target".into(),
                 r#type: AssignmentType::UserProject,
@@ -291,7 +335,7 @@ mod tests {
             .is_ok()
         );
 
-        // empty actors and targets
+        //// empty actors and targets
         assert!(
             list_for_multiple_actors_and_targets(
                 &config,
@@ -306,7 +350,7 @@ mod tests {
             .is_ok()
         );
 
-        // only mixed targets
+        //// only mixed targets
         assert!(
             list_for_multiple_actors_and_targets(
                 &config,
@@ -330,7 +374,7 @@ mod tests {
             .is_ok()
         );
 
-        // only complex targets
+        //// only complex targets
         assert!(
             list_for_multiple_actors_and_targets(
                 &config,
@@ -360,7 +404,7 @@ mod tests {
             [
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT CAST("assignment"."type" AS text), "assignment"."actor_id", "assignment"."target_id", "assignment"."role_id", "assignment"."inherited" FROM "assignment" WHERE "assignment"."actor_id" IN ($1, $2, $3) AND "assignment"."role_id" = $4 AND "assignment"."target_id" = $5"#,
+                    r#"SELECT CAST("assignment"."type" AS text) AS "A_type", "assignment"."actor_id" AS "A_actor_id", "assignment"."target_id" AS "A_target_id", "assignment"."role_id" AS "A_role_id", "assignment"."inherited" AS "A_inherited", "role"."id" AS "B_id", "role"."name" AS "B_name", "role"."extra" AS "B_extra", "role"."domain_id" AS "B_domain_id", "role"."description" AS "B_description" FROM "assignment" LEFT JOIN "role" ON "assignment"."role_id" = "role"."id" WHERE "assignment"."actor_id" IN ($1, $2, $3) AND "assignment"."role_id" = $4 AND "assignment"."target_id" = $5"#,
                     [
                         "uid1".into(),
                         "gid1".into(),
@@ -371,7 +415,7 @@ mod tests {
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT CAST("assignment"."type" AS text), "assignment"."actor_id", "assignment"."target_id", "assignment"."role_id", "assignment"."inherited" FROM "assignment" WHERE "assignment"."actor_id" IN ($1, $2, $3) AND ("assignment"."target_id" = $4 OR ("assignment"."target_id" = $5 AND "assignment"."inherited" = $6))"#,
+                    r#"SELECT CAST("assignment"."type" AS text) AS "A_type", "assignment"."actor_id" AS "A_actor_id", "assignment"."target_id" AS "A_target_id", "assignment"."role_id" AS "A_role_id", "assignment"."inherited" AS "A_inherited", "role"."id" AS "B_id", "role"."name" AS "B_name", "role"."extra" AS "B_extra", "role"."domain_id" AS "B_domain_id", "role"."description" AS "B_description" FROM "assignment" LEFT JOIN "role" ON "assignment"."role_id" = "role"."id" WHERE "assignment"."actor_id" IN ($1, $2, $3) AND ("assignment"."target_id" = $4 OR ("assignment"."target_id" = $5 AND "assignment"."inherited" = $6))"#,
                     [
                         "uid1".into(),
                         "gid1".into(),
@@ -383,17 +427,17 @@ mod tests {
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT CAST("assignment"."type" AS text), "assignment"."actor_id", "assignment"."target_id", "assignment"."role_id", "assignment"."inherited" FROM "assignment""#,
+                    r#"SELECT CAST("assignment"."type" AS text) AS "A_type", "assignment"."actor_id" AS "A_actor_id", "assignment"."target_id" AS "A_target_id", "assignment"."role_id" AS "A_role_id", "assignment"."inherited" AS "A_inherited", "role"."id" AS "B_id", "role"."name" AS "B_name", "role"."extra" AS "B_extra", "role"."domain_id" AS "B_domain_id", "role"."description" AS "B_description" FROM "assignment" LEFT JOIN "role" ON "assignment"."role_id" = "role"."id""#,
                     []
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT CAST("assignment"."type" AS text), "assignment"."actor_id", "assignment"."target_id", "assignment"."role_id", "assignment"."inherited" FROM "assignment" WHERE "assignment"."target_id" = $1 OR ("assignment"."target_id" = $2 AND "assignment"."inherited" = $3)"#,
+                    r#"SELECT CAST("assignment"."type" AS text) AS "A_type", "assignment"."actor_id" AS "A_actor_id", "assignment"."target_id" AS "A_target_id", "assignment"."role_id" AS "A_role_id", "assignment"."inherited" AS "A_inherited", "role"."id" AS "B_id", "role"."name" AS "B_name", "role"."extra" AS "B_extra", "role"."domain_id" AS "B_domain_id", "role"."description" AS "B_description" FROM "assignment" LEFT JOIN "role" ON "assignment"."role_id" = "role"."id" WHERE "assignment"."target_id" = $1 OR ("assignment"."target_id" = $2 AND "assignment"."inherited" = $3)"#,
                     ["pid1".into(), "pid2".into(), true.into()]
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT CAST("assignment"."type" AS text), "assignment"."actor_id", "assignment"."target_id", "assignment"."role_id", "assignment"."inherited" FROM "assignment" WHERE ("assignment"."target_id" = $1 AND "assignment"."inherited" = $2) OR ("assignment"."target_id" = $3 AND "assignment"."inherited" = $4)"#,
+                    r#"SELECT CAST("assignment"."type" AS text) AS "A_type", "assignment"."actor_id" AS "A_actor_id", "assignment"."target_id" AS "A_target_id", "assignment"."role_id" AS "A_role_id", "assignment"."inherited" AS "A_inherited", "role"."id" AS "B_id", "role"."name" AS "B_name", "role"."extra" AS "B_extra", "role"."domain_id" AS "B_domain_id", "role"."description" AS "B_description" FROM "assignment" LEFT JOIN "role" ON "assignment"."role_id" = "role"."id" WHERE ("assignment"."target_id" = $1 AND "assignment"."inherited" = $2) OR ("assignment"."target_id" = $3 AND "assignment"."inherited" = $4)"#,
                     ["pid1".into(), false.into(), "pid2".into(), true.into()]
                 ),
             ]

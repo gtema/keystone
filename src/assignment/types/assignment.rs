@@ -21,6 +21,9 @@ use serde::{Deserialize, Serialize};
 pub struct Assignment {
     /// The role ID.
     pub role_id: String,
+    /// The role ID.
+    #[builder(default)]
+    pub role_name: Option<String>,
     /// The actor id.
     pub actor_id: String,
     /// The target id.

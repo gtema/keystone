@@ -41,6 +41,7 @@ pub struct Assignment {
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct Role {
     pub id: String,
+    pub name: Option<String>,
 }
 
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -75,7 +76,10 @@ impl TryFrom<types::Assignment> for Assignment {
 
     fn try_from(value: types::Assignment) -> Result<Self, Self::Error> {
         let mut builder = AssignmentBuilder::default();
-        builder.role(Role { id: value.role_id });
+        builder.role(Role {
+            id: value.role_id,
+            name: value.role_name,
+        });
         match value.r#type {
             types::AssignmentType::GroupDomain => {
                 builder.group(Group {
@@ -207,7 +211,10 @@ mod tests {
     fn test_assignment_conversion() {
         assert_eq!(
             Assignment {
-                role: Role { id: "role".into() },
+                role: Role {
+                    id: "role".into(),
+                    name: Some("role_name".into())
+                },
                 user: Some(User { id: "actor".into() }),
                 scope: Scope::Project(Project {
                     id: "target".into()
@@ -216,6 +223,7 @@ mod tests {
             },
             Assignment::try_from(types::Assignment {
                 role_id: "role".into(),
+                role_name: Some("role_name".into()),
                 actor_id: "actor".into(),
                 target_id: "target".into(),
                 r#type: types::AssignmentType::UserProject,
@@ -225,7 +233,10 @@ mod tests {
         );
         assert_eq!(
             Assignment {
-                role: Role { id: "role".into() },
+                role: Role {
+                    id: "role".into(),
+                    name: None
+                },
                 user: Some(User { id: "actor".into() }),
                 scope: Scope::Domain(Domain {
                     id: "target".into()
@@ -234,6 +245,7 @@ mod tests {
             },
             Assignment::try_from(types::Assignment {
                 role_id: "role".into(),
+                role_name: None,
                 actor_id: "actor".into(),
                 target_id: "target".into(),
                 r#type: types::AssignmentType::UserDomain,
@@ -243,7 +255,10 @@ mod tests {
         );
         assert_eq!(
             Assignment {
-                role: Role { id: "role".into() },
+                role: Role {
+                    id: "role".into(),
+                    name: None
+                },
                 group: Some(Group { id: "actor".into() }),
                 scope: Scope::Project(Project {
                     id: "target".into()
@@ -252,6 +267,7 @@ mod tests {
             },
             Assignment::try_from(types::Assignment {
                 role_id: "role".into(),
+                role_name: None,
                 actor_id: "actor".into(),
                 target_id: "target".into(),
                 r#type: types::AssignmentType::GroupProject,
@@ -261,7 +277,10 @@ mod tests {
         );
         assert_eq!(
             Assignment {
-                role: Role { id: "role".into() },
+                role: Role {
+                    id: "role".into(),
+                    name: None
+                },
                 group: Some(Group { id: "actor".into() }),
                 scope: Scope::Domain(Domain {
                     id: "target".into()
@@ -270,6 +289,7 @@ mod tests {
             },
             Assignment::try_from(types::Assignment {
                 role_id: "role".into(),
+                role_name: None,
                 actor_id: "actor".into(),
                 target_id: "target".into(),
                 r#type: types::AssignmentType::GroupDomain,
