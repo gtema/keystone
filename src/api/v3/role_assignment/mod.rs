@@ -129,6 +129,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
+                    role_name: Some("rn".into()),
                     actor_id: "actor".into(),
                     target_id: "target".into(),
                     r#type: AssignmentType::UserProject,
@@ -160,7 +161,10 @@ mod tests {
         let res: ApiAssignmentList = serde_json::from_slice(&body).unwrap();
         assert_eq!(
             vec![ApiAssignment {
-                role: Role { id: "role".into() },
+                role: Role {
+                    id: "role".into(),
+                    name: Some("rn".into())
+                },
                 user: Some(User { id: "actor".into() }),
                 scope: Scope::Project(Project {
                     id: "target".into()
@@ -189,6 +193,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
+                    role_name: None,
                     actor_id: "actor".into(),
                     target_id: "target".into(),
                     r#type: AssignmentType::UserProject,
@@ -211,6 +216,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
+                    role_name: None,
                     actor_id: "actor".into(),
                     target_id: "target".into(),
                     r#type: AssignmentType::UserProject,
@@ -232,6 +238,7 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
+                    role_name: None,
                     actor_id: "actor".into(),
                     target_id: "target".into(),
                     r#type: AssignmentType::UserProject,

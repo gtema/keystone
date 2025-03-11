@@ -14,6 +14,9 @@
 
 use crate::api::error::{KeystoneApiError, TokenError};
 use crate::api::v3::auth::token::types::{ProjectBuilder, Token, TokenBuilder, UserBuilder};
+use crate::api::v3::role::types::Role;
+use crate::assignment::AssignmentApi;
+use crate::assignment::types::RoleAssignmentListParametersBuilder;
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
 use crate::resource::ResourceApi;
@@ -52,7 +55,7 @@ impl Token {
             })?;
 
         let mut user_response: UserBuilder = UserBuilder::default();
-        user_response.id(user.id);
+        user_response.id(user.id.clone());
         user_response.name(user.name);
         user_response.password_expires_at(user.password_expires_at);
         user_response.domain(user_domain.clone());
@@ -110,6 +113,29 @@ impl Token {
                     project_response.domain(project_domain.clone().into());
                 }
                 response.project(project_response.build().map_err(TokenError::from)?);
+
+                let token_roles = state
+                    .provider
+                    .get_assignment_provider()
+                    .list_role_assignments(
+                        &state.db,
+                        &state.provider,
+                        &RoleAssignmentListParametersBuilder::default()
+                            .user_id(user.id)
+                            .project_id(&token.project_id)
+                            .build()?,
+                    )
+                    .await?;
+                response.roles(
+                    token_roles
+                        .into_iter()
+                        .map(|x| Role {
+                            id: x.role_id.clone(),
+                            name: x.role_name.clone().unwrap_or_default(),
+                            ..Default::default()
+                        })
+                        .collect::<Vec<Role>>(),
+                );
             }
             ProviderToken::ApplicationCredential(_token) => {
                 todo!();
@@ -125,7 +151,11 @@ mod tests {
     use std::sync::Arc;
 
     use crate::api::v3::auth::token::types::Token;
-    use crate::assignment::MockAssignmentProvider;
+    use crate::api::v3::role::types::Role;
+    use crate::assignment::{
+        MockAssignmentProvider,
+        types::{Assignment, AssignmentType, RoleAssignmentListParameters},
+    };
     use crate::config::Config;
     use crate::identity::{MockIdentityProvider, types::User};
     use crate::keystone::Service;
@@ -283,7 +313,19 @@ mod tests {
                 }))
             });
         let token_mock = MockTokenProvider::default();
-        let assignment_mock = MockAssignmentProvider::default();
+        let mut assignment_mock = MockAssignmentProvider::default();
+        assignment_mock.expect_list_role_assignments().returning(
+            |_, _, q: &RoleAssignmentListParameters| {
+                Ok(vec![Assignment {
+                    role_id: "rid".into(),
+                    role_name: Some("role_name".into()),
+                    actor_id: q.user_id.clone().unwrap(),
+                    target_id: q.project_id.clone().unwrap(),
+                    r#type: AssignmentType::UserProject,
+                    inherited: false,
+                }])
+            },
+        );
         let provider = ProviderBuilder::default()
             .config(config.clone())
             .assignment(assignment_mock)
@@ -312,5 +354,13 @@ mod tests {
         assert_eq!("project_domain_id", project.domain.id);
         assert_eq!("project_id", project.id);
         assert!(api_token.domain.is_none());
+        assert_eq!(
+            api_token.roles,
+            Some(vec![Role {
+                id: "rid".into(),
+                name: "role_name".into(),
+                ..Default::default()
+            }])
+        );
     }
 }

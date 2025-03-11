@@ -22,6 +22,7 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::api::v3::role::types::Role;
 use crate::resource::types as resource_provider_types;
 
 /// Authorization token
@@ -65,6 +66,11 @@ pub struct Token {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub domain: Option<Domain>,
+
+    /// A list of role objects
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
+    pub roles: Option<Vec<Role>>,
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]

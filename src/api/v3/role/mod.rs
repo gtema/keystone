@@ -24,7 +24,7 @@ use crate::assignment::AssignmentApi;
 use crate::keystone::ServiceState;
 use types::{Role, RoleList, RoleListParameters, RoleResponse};
 
-mod types;
+pub mod types;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
