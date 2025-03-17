@@ -16,6 +16,7 @@ use axum::extract::FromRef;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tracing::info;
+use webauthn_rs::{Webauthn, WebauthnBuilder, prelude::Url};
 
 use crate::config::Config;
 use crate::error::KeystoneError;
@@ -30,6 +31,7 @@ pub struct Service {
     pub provider: Provider,
     #[from_ref(skip)]
     pub db: DatabaseConnection,
+    pub webauthn: Webauthn,
 }
 
 pub type ServiceState = Arc<Service>;
@@ -40,10 +42,26 @@ impl Service {
         db: DatabaseConnection,
         provider: Provider,
     ) -> Result<Self, KeystoneError> {
+        // Effective domain name.
+        let rp_id = "localhost";
+        // Url containing the effective domain name
+        // MUST include the port number!
+        let rp_origin = Url::parse("http://localhost:8080").expect("Invalid URL");
+        let builder = WebauthnBuilder::new(rp_id, &rp_origin).expect("Invalid configuration");
+
+        // Now, with the builder you can define other options.
+        // Set a "nice" relying party name. Has no security properties and
+        // may be changed in the future.
+        let builder = builder.rp_name("Keystone");
+
+        // Consume the builder and create our webauthn instance.
+        let webauthn = builder.build().expect("Invalid configuration");
+
         Ok(Self {
             config: cfg.clone(),
             provider,
             db,
+            webauthn,
         })
     }
 

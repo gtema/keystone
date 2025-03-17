@@ -19,7 +19,7 @@ use mockall::mock;
 
 pub mod application_credential;
 pub mod domain_scoped;
-mod error;
+pub mod error;
 pub mod fernet;
 pub mod fernet_utils;
 pub mod project_scoped;
@@ -34,10 +34,11 @@ pub use application_credential::ApplicationCredentialToken;
 pub use domain_scoped::DomainScopeToken;
 pub use project_scoped::ProjectScopeToken;
 pub use types::Token;
-pub use unscoped::UnscopedToken;
+pub use unscoped::{UnscopedToken, UnscopedTokenBuilder};
 
 #[derive(Clone, Debug)]
 pub struct TokenProvider {
+    config: Config,
     backend_driver: Box<dyn TokenBackend>,
 }
 
@@ -48,6 +49,7 @@ impl TokenProvider {
         };
         backend_driver.set_config(config.clone());
         Ok(Self {
+            config: config.clone(),
             backend_driver: Box::new(backend_driver),
         })
     }
@@ -60,6 +62,17 @@ pub trait TokenApi: Send + Sync + Clone {
         credential: &'a str,
         window_seconds: Option<i64>,
     ) -> Result<Token, TokenProviderError>;
+
+    fn issue_token<U>(
+        &self,
+        user_id: U,
+        methods: Vec<String>,
+        audit_ids: Vec<String>,
+    ) -> Result<Token, TokenProviderError>
+    where
+        U: AsRef<str>;
+
+    fn encode_token(&self, token: &Token) -> Result<String, TokenProviderError>;
 }
 
 #[async_trait]
@@ -71,7 +84,7 @@ impl TokenApi for TokenProvider {
         credential: &'a str,
         window_seconds: Option<i64>,
     ) -> Result<Token, TokenProviderError> {
-        let token = self.backend_driver.extract(credential)?;
+        let token = self.backend_driver.decode(credential)?;
         if Local::now().to_utc()
             > token
                 .expires_at()
@@ -81,6 +94,36 @@ impl TokenApi for TokenProvider {
             return Err(TokenProviderError::Expired);
         }
         Ok(token)
+    }
+
+    fn issue_token<U>(
+        &self,
+        user_id: U,
+        methods: Vec<String>,
+        audit_ids: Vec<String>,
+    ) -> Result<Token, TokenProviderError>
+    where
+        U: AsRef<str>,
+    {
+        let token = Token::Unscoped(
+            UnscopedTokenBuilder::default()
+                .user_id(user_id.as_ref())
+                .methods(methods.into_iter())
+                .audit_ids(audit_ids.into_iter())
+                .expires_at(
+                    Local::now()
+                        .to_utc()
+                        .checked_add_signed(TimeDelta::seconds(self.config.token.expiration as i64))
+                        .ok_or(TokenProviderError::ExpiryCalculation)?,
+                )
+                .build()?,
+        );
+        Ok(token)
+    }
+
+    /// Validate token
+    fn encode_token(&self, token: &Token) -> Result<String, TokenProviderError> {
+        self.backend_driver.encode(token)
     }
 }
 
@@ -97,6 +140,18 @@ mock! {
             credential: &'a str,
             window_seconds: Option<i64>,
         ) -> Result<Token, TokenProviderError>;
+
+        #[mockall::concretize]
+        fn issue_token<U>(
+            &self,
+            user_id: U,
+            methods: Vec<String>,
+            audit_ids: Vec<String>,
+        ) -> Result<Token, TokenProviderError>
+        where
+            U: AsRef<str>;
+
+        fn encode_token(&self, token: &Token) -> Result<String, TokenProviderError>;
     }
 
     impl Clone for TokenProvider {

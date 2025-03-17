@@ -18,6 +18,7 @@ pub mod user;
 use async_trait::async_trait;
 use dyn_clone::DynClone;
 use sea_orm::DatabaseConnection;
+use webauthn_rs::prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration};
 
 use crate::config::Config;
 use crate::identity::IdentityProviderError;
@@ -94,6 +95,65 @@ pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Vec<Group>, IdentityProviderError>;
+
+    /// List user passkeys
+    async fn list_user_passkeys<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Vec<Passkey>, IdentityProviderError>;
+
+    /// Create passkey
+    async fn create_user_passkey<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        passkey: Passkey,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Save passkey registration state
+    async fn create_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        state: PasskeyRegistration,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Save passkey auth state
+    async fn create_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        state: PasskeyAuthentication,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Get passkey registration state
+    async fn get_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Option<PasskeyRegistration>, IdentityProviderError>;
+
+    /// Get passkey authentication state
+    async fn get_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError>;
+
+    /// Delete passkey registration state of a user
+    async fn delete_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Delete passkey authentication state of a user
+    async fn delete_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<(), IdentityProviderError>;
 }
 
 dyn_clone::clone_trait_object!(IdentityBackend);

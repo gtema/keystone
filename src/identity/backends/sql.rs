@@ -16,11 +16,14 @@ use async_trait::async_trait;
 use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
+use webauthn_rs::prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration};
 
 mod common;
 mod federated_user;
 mod group;
 mod local_user;
+mod passkey;
+mod passkey_state;
 mod password;
 mod user;
 mod user_option;
@@ -143,6 +146,93 @@ impl IdentityBackend for SqlBackend {
         user_id: &'a str,
     ) -> Result<Vec<Group>, IdentityProviderError> {
         Ok(group::list_for_user(&self.config, db, user_id).await?)
+    }
+
+    /// Create passkey
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn create_user_passkey<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        passkey: Passkey,
+    ) -> Result<(), IdentityProviderError> {
+        Ok(passkey::create(db, user_id, passkey).await?)
+    }
+
+    /// List user passkeys
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn list_user_passkeys<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Vec<Passkey>, IdentityProviderError> {
+        Ok(passkey::list(db, user_id).await?)
+    }
+
+    /// Save passkey registration state
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn create_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        state: PasskeyRegistration,
+    ) -> Result<(), IdentityProviderError> {
+        Ok(passkey_state::create_register(db, user_id, state).await?)
+    }
+
+    /// Save passkey auth state
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn create_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        state: PasskeyAuthentication,
+    ) -> Result<(), IdentityProviderError> {
+        Ok(passkey_state::create_auth(db, user_id, state).await?)
+    }
+
+    /// Get passkey registration state
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn get_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Option<PasskeyRegistration>, IdentityProviderError> {
+        Ok(passkey_state::get_register(db, user_id).await?)
+    }
+
+    /// Get passkey auth state
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn get_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError> {
+        Ok(passkey_state::get_auth(db, user_id).await?)
+    }
+
+    /// Delete passkey registration state for a user
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn delete_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<(), IdentityProviderError> {
+        passkey_state::delete(db, user_id)
+            .await
+            .map_err(IdentityProviderError::database)
+    }
+
+    /// Delete passkey auth state for a user
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn delete_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<(), IdentityProviderError> {
+        passkey_state::delete(db, user_id)
+            .await
+            .map_err(IdentityProviderError::database)
     }
 }
 

@@ -20,6 +20,7 @@ pub mod auth;
 pub mod group;
 pub mod role;
 pub mod role_assignment;
+pub mod types;
 pub mod user;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {

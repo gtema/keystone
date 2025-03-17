@@ -15,7 +15,7 @@
 pub mod api;
 pub mod assignment;
 pub mod config;
-pub(crate) mod db;
+pub mod db;
 pub mod error;
 pub mod identity;
 pub mod keystone;

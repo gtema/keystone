@@ -17,6 +17,7 @@ use async_trait::async_trait;
 use mockall::mock;
 use sea_orm::DatabaseConnection;
 use uuid::Uuid;
+use webauthn_rs::prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration};
 
 pub mod backends;
 pub mod error;
@@ -92,6 +93,60 @@ pub trait IdentityApi: Send + Sync + Clone {
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError>;
+
+    async fn list_user_passkeys<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<impl IntoIterator<Item = Passkey>, IdentityProviderError>;
+
+    /// Create passkey
+    async fn create_user_passkey<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        passkey: Passkey,
+    ) -> Result<(), IdentityProviderError>;
+
+    async fn save_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        state: PasskeyRegistration,
+    ) -> Result<(), IdentityProviderError>;
+
+    async fn save_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        state: PasskeyAuthentication,
+    ) -> Result<(), IdentityProviderError>;
+
+    async fn get_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Option<PasskeyRegistration>, IdentityProviderError>;
+
+    async fn get_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError>;
+
+    /// Delete passkey registration state of a user
+    async fn delete_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Delete passkey registration state of a user
+    async fn delete_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<(), IdentityProviderError>;
 }
 
 #[cfg(test)]
@@ -155,6 +210,57 @@ mock! {
             db: &DatabaseConnection,
             user_id: &'a str,
         ) -> Result<Vec<Group>, IdentityProviderError>;
+
+        async fn list_user_passkeys<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+        ) -> Result<Vec<Passkey>, IdentityProviderError>;
+
+        async fn create_user_passkey<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+            passkey: Passkey,
+        ) -> Result<(), IdentityProviderError>;
+
+        async fn save_user_passkey_registration_state<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+            state: PasskeyRegistration,
+        ) -> Result<(), IdentityProviderError>;
+
+        async fn save_user_passkey_authentication_state<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+            state: PasskeyAuthentication,
+        ) -> Result<(), IdentityProviderError>;
+
+        async fn get_user_passkey_registration_state<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+        ) -> Result<Option<PasskeyRegistration>, IdentityProviderError>;
+
+        async fn get_user_passkey_authentication_state<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+        ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError>;
+
+        async fn delete_user_passkey_registration_state<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+        ) -> Result<(), IdentityProviderError>;
+
+        async fn delete_user_passkey_authentication_state<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+        ) -> Result<(), IdentityProviderError>;
     }
 
     impl Clone for IdentityProvider {
@@ -284,5 +390,102 @@ impl IdentityApi for IdentityProvider {
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError> {
         self.backend_driver.list_groups_for_user(db, user_id).await
+    }
+
+    /// List user passkeys
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn list_user_passkeys<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<impl IntoIterator<Item = Passkey>, IdentityProviderError> {
+        self.backend_driver.list_user_passkeys(db, user_id).await
+    }
+
+    /// Create passkey
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn create_user_passkey<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        passkey: Passkey,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .create_user_passkey(db, user_id, passkey)
+            .await
+    }
+
+    /// Save passkey registration state
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn save_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        state: PasskeyRegistration,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .create_user_passkey_registration_state(db, user_id, state)
+            .await
+    }
+
+    /// Save passkey authentication state
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn save_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        state: PasskeyAuthentication,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .create_user_passkey_authentication_state(db, user_id, state)
+            .await
+    }
+
+    /// Get passkey registration state
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn get_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Option<PasskeyRegistration>, IdentityProviderError> {
+        self.backend_driver
+            .get_user_passkey_registration_state(db, user_id)
+            .await
+    }
+
+    /// Get passkey authentication state
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn get_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError> {
+        self.backend_driver
+            .get_user_passkey_authentication_state(db, user_id)
+            .await
+    }
+
+    /// Delete passkey registration state of a user
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn delete_user_passkey_registration_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .delete_user_passkey_authentication_state(db, user_id)
+            .await
+    }
+
+    /// Delete passkey authentication state of a user
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn delete_user_passkey_authentication_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .delete_user_passkey_authentication_state(db, user_id)
+            .await
     }
 }
