@@ -35,7 +35,7 @@ impl TryFrom<&BackendToken> for Token {
             token.user_id(data.user_id.clone());
             token.methods(data.methods.clone());
             token.audit_ids(data.audit_ids.clone());
-            token.expires_at(data.expires_at.clone());
+            token.expires_at(data.expires_at);
         }
         Ok(token.build()?)
     }

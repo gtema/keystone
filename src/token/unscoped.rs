@@ -109,13 +109,14 @@ impl MsgPackToken for UnscopedToken {
 #[cfg(test)]
 mod tests {
     use chrono::{Local, SubsecRound};
+    use uuid::Uuid;
 
     use super::*;
 
     #[test]
     fn test_roundtrip() {
         let token = UnscopedToken {
-            user_id: "abc".into(),
+            user_id: Uuid::new_v4().simple().to_string(),
             methods: vec!["password".into()],
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
