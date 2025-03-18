@@ -113,7 +113,7 @@ pub(crate) fn encode_auth_methods<I: IntoIterator<Item = String>>(
 
 impl FernetTokenProvider {
     /// Parse binary blob as MessagePack after encrypting it with Fernet
-    fn parse(&self, rd: &mut &[u8]) -> Result<Token, TokenProviderError> {
+    fn decode(&self, rd: &mut &[u8]) -> Result<Token, TokenProviderError> {
         if let Marker::FixArray(_) = read_marker(rd).map_err(ValueReadError::from)? {
             match read_payload_token_type(rd)? {
                 0 => Ok(UnscopedToken::disassemble(rd, &self.auth_map)?.into()),
@@ -138,8 +138,26 @@ impl FernetTokenProvider {
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 data.assemble(&mut buf, &self.auth_map)?;
             }
-            _ => {
-                todo!()
+            Token::DomainScope(data) => {
+                write_array_len(&mut buf, 6)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                write_pfix(&mut buf, 1)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                data.assemble(&mut buf, &self.auth_map)?;
+            }
+            Token::ProjectScope(data) => {
+                write_array_len(&mut buf, 6)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                write_pfix(&mut buf, 2)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                data.assemble(&mut buf, &self.auth_map)?;
+            }
+            Token::ApplicationCredential(data) => {
+                write_array_len(&mut buf, 7)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                write_pfix(&mut buf, 9)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                data.assemble(&mut buf, &self.auth_map)?;
             }
         }
         Ok(buf.into())
@@ -173,7 +191,7 @@ impl FernetTokenProvider {
             Some(fernet) => fernet.decrypt(credential)?,
             _ => self.get_fernet()?.decrypt(credential)?,
         };
-        self.parse(&mut payload.as_slice())
+        self.decode(&mut payload.as_slice())
     }
 
     /// Encrypt the token
@@ -224,6 +242,7 @@ pub(super) mod tests {
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::tempdir;
+    use uuid::Uuid;
 
     fn setup_config() -> Config {
         let keys_dir = tempdir().unwrap();
@@ -270,7 +289,7 @@ pub(super) mod tests {
     #[tokio::test]
     async fn test_unscoped_roundtrip() {
         let token = Token::Unscoped(UnscopedToken {
-            user_id: "abc".into(),
+            user_id: Uuid::new_v4().simple().to_string(),
             methods: vec!["password".into()],
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
@@ -310,6 +329,26 @@ pub(super) mod tests {
     }
 
     #[tokio::test]
+    async fn test_domain_roundtrip() {
+        let token = Token::DomainScope(DomainScopeToken {
+            user_id: Uuid::new_v4().simple().to_string(),
+            methods: vec!["password".into()],
+            domain_id: Uuid::new_v4().simple().to_string(),
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: Local::now().trunc_subsecs(0).into(),
+        });
+
+        let mut backend = FernetTokenProvider::default();
+        let config = crate::tests::token::setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        let encrypted = backend.encrypt(&token).unwrap();
+        let dec_token = backend.decrypt(&encrypted).unwrap();
+        assert_eq!(token, dec_token);
+    }
+
+    #[tokio::test]
     async fn test_decrypt_project() {
         let token = "gAAAAABns2ixy75K_KfoosWLrNNqG6KW8nm3Xzv0_2dOx8ODWH7B8i2g8CncGLO6XBEH_TYLg83P6XoKQ5bU8An8Kqgw9WX3bvmEQXphnwPM6aRAOQUSdVhTlUm_8otDG9BS2rc70Q7pfy57S3_yBgimy-174aKdP8LPusvdHZsQPEJO9pfeXWw";
 
@@ -330,6 +369,26 @@ pub(super) mod tests {
         } else {
             panic!()
         }
+    }
+
+    #[tokio::test]
+    async fn test_project_roundtrip() {
+        let token = Token::ProjectScope(ProjectScopeToken {
+            user_id: Uuid::new_v4().simple().to_string(),
+            methods: vec!["password".into()],
+            project_id: Uuid::new_v4().simple().to_string(),
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: Local::now().trunc_subsecs(0).into(),
+        });
+
+        let mut backend = FernetTokenProvider::default();
+        let config = crate::tests::token::setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        let encrypted = backend.encrypt(&token).unwrap();
+        let dec_token = backend.decrypt(&encrypted).unwrap();
+        assert_eq!(token, dec_token);
     }
 
     #[tokio::test]
@@ -357,5 +416,26 @@ pub(super) mod tests {
         } else {
             panic!()
         }
+    }
+
+    #[tokio::test]
+    async fn test_application_credential_roundtrip() {
+        let token = Token::ApplicationCredential(ApplicationCredentialToken {
+            user_id: Uuid::new_v4().simple().to_string(),
+            methods: vec!["application_credential".into()],
+            project_id: Uuid::new_v4().simple().to_string(),
+            application_credential_id: Uuid::new_v4().simple().to_string(),
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: Local::now().trunc_subsecs(0).into(),
+        });
+
+        let mut backend = FernetTokenProvider::default();
+        let config = crate::tests::token::setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        let encrypted = backend.encrypt(&token).unwrap();
+        let dec_token = backend.decrypt(&encrypted).unwrap();
+        assert_eq!(token, dec_token);
     }
 }
