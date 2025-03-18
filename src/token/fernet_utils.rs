@@ -14,7 +14,7 @@
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{DateTime, Utc};
-use rmp::{Marker, decode::*};
+use rmp::{Marker, decode::*, encode::*};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
@@ -125,7 +125,9 @@ pub fn read_uuid(rd: &mut &[u8]) -> Result<String, TokenProviderError> {
                 }
             }
         }
-        Marker::FixStr(len) => return Ok(read_str_data(len.into(), rd)?),
+        Marker::FixStr(len) => {
+            return Ok(read_str_data(len.into(), rd)?);
+        }
         other => {
             return Err(TokenProviderError::InvalidTokenUuidMarker(other));
         }
@@ -133,10 +135,39 @@ pub fn read_uuid(rd: &mut &[u8]) -> Result<String, TokenProviderError> {
     Err(TokenProviderError::InvalidTokenUuid)
 }
 
+/// Write the UUID to the payload
+/// It is represented as an Array[bool, bytes] where first bool indicates whether following bytes
+/// are UUID or just bytes that should be treated as a string (for cases where ID is not a valid
+/// UUID)
+pub fn write_uuid<W: RmpWrite>(wd: &mut W, uid: &str) -> Result<(), TokenProviderError> {
+    match Uuid::parse_str(uid) {
+        Ok(uuid) => {
+            write_array_len(wd, 2).map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+            write_bool(wd, true).map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+            write_bin(wd, uuid.as_bytes())
+                .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+        }
+        _ => {
+            write_array_len(wd, 2).map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+            write_bool(wd, false).map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+            write_bin(wd, uid.as_bytes())
+                .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+        }
+    }
+    Ok(())
+}
+
 /// Read the time represented as a f64 of the UTC seconds
 pub fn read_time(rd: &mut &[u8]) -> Result<DateTime<Utc>, TokenProviderError> {
     DateTime::from_timestamp(read_f64(rd)?.round() as i64, 0)
         .ok_or(TokenProviderError::InvalidToken)
+}
+
+/// Write the time represented as a f64 of the UTC seconds
+pub fn write_time<W: RmpWrite>(wd: &mut W, time: DateTime<Utc>) -> Result<(), TokenProviderError> {
+    write_f64(wd, time.timestamp() as f64)
+        .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+    Ok(())
 }
 
 /// Decode array of audit ids from the payload
@@ -159,12 +190,33 @@ pub fn read_audit_ids(
     Err(TokenProviderError::InvalidToken)
 }
 
+/// Encode array of audit ids into the payload
+pub fn write_audit_ids<W: RmpWrite, I: IntoIterator<Item = String>>(
+    wd: &mut W,
+    data: I,
+) -> Result<(), TokenProviderError> {
+    let vals = Vec::from_iter(data.into_iter().map(|mut x| {
+        x.push_str("==");
+        x
+    }));
+    write_array_len(wd, vals.len() as u32)
+        .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+    for val in vals.iter() {
+        write_bin(wd, &URL_SAFE.decode(val)?)
+            .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::FernetUtils;
+    use chrono::{Local, SubsecRound};
     use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_load_keys() {
@@ -195,5 +247,52 @@ mod tests {
             ],
             keys
         );
+    }
+
+    #[test]
+    fn test_write_read_uuid_str() {
+        let mut buf = Vec::with_capacity(36);
+        let uuid = "abc";
+        write_uuid(&mut buf, uuid).unwrap();
+        let msg = buf.clone();
+        let mut decode_data = msg.as_slice();
+        let decoded = read_uuid(&mut decode_data).unwrap();
+        assert_eq!(uuid, decoded);
+    }
+
+    #[test]
+    fn test_write_read_uuid() {
+        let mut buf = Vec::with_capacity(36);
+        let test = Uuid::new_v4();
+        write_uuid(&mut buf, &test.to_string()).unwrap();
+        let msg = buf.clone();
+        let mut decode_data = msg.as_slice();
+        let decoded = read_uuid(&mut decode_data).unwrap();
+        assert_eq!(test.simple().to_string(), decoded);
+    }
+
+    #[test]
+    fn test_write_read_time() {
+        let test = Local::now().trunc_subsecs(0);
+        let mut buf = Vec::with_capacity(36);
+        write_time(&mut buf, test.into()).unwrap();
+        let msg = buf.clone();
+        let mut decode_data = msg.as_slice();
+        let decoded = read_time(&mut decode_data).unwrap();
+        assert_eq!(test, decoded);
+    }
+
+    #[test]
+    fn test_write_audit_ids() {
+        let test = vec!["Zm9vCg".into()];
+        let mut buf = Vec::with_capacity(36);
+        write_audit_ids(&mut buf, test.clone()).unwrap();
+        let msg = buf.clone();
+        let mut decode_data = msg.as_slice();
+        let decoded: Vec<String> = read_audit_ids(&mut decode_data)
+            .unwrap()
+            .into_iter()
+            .collect();
+        assert_eq!(test, decoded);
     }
 }

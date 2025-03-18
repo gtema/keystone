@@ -12,10 +12,17 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use bytes::Bytes;
 use fernet::{Fernet, MultiFernet};
-use rmp::{Marker, decode::*};
+use rmp::{
+    Marker,
+    decode::{ValueReadError, read_marker, read_u8},
+    encode::{write_array_len, write_pfix},
+};
 use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::fmt;
+use std::io::Write;
 
 use crate::config::Config;
 use crate::token::{
@@ -34,6 +41,17 @@ pub struct FernetTokenProvider {
 
 pub trait MsgPackToken {
     type Token;
+
+    /// Construct MsgPack payload for the Token
+    fn assemble<W: Write>(
+        &self,
+        _wd: &mut W,
+        _auth_map: &BTreeMap<usize, String>,
+    ) -> Result<(), TokenProviderError> {
+        Ok(())
+    }
+
+    /// Parse MsgPack payload into the Token
     fn disassemble(
         rd: &mut &[u8],
         auth_map: &BTreeMap<usize, String>,
@@ -81,6 +99,18 @@ pub(crate) fn decode_auth_methods(
     Ok(results.into_iter())
 }
 
+/// Encode the list of auth_methods into a single integer
+pub(crate) fn encode_auth_methods<I: IntoIterator<Item = String>>(
+    methods: I,
+    auth_map: &BTreeMap<usize, String>,
+) -> Result<usize, TokenProviderError> {
+    let me: HashSet<String> = HashSet::from_iter(methods);
+    let res = auth_map
+        .iter()
+        .fold(0, |acc, (k, v)| acc + if me.contains(v) { *k } else { 0 });
+    Ok(res)
+}
+
 impl FernetTokenProvider {
     /// Parse binary blob as MessagePack after encrypting it with Fernet
     fn parse(&self, rd: &mut &[u8]) -> Result<Token, TokenProviderError> {
@@ -95,6 +125,24 @@ impl FernetTokenProvider {
         } else {
             Err(TokenProviderError::InvalidToken)
         }
+    }
+
+    /// Encode Token as binary blob as MessagePack
+    fn encode(&self, token: &Token) -> Result<Bytes, TokenProviderError> {
+        let mut buf = vec![];
+        match token {
+            Token::Unscoped(data) => {
+                write_array_len(&mut buf, 5)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                write_pfix(&mut buf, 0)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                data.assemble(&mut buf, &self.auth_map)?;
+            }
+            _ => {
+                todo!()
+            }
+        }
+        Ok(buf.into())
     }
 
     /// Get MultiFernet initialized with repository keys
@@ -127,6 +175,16 @@ impl FernetTokenProvider {
         };
         self.parse(&mut payload.as_slice())
     }
+
+    /// Encrypt the token
+    pub fn encrypt(&self, token: &Token) -> Result<String, TokenProviderError> {
+        let payload = self.encode(token)?;
+        let res = match &self.fernet {
+            Some(fernet) => fernet.encrypt(&payload),
+            _ => self.get_fernet()?.encrypt(&payload),
+        };
+        Ok(res)
+    }
 }
 
 impl TokenBackend for FernetTokenProvider {
@@ -147,15 +205,21 @@ impl TokenBackend for FernetTokenProvider {
         self.config = config;
     }
 
-    /// Extract token
-    fn extract(&self, credential: &str) -> Result<Token, TokenProviderError> {
+    /// Decrypt the token
+    fn decode(&self, credential: &str) -> Result<Token, TokenProviderError> {
         self.decrypt(credential)
+    }
+
+    /// Encrypt the token
+    fn encode(&self, token: &Token) -> Result<String, TokenProviderError> {
+        self.encrypt(token)
     }
 }
 
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
+    use chrono::{Local, SubsecRound};
     use std::fs::File;
     use std::io::Write;
     use std::path::PathBuf;
@@ -201,6 +265,25 @@ pub(super) mod tests {
         } else {
             panic!()
         }
+    }
+
+    #[tokio::test]
+    async fn test_unscoped_roundtrip() {
+        let token = Token::Unscoped(UnscopedToken {
+            user_id: "abc".into(),
+            methods: vec!["password".into()],
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: Local::now().trunc_subsecs(0).into(),
+        });
+
+        let mut backend = FernetTokenProvider::default();
+        let config = crate::tests::token::setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        let encrypted = backend.encrypt(&token).unwrap();
+        let dec_token = backend.decrypt(&encrypted).unwrap();
+        assert_eq!(token, dec_token);
     }
 
     #[tokio::test]

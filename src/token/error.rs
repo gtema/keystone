@@ -58,12 +58,27 @@ pub enum TokenProviderError {
     #[error("token expired")]
     Expired,
 
+    /// Expired token
+    #[error("token expiry calculation failed")]
+    ExpiryCalculation,
+
     /// MSGPack Decryption
     #[error("rmp value error")]
-    RmpValue {
+    RmpValueRead {
         /// The source of the error.
         #[from]
         source: rmp::decode::ValueReadError,
+    },
+
+    /// MSGPack Encryption
+    #[error("rmp value encoding error")]
+    RmpEncode(String),
+
+    #[error("b64 decryption error")]
+    Base64Decode {
+        /// The source of the error.
+        #[from]
+        source: base64::DecodeError,
     },
 
     #[error("uuid decryption error")]
@@ -78,5 +93,12 @@ pub enum TokenProviderError {
         /// The source of the error.
         #[from]
         source: TryFromIntError,
+    },
+
+    #[error(transparent)]
+    UnscopedBuilder {
+        /// The source of the error.
+        #[from]
+        source: crate::token::unscoped::UnscopedTokenBuilderError,
     },
 }

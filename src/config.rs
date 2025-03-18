@@ -155,6 +155,14 @@ fn default_user_options_mapping() -> HashMap<String, String> {
 pub struct TokenSection {
     #[serde(default)]
     pub provider: TokenProvider,
+    /// The amount of time that a token should remain valid (in seconds). Drastically reducing this
+    /// value may break "long-running" operations that involve multiple services to coordinate
+    /// together, and will force users to authenticate with keystone more frequently. Drastically
+    /// increasing this value will increase the number of tokens that will be simultaneously valid.
+    /// Keystone tokens are also bearer tokens, so a shorter duration will also reduce the
+    /// potential security impact of a compromised token.
+    #[serde(default)]
+    pub expiration: usize,
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
@@ -172,7 +180,8 @@ impl Config {
             .set_default("fernet_tokens.key_repository", "/etc/keystone/fernet-keys/")?
             .set_default("fernet_tokens.max_active_keys", "3")?
             .set_default("assignment.driver", "sql")?
-            .set_default("resource.driver", "sql")?;
+            .set_default("resource.driver", "sql")?
+            .set_default("token.expiration", "3600")?;
         if std::path::Path::new(&path).is_file() {
             builder = builder.add_source(File::from(path).format(FileFormat::Ini));
         }

@@ -24,7 +24,7 @@ use crate::token::{
     types::Token,
 };
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct DomainScopeToken {
     pub user_id: String,
     pub methods: Vec<String>,

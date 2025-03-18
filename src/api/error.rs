@@ -23,6 +23,7 @@ use thiserror::Error;
 use crate::assignment::error::AssignmentProviderError;
 use crate::identity::error::IdentityProviderError;
 use crate::resource::error::ResourceProviderError;
+use crate::token::error::TokenProviderError;
 
 /// Keystone API operation errors
 #[derive(Debug, Error)]
@@ -74,6 +75,30 @@ pub enum KeystoneApiError {
         #[from]
         source: ResourceProviderError,
     },
+
+    #[error(transparent)]
+    TokenError {
+        #[from]
+        source: TokenProviderError,
+    },
+
+    #[error(transparent)]
+    WebAuthN {
+        #[from]
+        source: WebauthnError,
+    },
+
+    #[error(transparent)]
+    Uuid {
+        #[from]
+        source: uuid::Error,
+    },
+
+    #[error(transparent)]
+    Serde {
+        #[from]
+        source: serde_json::Error,
+    },
 }
 
 impl IntoResponse for KeystoneApiError {
@@ -98,12 +123,12 @@ impl IntoResponse for KeystoneApiError {
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
                 ).into_response()
             }
-            KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } => {
+            KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..} => {
                 (StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
               ).into_response()
             }
-            KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} => {
+            KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} | KeystoneApiError::WebAuthN{..} | KeystoneApiError::Uuid {..} | KeystoneApiError::Serde {..} => {
                 (StatusCode::BAD_REQUEST,
                 Json(json!({"error": {"code": StatusCode::BAD_REQUEST.as_u16(), "message": self.to_string()}})),
               ).into_response()
@@ -164,4 +189,34 @@ pub enum TokenError {
         #[from]
         source: crate::api::v3::auth::token::types::ProjectBuilderError,
     },
+    #[error("error building token data: {}", source)]
+    TokenBuilder {
+        #[from]
+        source: crate::api::v3::types::TokenBuilderError,
+    },
+}
+
+#[derive(Error, Debug)]
+pub enum WebauthnError {
+    #[error("unknown webauthn error")]
+    Unknown,
+    #[error("Corrupt Session")]
+    CorruptSession,
+    #[error("User Not Found")]
+    UserNotFound,
+    #[error("User Has No Credentials")]
+    UserHasNoCredentials,
+}
+impl IntoResponse for WebauthnError {
+    fn into_response(self) -> Response {
+        let body = match self {
+            WebauthnError::CorruptSession => "Corrupt Session",
+            WebauthnError::UserNotFound => "User Not Found",
+            WebauthnError::Unknown => "Unknown Error",
+            WebauthnError::UserHasNoCredentials => "User Has No Credentials",
+        };
+
+        // its often easiest to implement `IntoResponse` by calling other implementations
+        (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+    }
 }
