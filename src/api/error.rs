@@ -189,11 +189,6 @@ pub enum TokenError {
         #[from]
         source: crate::api::v3::auth::token::types::ProjectBuilderError,
     },
-    #[error("error building token data: {}", source)]
-    TokenBuilder {
-        #[from]
-        source: crate::api::v3::types::TokenBuilderError,
-    },
 }
 
 #[derive(Error, Debug)]

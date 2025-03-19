@@ -25,7 +25,7 @@ use webauthn_rs::prelude::*;
 
 use crate::api::{
     error::{KeystoneApiError, WebauthnError},
-    v3::types::Token as ApiToken,
+    v3::auth::token::types::Token as ApiToken,
 };
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
