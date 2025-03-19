@@ -22,8 +22,10 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+use crate::api::error::TokenError;
 use crate::api::v3::role::types::Role;
 use crate::resource::types as resource_provider_types;
+use crate::token::Token as BackendToken;
 
 /// Authorization token
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -128,5 +130,18 @@ impl From<resource_provider_types::Domain> for Domain {
             id: value.id.clone(),
             name: value.name.clone(),
         }
+    }
+}
+
+impl TryFrom<&BackendToken> for Token {
+    type Error = TokenError;
+
+    fn try_from(value: &BackendToken) -> Result<Self, Self::Error> {
+        let mut token = TokenBuilder::default();
+        token.user(UserBuilder::default().id(value.user_id()).build()?);
+        token.methods(value.methods().clone());
+        token.audit_ids(value.audit_ids().clone());
+        token.expires_at(*value.expires_at());
+        Ok(token.build()?)
     }
 }
