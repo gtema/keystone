@@ -168,6 +168,7 @@ pub struct TokenSection {
 #[derive(Debug, Default, Deserialize, Clone)]
 pub enum TokenProvider {
     #[default]
+    #[serde(rename = "fernet")]
     Fernet,
 }
 
