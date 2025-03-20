@@ -12,8 +12,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use utoipa_axum::router::OpenApiRouter;
+use axum::{
+    extract::{OriginalUri, Request},
+    http::{HeaderMap, header},
+    response::IntoResponse,
+};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
+use crate::api::error::KeystoneApiError;
 use crate::keystone::ServiceState;
 
 pub mod auth;
@@ -22,6 +28,8 @@ pub mod role;
 pub mod role_assignment;
 pub mod user;
 
+use crate::api::types::*;
+
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .nest("/auth", auth::openapi_router())
@@ -29,4 +37,40 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
         .nest("/role_assignments", role_assignment::openapi_router())
         .nest("/roles", role::openapi_router())
         .nest("/users", user::openapi_router())
+        .routes(routes!(version))
+}
+
+/// Version
+#[utoipa::path(
+    get,
+    path = "/",
+    description = "Version discovery",
+    responses(
+        (status = OK, description = "Versions", body = SingleVersion),
+    ),
+    tag = "version"
+)]
+async fn version(
+    headers: HeaderMap,
+    OriginalUri(uri): OriginalUri,
+    req: Request,
+) -> Result<impl IntoResponse, KeystoneApiError> {
+    println!("Request: {:?}, uri: {:?}", req, uri);
+    let host = headers
+        .get(header::HOST)
+        .and_then(|header| header.to_str().ok())
+        .unwrap_or("localhost");
+    let link = Link {
+        rel: "self".into(),
+        href: format!("http://{}{}", host, uri.path()),
+    };
+    let version = Version {
+        id: "v3.14".into(),
+        status: VersionStatus::Stable,
+        links: Some(vec![link]),
+        media_types: Some(vec![MediaType::default()]),
+        ..Default::default()
+    };
+    let res = SingleVersion { version };
+    Ok(res)
 }
