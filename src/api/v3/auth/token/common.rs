@@ -12,20 +12,102 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::api::common;
 use crate::api::error::{KeystoneApiError, TokenError};
 use crate::api::v3::auth::token::types::{ProjectBuilder, Token, TokenBuilder, UserBuilder};
 use crate::api::v3::role::types::Role;
 use crate::assignment::AssignmentApi;
 use crate::assignment::types::RoleAssignmentListParametersBuilder;
-use crate::identity::IdentityApi;
+use crate::identity::{IdentityApi, types::UserResponse};
 use crate::keystone::ServiceState;
-use crate::resource::ResourceApi;
+use crate::resource::{
+    ResourceApi,
+    types::{Domain, Project},
+};
 use crate::token::Token as ProviderToken;
 
 impl Token {
-    pub async fn from_provider_token(
-        token: &ProviderToken,
+    // TODO: Join both methods
+    pub async fn from_user_auth(
         state: &ServiceState,
+        token: &ProviderToken,
+        user: &UserResponse,
+        project: Option<&Project>,
+        domain: Option<&Domain>,
+    ) -> Result<Token, KeystoneApiError> {
+        let mut response = TokenBuilder::default();
+        response.audit_ids(token.audit_ids().clone());
+        response.methods(token.methods().clone());
+        response.expires_at(*token.expires_at());
+
+        let user_domain = common::get_domain(state, Some(&user.domain_id), None::<&str>).await?;
+
+        let mut user_response: UserBuilder = UserBuilder::default();
+        user_response.id(user.id.clone());
+        user_response.name(user.name.clone());
+        user_response.password_expires_at(user.password_expires_at);
+        user_response.domain(user_domain.clone());
+        response.user(user_response.build().map_err(TokenError::from)?);
+
+        match token {
+            ProviderToken::Unscoped(_token) => {
+                // Nothing to do
+            }
+            ProviderToken::DomainScope(_token) => {
+                response.domain(domain.ok_or(KeystoneApiError::InternalError(
+                    "domain scope missing".to_string(),
+                ))?);
+            }
+            ProviderToken::ProjectScope(token) => {
+                let project = project.ok_or(KeystoneApiError::InternalError(
+                    "domain scope missing".to_string(),
+                ))?;
+
+                let mut project_response = ProjectBuilder::default();
+                project_response.id(project.id.clone());
+                project_response.name(project.name.clone());
+                if project.domain_id == user.domain_id {
+                    project_response.domain(user_domain.clone().into());
+                } else {
+                    let project_domain =
+                        common::get_domain(state, Some(&project.domain_id), None::<&str>).await?;
+                    project_response.domain(project_domain.clone().into());
+                }
+                response.project(project_response.build().map_err(TokenError::from)?);
+
+                let token_roles = state
+                    .provider
+                    .get_assignment_provider()
+                    .list_role_assignments(
+                        &state.db,
+                        &state.provider,
+                        &RoleAssignmentListParametersBuilder::default()
+                            .user_id(user.id.clone())
+                            .project_id(&token.project_id)
+                            .build()?,
+                    )
+                    .await?;
+                response.roles(
+                    token_roles
+                        .into_iter()
+                        .map(|x| Role {
+                            id: x.role_id.clone(),
+                            name: x.role_name.clone().unwrap_or_default(),
+                            ..Default::default()
+                        })
+                        .collect::<Vec<Role>>(),
+                );
+            }
+            ProviderToken::ApplicationCredential(_token) => {
+                todo!();
+            }
+        }
+        Ok(response.build().map_err(TokenError::from)?)
+    }
+
+    pub async fn from_provider_token(
+        state: &ServiceState,
+        token: &ProviderToken,
     ) -> Result<Token, KeystoneApiError> {
         let mut response = TokenBuilder::default();
         response.audit_ids(token.audit_ids().clone());
@@ -43,16 +125,7 @@ impl Token {
                 identifier: token.user_id().clone(),
             })?;
 
-        let user_domain = state
-            .provider
-            .get_resource_provider()
-            .get_domain(&state.db, &user.domain_id)
-            .await
-            .map_err(KeystoneApiError::resource)?
-            .ok_or_else(|| KeystoneApiError::NotFound {
-                resource: "domain".into(),
-                identifier: user.domain_id.clone(),
-            })?;
+        let user_domain = common::get_domain(state, Some(&user.domain_id), None::<&str>).await?;
 
         let mut user_response: UserBuilder = UserBuilder::default();
         user_response.id(user.id.clone());
@@ -69,16 +142,8 @@ impl Token {
                 if token.domain_id == user.domain_id {
                     response.domain(user_domain.clone());
                 } else {
-                    let domain = state
-                        .provider
-                        .get_resource_provider()
-                        .get_domain(&state.db, &token.domain_id)
-                        .await
-                        .map_err(KeystoneApiError::resource)?
-                        .ok_or_else(|| KeystoneApiError::NotFound {
-                            resource: "domain".into(),
-                            identifier: token.domain_id.clone(),
-                        })?;
+                    let domain =
+                        common::get_domain(state, Some(&token.domain_id), None::<&str>).await?;
                     response.domain(domain.clone());
                 }
             }
@@ -100,16 +165,8 @@ impl Token {
                 if project.domain_id == user.domain_id {
                     project_response.domain(user_domain.clone().into());
                 } else {
-                    let project_domain = state
-                        .provider
-                        .get_resource_provider()
-                        .get_domain(&state.db, &project.domain_id)
-                        .await
-                        .map_err(KeystoneApiError::resource)?
-                        .ok_or_else(|| KeystoneApiError::NotFound {
-                            resource: "domain".into(),
-                            identifier: user.domain_id.clone(),
-                        })?;
+                    let project_domain =
+                        common::get_domain(state, Some(&project.domain_id), None::<&str>).await?;
                     project_response.domain(project_domain.clone().into());
                 }
                 response.project(project_response.build().map_err(TokenError::from)?);
@@ -157,7 +214,7 @@ mod tests {
         types::{Assignment, AssignmentType, RoleAssignmentListParameters},
     };
     use crate::config::Config;
-    use crate::identity::{MockIdentityProvider, types::User};
+    use crate::identity::{MockIdentityProvider, types::UserResponse};
     use crate::keystone::Service;
     use crate::provider::ProviderBuilder;
     use crate::resource::{
@@ -178,7 +235,7 @@ mod tests {
             .expect_get_user()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| {
-                Ok(Some(User {
+                Ok(Some(UserResponse {
                     id: "bar".into(),
                     domain_id: "user_domain_id".into(),
                     ..Default::default()
@@ -209,16 +266,16 @@ mod tests {
         let state = Arc::new(Service::new(config, db, provider).unwrap());
 
         let api_token = Token::from_provider_token(
+            &state,
             &ProviderToken::Unscoped(UnscopedToken {
                 user_id: "bar".into(),
                 ..Default::default()
             }),
-            &state,
         )
         .await
         .unwrap();
         assert_eq!("bar", api_token.user.id);
-        assert_eq!("user_domain_id", api_token.user.domain.id);
+        assert_eq!(Some("user_domain_id"), api_token.user.domain.id.as_deref());
         assert!(api_token.project.is_none());
         assert!(api_token.domain.is_none());
     }
@@ -232,7 +289,7 @@ mod tests {
             .expect_get_user()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| {
-                Ok(Some(User {
+                Ok(Some(UserResponse {
                     id: "bar".into(),
                     domain_id: "user_domain_id".into(),
                     ..Default::default()
@@ -262,19 +319,22 @@ mod tests {
         let state = Arc::new(Service::new(config, db, provider).unwrap());
 
         let api_token = Token::from_provider_token(
+            &state,
             &ProviderToken::DomainScope(DomainScopeToken {
                 user_id: "bar".into(),
                 domain_id: "domain_id".into(),
                 ..Default::default()
             }),
-            &state,
         )
         .await
         .unwrap();
 
         assert_eq!("bar", api_token.user.id);
-        assert_eq!("user_domain_id", api_token.user.domain.id);
-        assert_eq!("domain_id", api_token.domain.expect("domain scope").id);
+        assert_eq!(Some("user_domain_id"), api_token.user.domain.id.as_deref());
+        assert_eq!(
+            Some("domain_id"),
+            api_token.domain.expect("domain scope").id.as_deref()
+        );
         assert!(api_token.project.is_none());
     }
 
@@ -287,7 +347,7 @@ mod tests {
             .expect_get_user()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| {
-                Ok(Some(User {
+                Ok(Some(UserResponse {
                     id: "bar".into(),
                     domain_id: "user_domain_id".into(),
                     ..Default::default()
@@ -338,20 +398,20 @@ mod tests {
         let state = Arc::new(Service::new(config, db, provider).unwrap());
 
         let api_token = Token::from_provider_token(
+            &state,
             &ProviderToken::ProjectScope(ProjectScopeToken {
                 user_id: "bar".into(),
                 project_id: "project_id".into(),
                 ..Default::default()
             }),
-            &state,
         )
         .await
         .unwrap();
 
         assert_eq!("bar", api_token.user.id);
-        assert_eq!("user_domain_id", api_token.user.domain.id);
+        assert_eq!(Some("user_domain_id"), api_token.user.domain.id.as_deref());
         let project = api_token.project.expect("project_scope");
-        assert_eq!("project_domain_id", project.domain.id);
+        assert_eq!(Some("project_domain_id"), project.domain.id.as_deref());
         assert_eq!("project_id", project.id);
         assert!(api_token.domain.is_none());
         assert_eq!(

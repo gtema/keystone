@@ -37,11 +37,26 @@ pub trait ResourceBackend: DynClone + Send + Sync + std::fmt::Debug {
         domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError>;
 
+    /// Get single domain by Name
+    async fn get_domain_by_name<'a>(
+        &self,
+        db: &DatabaseConnection,
+        domain_name: &'a str,
+    ) -> Result<Option<Domain>, ResourceProviderError>;
+
     /// Get single project by ID
     async fn get_project<'a>(
         &self,
         db: &DatabaseConnection,
         project_id: &'a str,
+    ) -> Result<Option<Project>, ResourceProviderError>;
+
+    /// Get single project by Name and Domain ID
+    async fn get_project_by_name<'a>(
+        &self,
+        db: &DatabaseConnection,
+        name: &'a str,
+        domain_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError>;
 }
 

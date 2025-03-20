@@ -40,10 +40,23 @@ pub trait ResourceApi: Send + Sync + Clone {
         domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError>;
 
+    async fn find_domain_by_name<'a>(
+        &self,
+        db: &DatabaseConnection,
+        domain_name: &'a str,
+    ) -> Result<Option<Domain>, ResourceProviderError>;
+
     async fn get_project<'a>(
         &self,
         db: &DatabaseConnection,
         project_id: &'a str,
+    ) -> Result<Option<Project>, ResourceProviderError>;
+
+    async fn get_project_by_name<'a>(
+        &self,
+        db: &DatabaseConnection,
+        name: &'a str,
+        domain_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError>;
 }
 
@@ -55,17 +68,31 @@ mock! {
 
     #[async_trait]
     impl ResourceApi for ResourceProvider {
-       async fn get_domain<'a>(
-           &self,
-           db: &DatabaseConnection,
-           domain_id: &'a str,
-       ) -> Result<Option<Domain>, ResourceProviderError>;
+        async fn get_domain<'a>(
+            &self,
+            db: &DatabaseConnection,
+            domain_id: &'a str,
+        ) -> Result<Option<Domain>, ResourceProviderError>;
 
-       async fn get_project<'a>(
-           &self,
-           db: &DatabaseConnection,
-           project_id: &'a str,
-       ) -> Result<Option<Project>, ResourceProviderError>;
+         async fn find_domain_by_name<'a>(
+             &self,
+             db: &DatabaseConnection,
+             domain_name: &'a str,
+         ) -> Result<Option<Domain>, ResourceProviderError>;
+
+        async fn get_project<'a>(
+            &self,
+            db: &DatabaseConnection,
+            project_id: &'a str,
+        ) -> Result<Option<Project>, ResourceProviderError>;
+
+        async fn get_project_by_name<'a>(
+            &self,
+            db: &DatabaseConnection,
+            name: &'a str,
+            domain_id: &'a str,
+        ) -> Result<Option<Project>, ResourceProviderError>;
+
     }
 
     impl Clone for ResourceProvider {
@@ -109,6 +136,18 @@ impl ResourceApi for ResourceProvider {
         self.backend_driver.get_domain(db, domain_id).await
     }
 
+    /// Get single domain by its name
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn find_domain_by_name<'a>(
+        &self,
+        db: &DatabaseConnection,
+        domain_name: &'a str,
+    ) -> Result<Option<Domain>, ResourceProviderError> {
+        self.backend_driver
+            .get_domain_by_name(db, domain_name)
+            .await
+    }
+
     /// Get single project
     #[tracing::instrument(level = "info", skip(self, db))]
     async fn get_project<'a>(
@@ -117,5 +156,18 @@ impl ResourceApi for ResourceProvider {
         project_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError> {
         self.backend_driver.get_project(db, project_id).await
+    }
+
+    /// Get single project by Name and Domain ID
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn get_project_by_name<'a>(
+        &self,
+        db: &DatabaseConnection,
+        name: &'a str,
+        domain_id: &'a str,
+    ) -> Result<Option<Project>, ResourceProviderError> {
+        self.backend_driver
+            .get_project_by_name(db, name, domain_id)
+            .await
     }
 }

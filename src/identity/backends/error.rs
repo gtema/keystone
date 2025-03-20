@@ -34,10 +34,10 @@ pub enum IdentityDatabaseError {
         source: serde_json::Error,
     },
 
-    #[error("building user data")]
+    #[error("building user response data")]
     UserBuilderError {
         #[from]
-        source: UserBuilderError,
+        source: UserResponseBuilderError,
     },
 
     #[error("database data")]
@@ -51,4 +51,7 @@ pub enum IdentityDatabaseError {
         #[from]
         source: IdentityProviderPasswordHashError,
     },
+
+    #[error("either user id or user name with user domain id or name must be given")]
+    UserIdOrNameWithDomain,
 }

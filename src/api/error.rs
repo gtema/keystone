@@ -19,6 +19,7 @@ use axum::{
 };
 use serde_json::json;
 use thiserror::Error;
+use tracing::error;
 
 use crate::assignment::error::AssignmentProviderError;
 use crate::identity::error::IdentityProviderError;
@@ -38,7 +39,7 @@ pub enum KeystoneApiError {
     },
 
     #[error("missing authorization")]
-    Unauthorized(String),
+    Unauthorized,
 
     #[error("missing x-subject-token header")]
     SubjectTokenMissing,
@@ -99,10 +100,20 @@ pub enum KeystoneApiError {
         #[from]
         source: serde_json::Error,
     },
+
+    #[error("domain id or name must be present")]
+    DomainIdOrName,
+
+    #[error("project id or name must be present")]
+    ProjectIdOrName,
+
+    #[error("project domain must be present")]
+    ProjectDomain,
 }
 
 impl IntoResponse for KeystoneApiError {
     fn into_response(self) -> Response {
+        error!("Error happened during request processing: {:?}", self);
         match self {
             KeystoneApiError::Conflict(_) => (
                 StatusCode::CONFLICT,
@@ -113,22 +124,18 @@ impl IntoResponse for KeystoneApiError {
                 Json(json!({"error": {"code": StatusCode::NOT_FOUND.as_u16(), "message": self.to_string()}})),
             )
                 .into_response(),
-            KeystoneApiError::Unauthorized(_) => {
+            KeystoneApiError::Unauthorized => {
                 (StatusCode::UNAUTHORIZED,
                 Json(json!({"error": {"code": StatusCode::UNAUTHORIZED.as_u16(), "message": self.to_string()}})),
                 ).into_response()
             }
-            KeystoneApiError::InternalError(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
-                ).into_response()
-            }
-            KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..} => {
+            KeystoneApiError::InternalError(_) | KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..} => {
                 (StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
               ).into_response()
             }
-            KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} | KeystoneApiError::WebAuthN{..} | KeystoneApiError::Uuid {..} | KeystoneApiError::Serde {..} => {
+            _ =>  {
+            // KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} | KeystoneApiError::WebAuthN{..} | KeystoneApiError::Uuid {..} | KeystoneApiError::Serde {..} | KeystoneApiError::DomainIdOrName | KeystoneApiError::ProjectIdOrName | KeystoneApiError::ProjectDomain => 
                 (StatusCode::BAD_REQUEST,
                 Json(json!({"error": {"code": StatusCode::BAD_REQUEST.as_u16(), "message": self.to_string()}})),
               ).into_response()
@@ -184,10 +191,22 @@ pub enum TokenError {
         #[from]
         source: crate::api::v3::auth::token::types::UserBuilderError,
     },
+
     #[error("error building token user data: {}", source)]
     ProjectBuilder {
         #[from]
         source: crate::api::v3::auth::token::types::ProjectBuilderError,
+    },
+
+    #[error(transparent)]
+    UserPasswordAuthBuilder {
+        #[from]
+        source: crate::identity::types::user::UserPasswordAuthRequestBuilderError,
+    },
+    #[error(transparent)]
+    DomainBuilder {
+        #[from]
+        source: crate::identity::types::user::DomainBuilderError,
     },
 }
 

@@ -196,12 +196,13 @@ mod tests {
     use super::openapi_router;
     use crate::api::v3::group::types::{Group as ApiGroup, GroupList};
     use crate::api::v3::user::types::{
-        User as ApiUser, UserCreate as ApiUserCreate, UserCreateRequest, UserList, UserResponse,
+        User as ApiUser, UserCreate as ApiUserCreate, UserCreateRequest, UserList,
+        UserResponse as ApiUserResponse,
     };
     use crate::identity::{
         MockIdentityProvider,
         error::IdentityProviderError,
-        types::{Group, User, UserCreate, UserListParameters},
+        types::{Group, UserCreate, UserListParameters, UserResponse},
     };
 
     use crate::tests::api::{get_mocked_state, get_mocked_state_unauthed};
@@ -213,7 +214,7 @@ mod tests {
             .expect_list_users()
             .withf(|_: &DatabaseConnection, _: &UserListParameters| true)
             .returning(|_, _| {
-                Ok(vec![User {
+                Ok(vec![UserResponse {
                     id: "1".into(),
                     name: "2".into(),
                     ..Default::default()
@@ -317,7 +318,7 @@ mod tests {
                 req.domain_id == "domain" && req.name == "name"
             })
             .returning(|_, req| {
-                Ok(User {
+                Ok(UserResponse {
                     id: "bar".into(),
                     domain_id: req.domain_id,
                     name: req.name,
@@ -356,7 +357,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::CREATED);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let created_user: UserResponse = serde_json::from_slice(&body).unwrap();
+        let created_user: ApiUserResponse = serde_json::from_slice(&body).unwrap();
         assert_eq!(created_user.user.name, user.user.name);
     }
 
@@ -372,7 +373,7 @@ mod tests {
             .expect_get_user()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| {
-                Ok(Some(User {
+                Ok(Some(UserResponse {
                     id: "bar".into(),
                     ..Default::default()
                 }))
@@ -413,7 +414,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let res: UserResponse = serde_json::from_slice(&body).unwrap();
+        let res: ApiUserResponse = serde_json::from_slice(&body).unwrap();
         assert_eq!(
             ApiUser {
                 id: "bar".into(),

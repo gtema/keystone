@@ -13,7 +13,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{
-    extract::OriginalUri,
     http::{HeaderMap, header},
     response::IntoResponse,
 };
@@ -24,6 +23,7 @@ use crate::api::error::KeystoneApiError;
 use crate::keystone::ServiceState;
 
 pub mod auth;
+pub(crate) mod common;
 pub mod error;
 pub mod types;
 pub mod v3;
@@ -50,10 +50,7 @@ pub fn openapi_router() -> OpenApiRouter<ServiceState> {
     ),
     tag = "version"
 )]
-async fn version(
-    headers: HeaderMap,
-    OriginalUri(uri): OriginalUri,
-) -> Result<impl IntoResponse, KeystoneApiError> {
+async fn version(headers: HeaderMap) -> Result<impl IntoResponse, KeystoneApiError> {
     let host = headers
         .get(header::HOST)
         .and_then(|header| header.to_str().ok())

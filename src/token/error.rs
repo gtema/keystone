@@ -101,4 +101,18 @@ pub enum TokenProviderError {
         #[from]
         source: crate::token::unscoped::UnscopedTokenBuilderError,
     },
+
+    #[error(transparent)]
+    ProjectScopeBuilder {
+        /// The source of the error.
+        #[from]
+        source: crate::token::project_scoped::ProjectScopeTokenBuilderError,
+    },
+
+    #[error(transparent)]
+    DomainScopeBuilder {
+        /// The source of the error.
+        #[from]
+        source: crate::token::domain_scoped::DomainScopeTokenBuilderError,
+    },
 }

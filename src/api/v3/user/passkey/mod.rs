@@ -18,6 +18,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use serde_json::Value;
 use tracing::debug;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -61,6 +62,7 @@ async fn register_start(
         .get_identity_provider()
         .delete_user_passkey_registration_state(&state.db, &user_id)
         .await?;
+    // TODO: user names
     let res = match state.webauthn.start_passkey_registration(
         Uuid::parse_str(&user_id)?,
         "foo",
@@ -95,7 +97,7 @@ async fn register_start(
 #[tracing::instrument(
     name = "api::user_passkey_register_finish",
     level = "debug",
-    skip(state)
+    skip(state, reg)
 )]
 async fn register_finish(
     Path(user_id): Path<String>,
@@ -189,7 +191,11 @@ async fn login_start(
     responses(),
     tag = "passkey"
 )]
-#[tracing::instrument(name = "api::user_passkey_login_finish", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::user_passkey_login_finish",
+    level = "debug",
+    skip(state, reg)
+)]
 async fn login_finish(
     Path(user_id): Path<String>,
     State(state): State<ServiceState>,
@@ -221,14 +227,19 @@ async fn login_finish(
     let token = state.provider.get_token_provider().issue_token(
         user_id,
         vec!["passkey".into()],
-        Vec::<String>::new(),
+        Vec::<String>::from([URL_SAFE
+            .encode(Uuid::new_v4().as_bytes())
+            .trim_end_matches('=')
+            .to_string()]),
+        None,
+        None,
     )?;
 
-    let api_token = ApiToken::try_from(&token)?;
+    let api_token = ApiToken::from_provider_token(&state, &token).await?;
     Ok((
         StatusCode::OK,
         [(
-            "X-Auth-Token",
+            "X-Subject-Token",
             state.provider.get_token_provider().encode_token(&token)?,
         )],
         Json(api_token),

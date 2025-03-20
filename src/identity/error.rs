@@ -15,7 +15,8 @@
 use thiserror::Error;
 
 use crate::identity::backends::error::*;
-use crate::identity::types::UserBuilderError;
+use crate::identity::types::{DomainBuilderError, UserResponseBuilderError};
+use crate::resource::error::ResourceProviderError;
 
 #[derive(Error, Debug)]
 pub enum IdentityProviderError {
@@ -37,23 +38,41 @@ pub enum IdentityProviderError {
     GroupNotFound(String),
 
     /// Identity provider error
-    #[error("identity provider error")]
-    IdentityDatabaseError {
+    #[error(transparent)]
+    IdentityDatabase {
         #[from]
         source: IdentityDatabaseError,
     },
 
-    #[error("building user data")]
-    UserBuilderError {
+    #[error(transparent)]
+    UserBuilder {
         #[from]
-        source: UserBuilderError,
+        source: UserResponseBuilderError,
     },
+
+    #[error(transparent)]
+    DomainBuilder {
+        #[from]
+        source: DomainBuilderError,
+    },
+
+    #[error("either user id or user name with user domain id or name must be given")]
+    UserIdOrNameWithDomain,
 
     #[error("password hashing error")]
     PasswordHash {
         #[from]
         source: IdentityProviderPasswordHashError,
     },
+
+    #[error(transparent)]
+    ResourceProvider {
+        #[from]
+        source: ResourceProviderError,
+    },
+
+    #[error("wrong username or password")]
+    WrongUsernamePassword,
 }
 
 impl IdentityProviderError {
@@ -61,7 +80,7 @@ impl IdentityProviderError {
         match source {
             IdentityDatabaseError::UserNotFound(x) => Self::UserNotFound(x),
             IdentityDatabaseError::GroupNotFound(x) => Self::GroupNotFound(x),
-            _ => Self::IdentityDatabaseError { source },
+            _ => Self::IdentityDatabase { source },
         }
     }
 }

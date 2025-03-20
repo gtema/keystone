@@ -25,7 +25,9 @@ use crate::identity::IdentityProviderError;
 
 pub use crate::identity::types::group::{Group, GroupCreate, GroupListParameters};
 pub use crate::identity::types::user::{
-    User, UserBuilder, UserBuilderError, UserCreate, UserListParameters, UserOptions,
+    DomainBuilder, DomainBuilderError, UserCreate, UserListParameters, UserOptions,
+    UserPasswordAuthRequest, UserPasswordAuthRequestBuilder, UserResponse, UserResponseBuilder,
+    UserResponseBuilderError,
 };
 
 #[async_trait]
@@ -33,26 +35,33 @@ pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// Set config
     fn set_config(&mut self, config: Config);
 
+    /// Authenticate a user by a password
+    async fn authenticate_by_password(
+        &self,
+        db: &DatabaseConnection,
+        auth: UserPasswordAuthRequest,
+    ) -> Result<UserResponse, IdentityProviderError>;
+
     /// List Users
     async fn list_users(
         &self,
         db: &DatabaseConnection,
         params: &UserListParameters,
-    ) -> Result<Vec<User>, IdentityProviderError>;
+    ) -> Result<Vec<UserResponse>, IdentityProviderError>;
 
     /// Get single user by ID
     async fn get_user<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
-    ) -> Result<Option<User>, IdentityProviderError>;
+    ) -> Result<Option<UserResponse>, IdentityProviderError>;
 
     /// Create user
     async fn create_user(
         &self,
         db: &DatabaseConnection,
         user: UserCreate,
-    ) -> Result<User, IdentityProviderError>;
+    ) -> Result<UserResponse, IdentityProviderError>;
 
     /// Delete user
     async fn delete_user<'a>(

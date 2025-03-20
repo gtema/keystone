@@ -34,14 +34,14 @@ pub enum ResourceProviderError {
     DomainNotFound(String),
 
     /// Identity provider error
-    #[error("resource provider error")]
-    ResourceDatabaseError {
+    #[error(transparent)]
+    ResourceDatabase {
         #[from]
         source: ResourceDatabaseError,
     },
 
-    #[error("building domain data")]
-    DomainBuilderError {
+    #[error(transparent)]
+    DomainBuilder {
         #[from]
         source: DomainBuilderError,
     },
@@ -51,7 +51,7 @@ impl ResourceProviderError {
     pub fn database(source: ResourceDatabaseError) -> Self {
         match source {
             ResourceDatabaseError::DomainNotFound(x) => Self::DomainNotFound(x),
-            _ => Self::ResourceDatabaseError { source },
+            _ => Self::ResourceDatabase { source },
         }
     }
 }

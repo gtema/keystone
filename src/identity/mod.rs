@@ -28,10 +28,12 @@ use crate::config::Config;
 use crate::identity::backends::sql::SqlBackend;
 use crate::identity::error::IdentityProviderError;
 use crate::identity::types::{
-    IdentityBackend,
-    {Group, GroupCreate, GroupListParameters, User, UserCreate, UserListParameters},
+    Group, GroupCreate, GroupListParameters, IdentityBackend, UserCreate, UserListParameters,
+    UserPasswordAuthRequest, UserResponse,
 };
 use crate::plugin_manager::PluginManager;
+use crate::provider::Provider;
+use crate::resource::{ResourceApi, error::ResourceProviderError};
 
 #[derive(Clone, Debug)]
 pub struct IdentityProvider {
@@ -40,23 +42,30 @@ pub struct IdentityProvider {
 
 #[async_trait]
 pub trait IdentityApi: Send + Sync + Clone {
+    async fn authenticate_by_password(
+        &self,
+        db: &DatabaseConnection,
+        provider: &Provider,
+        auth: UserPasswordAuthRequest,
+    ) -> Result<UserResponse, IdentityProviderError>;
+
     async fn list_users(
         &self,
         db: &DatabaseConnection,
         params: &UserListParameters,
-    ) -> Result<impl IntoIterator<Item = User>, IdentityProviderError>;
+    ) -> Result<impl IntoIterator<Item = UserResponse>, IdentityProviderError>;
 
     async fn get_user<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
-    ) -> Result<Option<User>, IdentityProviderError>;
+    ) -> Result<Option<UserResponse>, IdentityProviderError>;
 
     async fn create_user(
         &self,
         db: &DatabaseConnection,
         user: UserCreate,
-    ) -> Result<User, IdentityProviderError>;
+    ) -> Result<UserResponse, IdentityProviderError>;
 
     async fn delete_user<'a>(
         &self,
@@ -157,23 +166,30 @@ mock! {
 
     #[async_trait]
     impl IdentityApi for IdentityProvider {
+        async fn authenticate_by_password(
+            &self,
+            db: &DatabaseConnection,
+            provider: &Provider,
+            auth: UserPasswordAuthRequest,
+        ) -> Result<UserResponse, IdentityProviderError>;
+
         async fn list_users(
             &self,
             db: &DatabaseConnection,
             params: &UserListParameters,
-        ) -> Result<Vec<User>, IdentityProviderError>;
+        ) -> Result<Vec<UserResponse>, IdentityProviderError>;
 
         async fn get_user<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
-        ) -> Result<Option<User>, IdentityProviderError>;
+        ) -> Result<Option<UserResponse>, IdentityProviderError>;
 
         async fn create_user(
             &self,
             db: &DatabaseConnection,
             user: UserCreate,
-        ) -> Result<User, IdentityProviderError>;
+        ) -> Result<UserResponse, IdentityProviderError>;
 
         async fn delete_user<'a>(
             &self,
@@ -295,13 +311,46 @@ impl IdentityProvider {
 
 #[async_trait]
 impl IdentityApi for IdentityProvider {
+    /// Authenticate user with the password auth method
+    #[tracing::instrument(level = "info", skip(self, db, provider, auth))]
+    async fn authenticate_by_password(
+        &self,
+        db: &DatabaseConnection,
+        provider: &Provider,
+        auth: UserPasswordAuthRequest,
+    ) -> Result<UserResponse, IdentityProviderError> {
+        let mut auth = auth;
+        if auth.id.is_none() {
+            if auth.name.is_none() {
+                return Err(IdentityProviderError::UserIdOrNameWithDomain);
+            }
+
+            if let Some(ref mut domain) = auth.domain {
+                if let Some(dname) = &domain.name {
+                    let d = provider
+                        .get_resource_provider()
+                        .find_domain_by_name(db, dname)
+                        .await?
+                        .ok_or(ResourceProviderError::DomainNotFound(dname.clone()))?;
+                    domain.id = Some(d.id);
+                } else if domain.id.is_none() {
+                    return Err(IdentityProviderError::UserIdOrNameWithDomain);
+                }
+            } else {
+                return Err(IdentityProviderError::UserIdOrNameWithDomain);
+            }
+        }
+
+        self.backend_driver.authenticate_by_password(db, auth).await
+    }
+
     /// List users
     #[tracing::instrument(level = "info", skip(self, db))]
     async fn list_users(
         &self,
         db: &DatabaseConnection,
         params: &UserListParameters,
-    ) -> Result<impl IntoIterator<Item = User>, IdentityProviderError> {
+    ) -> Result<impl IntoIterator<Item = UserResponse>, IdentityProviderError> {
         self.backend_driver.list_users(db, params).await
     }
 
@@ -311,7 +360,7 @@ impl IdentityApi for IdentityProvider {
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
-    ) -> Result<Option<User>, IdentityProviderError> {
+    ) -> Result<Option<UserResponse>, IdentityProviderError> {
         self.backend_driver.get_user(db, user_id).await
     }
 
@@ -321,7 +370,7 @@ impl IdentityApi for IdentityProvider {
         &self,
         db: &DatabaseConnection,
         user: UserCreate,
-    ) -> Result<User, IdentityProviderError> {
+    ) -> Result<UserResponse, IdentityProviderError> {
         let mut mod_user = user;
         mod_user.id = Uuid::new_v4().into();
         if mod_user.enabled.is_none() {

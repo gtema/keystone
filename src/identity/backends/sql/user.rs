@@ -21,6 +21,13 @@ use crate::db::entity::{prelude::User as DbUser, user};
 use crate::identity::backends::error::IdentityDatabaseError;
 use crate::identity::types::UserCreate;
 
+pub async fn get<U: AsRef<str>>(
+    db: &DatabaseConnection,
+    user_id: U,
+) -> Result<Option<user::Model>, IdentityDatabaseError> {
+    Ok(DbUser::find_by_id(user_id.as_ref()).one(db).await?)
+}
+
 pub(super) async fn create(
     conf: &Config,
     db: &DatabaseConnection,
@@ -55,16 +62,18 @@ pub(super) async fn create(
     Ok(db_user)
 }
 
-pub async fn delete(
+pub async fn delete<U: AsRef<str>>(
     _conf: &Config,
     db: &DatabaseConnection,
-    user_id: &str,
+    user_id: U,
 ) -> Result<(), IdentityDatabaseError> {
-    let res = DbUser::delete_by_id(user_id).exec(db).await?;
+    let res = DbUser::delete_by_id(user_id.as_ref()).exec(db).await?;
     if res.rows_affected == 1 {
         Ok(())
     } else {
-        Err(IdentityDatabaseError::UserNotFound(user_id.to_string()))
+        Err(IdentityDatabaseError::UserNotFound(
+            user_id.as_ref().to_string(),
+        ))
     }
 }
 
