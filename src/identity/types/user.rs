@@ -19,7 +19,7 @@ use serde_json::Value;
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[builder(setter(strip_option, into))]
-pub struct User {
+pub struct UserResponse {
     /// The user ID.
     pub id: String,
     /// The user name. Must be unique within the owning domain.
@@ -102,7 +102,7 @@ pub struct UserUpdate {
     pub federated: Option<Vec<Federation>>,
 }
 
-impl UserBuilder {
+impl UserResponseBuilder {
     pub fn get_options(&self) -> Option<&UserOptions> {
         self.options.as_ref()
     }
@@ -145,5 +145,35 @@ pub struct UserListParameters {
     /// Filter users by the domain
     pub domain_id: Option<String>,
     /// Filter users by the name attribute
+    pub name: Option<String>,
+}
+
+/// User password information
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[builder(setter(strip_option, into))]
+pub struct UserPasswordAuthRequest {
+    /// User ID
+    #[builder(default)]
+    pub id: Option<String>,
+    /// User Name
+    #[builder(default)]
+    pub name: Option<String>,
+    /// User domain
+    #[builder(default)]
+    pub domain: Option<Domain>,
+    /// User password expiry date
+    #[builder(default)]
+    pub password: String,
+}
+
+/// Domain information
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[builder(setter(strip_option, into))]
+pub struct Domain {
+    /// Domain ID
+    #[builder(default)]
+    pub id: Option<String>,
+    /// Domain Name
+    #[builder(default)]
     pub name: Option<String>,
 }

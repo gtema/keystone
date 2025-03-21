@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::{IntoParams, ToSchema};
 
-use crate::identity::types;
+use crate::identity::types as identity_types;
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct User {
@@ -134,8 +134,8 @@ pub struct UserOptions {
     pub multi_factor_auth_enabled: Option<bool>,
 }
 
-impl From<types::UserOptions> for UserOptions {
-    fn from(value: types::UserOptions) -> Self {
+impl From<identity_types::UserOptions> for UserOptions {
+    fn from(value: identity_types::UserOptions) -> Self {
         Self {
             ignore_change_password_upon_first_use: value.ignore_change_password_upon_first_use,
             ignore_password_expiry: value.ignore_password_expiry,
@@ -148,7 +148,7 @@ impl From<types::UserOptions> for UserOptions {
     }
 }
 
-impl From<UserOptions> for types::UserOptions {
+impl From<UserOptions> for identity_types::UserOptions {
     fn from(value: UserOptions) -> Self {
         Self {
             ignore_change_password_upon_first_use: value.ignore_change_password_upon_first_use,
@@ -168,8 +168,8 @@ pub struct UserCreateRequest {
     pub user: UserCreate,
 }
 
-impl From<types::User> for User {
-    fn from(value: types::User) -> Self {
+impl From<identity_types::UserResponse> for User {
+    fn from(value: identity_types::UserResponse) -> Self {
         let opts: UserOptions = value.options.clone().into();
         // We only want to see user options if there is at least 1 option set
         let opts = if opts.ignore_change_password_upon_first_use.is_some()
@@ -197,7 +197,7 @@ impl From<types::User> for User {
     }
 }
 
-impl From<UserCreateRequest> for types::UserCreate {
+impl From<UserCreateRequest> for identity_types::UserCreate {
     fn from(value: UserCreateRequest) -> Self {
         let user = value.user;
         Self {
@@ -220,7 +220,7 @@ impl IntoResponse for UserResponse {
     }
 }
 
-impl IntoResponse for types::User {
+impl IntoResponse for identity_types::UserResponse {
     fn into_response(self) -> Response {
         (
             StatusCode::OK,
@@ -239,8 +239,8 @@ pub struct UserList {
     pub users: Vec<User>,
 }
 
-impl From<Vec<types::User>> for UserList {
-    fn from(value: Vec<types::User>) -> Self {
+impl From<Vec<identity_types::UserResponse>> for UserList {
+    fn from(value: Vec<identity_types::UserResponse>) -> Self {
         let objects: Vec<User> = value.into_iter().map(User::from).collect();
         Self { users: objects }
     }
@@ -260,7 +260,7 @@ pub struct UserListParameters {
     pub name: Option<String>,
 }
 
-impl From<UserListParameters> for types::UserListParameters {
+impl From<UserListParameters> for identity_types::UserListParameters {
     fn from(value: UserListParameters) -> Self {
         Self {
             domain_id: value.domain_id,

@@ -54,13 +54,56 @@ impl IdentityBackend for SqlBackend {
         self.config = config;
     }
 
+    /// Authenticate a user by a password
+    async fn authenticate_by_password(
+        &self,
+        db: &DatabaseConnection,
+        auth: UserPasswordAuthRequest,
+    ) -> Result<UserResponse, IdentityProviderError> {
+        let user_with_passwords = local_user::load_local_user_with_passwords(
+            db,
+            auth.id,
+            auth.name,
+            auth.domain.and_then(|x| x.id),
+        )
+        .await?;
+        if let Some((local_user, password)) = user_with_passwords {
+            let passwords: Vec<db_password::Model> = password.into_iter().collect();
+            if let Some(latest_password) = passwords.first() {
+                if let Some(expected_hash) = &latest_password.password_hash {
+                    let user_opts = user_option::get(db, local_user.user_id.clone()).await?;
+
+                    if password_hashing::verify_password(
+                        &self.config,
+                        auth.password,
+                        expected_hash,
+                    )? {
+                        if let Some(user) = user::get(db, &local_user.user_id).await? {
+                            let user_builder = common::get_local_user_builder(
+                                &self.config,
+                                &user,
+                                local_user,
+                                Some(passwords),
+                                user_opts,
+                            );
+                            return Ok(user_builder.build()?);
+                        }
+                    } else {
+                        return Err(IdentityProviderError::WrongUsernamePassword);
+                    }
+                }
+            }
+        }
+        return Err(IdentityProviderError::WrongUsernamePassword);
+    }
+
     /// Fetch users from the database
     #[tracing::instrument(level = "debug", skip(self, db))]
     async fn list_users(
         &self,
         db: &DatabaseConnection,
         params: &UserListParameters,
-    ) -> Result<Vec<User>, IdentityProviderError> {
+    ) -> Result<Vec<UserResponse>, IdentityProviderError> {
         Ok(list_users(&self.config, db, params).await?)
     }
 
@@ -70,7 +113,7 @@ impl IdentityBackend for SqlBackend {
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
-    ) -> Result<Option<User>, IdentityProviderError> {
+    ) -> Result<Option<UserResponse>, IdentityProviderError> {
         Ok(get_user(&self.config, db, user_id).await?)
     }
 
@@ -80,7 +123,7 @@ impl IdentityBackend for SqlBackend {
         &self,
         db: &DatabaseConnection,
         user: UserCreate,
-    ) -> Result<User, IdentityProviderError> {
+    ) -> Result<UserResponse, IdentityProviderError> {
         Ok(create_user(&self.config, db, user).await?)
     }
 
@@ -240,7 +283,7 @@ async fn list_users(
     conf: &Config,
     db: &DatabaseConnection,
     params: &UserListParameters,
-) -> Result<Vec<User>, IdentityDatabaseError> {
+) -> Result<Vec<UserResponse>, IdentityDatabaseError> {
     // Prepare basic selects
     let mut user_select = DbUser::find();
     let mut local_user_select = LocalUser::find();
@@ -277,7 +320,7 @@ async fn list_users(
         )
         .await?;
 
-    let mut results: Vec<User> = Vec::new();
+    let mut results: Vec<UserResponse> = Vec::new();
     for (u, (o, (l, (p, (n, f))))) in db_users.into_iter().zip(
         user_opts.into_iter().zip(
             local_users.into_iter().zip(
@@ -290,7 +333,7 @@ async fn list_users(
         if l.is_none() && n.is_none() && f.is_empty() {
             continue;
         }
-        let user_builder: UserBuilder = if let Some(local) = l {
+        let user_builder: UserResponseBuilder = if let Some(local) = l {
             common::get_local_user_builder(conf, &u, local, p.map(|x| x.into_iter()), o)
         } else if let Some(nonlocal) = n {
             common::get_nonlocal_user_builder(&u, nonlocal, o)
@@ -323,7 +366,7 @@ pub async fn get_user(
     conf: &Config,
     db: &DatabaseConnection,
     user_id: &str,
-) -> Result<Option<User>, IdentityDatabaseError> {
+) -> Result<Option<UserResponse>, IdentityDatabaseError> {
     let user_select = DbUser::find_by_id(user_id);
 
     let user_entry: Option<db_user::Model> = user_select.one(db).await?;
@@ -331,29 +374,35 @@ pub async fn get_user(
     if let Some(user) = &user_entry {
         let user_opts: Vec<db_user_option::Model> = user.find_related(UserOption).all(db).await?;
 
-        let user_builder: UserBuilder =
-            match local_user::load_local_user_with_passwords(db, &user_id).await? {
-                Some(local_user_with_passwords) => common::get_local_user_builder(
-                    conf,
-                    user,
-                    local_user_with_passwords.0,
-                    Some(local_user_with_passwords.1),
-                    user_opts,
-                ),
-                _ => match user.find_related(NonlocalUser).one(db).await? {
-                    Some(nonlocal_user) => {
-                        common::get_nonlocal_user_builder(user, nonlocal_user, user_opts)
+        let user_builder: UserResponseBuilder = match local_user::load_local_user_with_passwords(
+            db,
+            Some(&user_id),
+            None::<&str>,
+            None::<&str>,
+        )
+        .await?
+        {
+            Some(local_user_with_passwords) => common::get_local_user_builder(
+                conf,
+                user,
+                local_user_with_passwords.0,
+                Some(local_user_with_passwords.1),
+                user_opts,
+            ),
+            _ => match user.find_related(NonlocalUser).one(db).await? {
+                Some(nonlocal_user) => {
+                    common::get_nonlocal_user_builder(user, nonlocal_user, user_opts)
+                }
+                _ => {
+                    let federated_user = user.find_related(FederatedUser).all(db).await?;
+                    if !federated_user.is_empty() {
+                        common::get_federated_user_builder(user, federated_user, user_opts)
+                    } else {
+                        return Err(IdentityDatabaseError::MalformedUser(user_id.to_string()))?;
                     }
-                    _ => {
-                        let federated_user = user.find_related(FederatedUser).all(db).await?;
-                        if !federated_user.is_empty() {
-                            common::get_federated_user_builder(user, federated_user, user_opts)
-                        } else {
-                            return Err(IdentityDatabaseError::MalformedUser(user_id.to_string()))?;
-                        }
-                    }
-                },
-            };
+                }
+            },
+        };
 
         return Ok(Some(user_builder.build()?));
     }
@@ -365,7 +414,7 @@ async fn create_user(
     conf: &Config,
     db: &DatabaseConnection,
     user: UserCreate,
-) -> Result<User, IdentityDatabaseError> {
+) -> Result<UserResponse, IdentityDatabaseError> {
     let main_user = user::create(conf, db, &user).await?;
     if let Some(_federated) = &user.federated {
     } else {
@@ -470,7 +519,7 @@ mod tests {
         let config = Config::default();
         assert_eq!(
             get_user(&config, &db, "1").await.unwrap().unwrap(),
-            User {
+            UserResponse {
                 id: "1".into(),
                 domain_id: "foo_domain".into(),
                 name: "Apple Cake".to_owned(),
@@ -499,7 +548,7 @@ mod tests {
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT "local_user"."id" AS "A_id", "local_user"."user_id" AS "A_user_id", "local_user"."domain_id" AS "A_domain_id", "local_user"."name" AS "A_name", "local_user"."failed_auth_count" AS "A_failed_auth_count", "local_user"."failed_auth_at" AS "A_failed_auth_at", "password"."id" AS "B_id", "password"."local_user_id" AS "B_local_user_id", "password"."self_service" AS "B_self_service", "password"."created_at" AS "B_created_at", "password"."expires_at" AS "B_expires_at", "password"."password_hash" AS "B_password_hash", "password"."created_at_int" AS "B_created_at_int", "password"."expires_at_int" AS "B_expires_at_int" FROM "local_user" LEFT JOIN "password" ON "local_user"."id" = "password"."local_user_id" WHERE "local_user"."user_id" = $1 ORDER BY "local_user"."id" ASC"#,
+                    r#"SELECT "local_user"."id" AS "A_id", "local_user"."user_id" AS "A_user_id", "local_user"."domain_id" AS "A_domain_id", "local_user"."name" AS "A_name", "local_user"."failed_auth_count" AS "A_failed_auth_count", "local_user"."failed_auth_at" AS "A_failed_auth_at", "password"."id" AS "B_id", "password"."local_user_id" AS "B_local_user_id", "password"."self_service" AS "B_self_service", "password"."created_at" AS "B_created_at", "password"."expires_at" AS "B_expires_at", "password"."password_hash" AS "B_password_hash", "password"."created_at_int" AS "B_created_at_int", "password"."expires_at_int" AS "B_expires_at_int" FROM "local_user" LEFT JOIN "password" ON "local_user"."id" = "password"."local_user_id" WHERE "local_user"."user_id" = $1 ORDER BY "local_user"."id" ASC, "password"."created_at_int" DESC"#,
                     ["1".into()]
                 ),
             ]

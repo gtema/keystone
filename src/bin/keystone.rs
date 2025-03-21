@@ -105,7 +105,13 @@ async fn main() -> Result<(), Report> {
         .split_for_parts();
 
     let x_request_id = HeaderName::from_static("x-openstack-request-id");
-    let sensitive_headers: Arc<[_]> = vec![header::AUTHORIZATION, header::COOKIE].into();
+    let sensitive_headers: Arc<[_]> = vec![
+        header::AUTHORIZATION,
+        header::COOKIE,
+        header::HeaderName::from_static("x-auth-token"),
+        header::HeaderName::from_static("x-subject-token"),
+    ]
+    .into();
 
     let middleware = ServiceBuilder::new()
         // Inject x-request-id header into processing

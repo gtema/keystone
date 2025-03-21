@@ -24,12 +24,12 @@ use crate::db::entity::{prelude::Role as DbRole, role as db_role};
 
 static NULL_DOMAIN_ID: &str = "<<null>>";
 
-pub async fn get(
+pub async fn get<I: AsRef<str>>(
     _conf: &Config,
     db: &DatabaseConnection,
-    id: &str,
+    id: I,
 ) -> Result<Option<Role>, AssignmentDatabaseError> {
-    let role_select = DbRole::find_by_id(id);
+    let role_select = DbRole::find_by_id(id.as_ref());
 
     let entry: Option<db_role::Model> = role_select.one(db).await?;
     entry.map(TryInto::try_into).transpose()

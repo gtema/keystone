@@ -21,15 +21,15 @@ use webauthn_rs::prelude::Passkey;
 use crate::db::entity::{prelude::WebauthnCredential as DbPasskey, webauthn_credential};
 use crate::identity::backends::error::IdentityDatabaseError;
 
-pub(super) async fn create(
+pub(super) async fn create<U: AsRef<str>>(
     db: &DatabaseConnection,
-    user_id: &str,
+    user_id: U,
     passkey: Passkey,
 ) -> Result<(), IdentityDatabaseError> {
     let now = Local::now().naive_utc();
     let entry = webauthn_credential::ActiveModel {
         id: NotSet,
-        user_id: Set(user_id.to_string()),
+        user_id: Set(user_id.as_ref().to_string()),
         credential_id: Set(passkey.cred_id().escape_ascii().to_string()),
         passkey: Set(serde_json::to_string(&passkey)?),
         r#type: Set("cross-platform".to_string()),
@@ -42,12 +42,12 @@ pub(super) async fn create(
     Ok(())
 }
 
-pub async fn list(
+pub async fn list<U: AsRef<str>>(
     db: &DatabaseConnection,
-    user_id: &str,
+    user_id: U,
 ) -> Result<Vec<Passkey>, IdentityDatabaseError> {
     let res: Result<Vec<Passkey>, _> = DbPasskey::find()
-        .filter(webauthn_credential::Column::UserId.eq(user_id))
+        .filter(webauthn_credential::Column::UserId.eq(user_id.as_ref()))
         .all(db)
         .await?
         .into_iter()

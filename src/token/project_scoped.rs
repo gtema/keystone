@@ -26,6 +26,7 @@ use crate::token::{
 };
 
 #[derive(Builder, Clone, Debug, Default, PartialEq)]
+#[builder(setter(strip_option, into))]
 pub struct ProjectScopeToken {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]

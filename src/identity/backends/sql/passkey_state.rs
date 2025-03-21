@@ -21,14 +21,14 @@ use webauthn_rs::prelude::{PasskeyAuthentication, PasskeyRegistration};
 use crate::db::entity::{prelude::WebauthnState as DbPasskeyState, webauthn_state};
 use crate::identity::backends::error::IdentityDatabaseError;
 
-pub(super) async fn create_register(
+pub(super) async fn create_register<U: AsRef<str>>(
     db: &DatabaseConnection,
-    user_id: &str,
+    user_id: U,
     state: PasskeyRegistration,
 ) -> Result<(), IdentityDatabaseError> {
     let now = Local::now().naive_utc();
     let entry = webauthn_state::ActiveModel {
-        user_id: Set(user_id.to_string()),
+        user_id: Set(user_id.as_ref().to_string()),
         state: Set(serde_json::to_string(&state)?),
         r#type: Set("register".into()),
         created_at: Set(now),
@@ -37,14 +37,14 @@ pub(super) async fn create_register(
     Ok(())
 }
 
-pub(super) async fn create_auth(
+pub(super) async fn create_auth<U: AsRef<str>>(
     db: &DatabaseConnection,
-    user_id: &str,
+    user_id: U,
     state: PasskeyAuthentication,
 ) -> Result<(), IdentityDatabaseError> {
     let now = Local::now().naive_utc();
     let entry = webauthn_state::ActiveModel {
-        user_id: Set(user_id.to_string()),
+        user_id: Set(user_id.as_ref().to_string()),
         state: Set(serde_json::to_string(&state)?),
         r#type: Set("auth".into()),
         created_at: Set(now),
@@ -53,11 +53,11 @@ pub(super) async fn create_auth(
     Ok(())
 }
 
-pub async fn get_register(
+pub async fn get_register<U: AsRef<str>>(
     db: &DatabaseConnection,
-    user_id: &str,
+    user_id: U,
 ) -> Result<Option<PasskeyRegistration>, IdentityDatabaseError> {
-    match DbPasskeyState::find_by_id(user_id)
+    match DbPasskeyState::find_by_id(user_id.as_ref())
         .filter(webauthn_state::Column::Type.eq("register"))
         .one(db)
         .await?
@@ -67,11 +67,11 @@ pub async fn get_register(
     }
 }
 
-pub async fn get_auth(
+pub async fn get_auth<U: AsRef<str>>(
     db: &DatabaseConnection,
-    user_id: &str,
+    user_id: U,
 ) -> Result<Option<PasskeyAuthentication>, IdentityDatabaseError> {
-    match DbPasskeyState::find_by_id(user_id)
+    match DbPasskeyState::find_by_id(user_id.as_ref())
         .filter(webauthn_state::Column::Type.eq("auth"))
         .one(db)
         .await?
@@ -81,8 +81,13 @@ pub async fn get_auth(
     }
 }
 
-pub async fn delete(db: &DatabaseConnection, user_id: &str) -> Result<(), IdentityDatabaseError> {
-    DbPasskeyState::delete_by_id(user_id).exec(db).await?;
+pub async fn delete<U: AsRef<str>>(
+    db: &DatabaseConnection,
+    user_id: U,
+) -> Result<(), IdentityDatabaseError> {
+    DbPasskeyState::delete_by_id(user_id.as_ref())
+        .exec(db)
+        .await?;
     Ok(())
 }
 

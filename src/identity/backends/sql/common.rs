@@ -28,8 +28,8 @@ use crate::identity::types::*;
 pub fn get_user_builder<O: IntoIterator<Item = user_option::Model>>(
     user: &user::Model,
     opts: O,
-) -> UserBuilder {
-    let mut user_builder: UserBuilder = UserBuilder::default();
+) -> UserResponseBuilder {
+    let mut user_builder: UserResponseBuilder = UserResponseBuilder::default();
     user_builder.id(user.id.clone());
     user_builder.domain_id(user.domain_id.clone());
     // TODO: default enabled logic
@@ -52,8 +52,8 @@ pub fn get_local_user_builder<
     data: local_user::Model,
     passwords: Option<P>,
     opts: O,
-) -> UserBuilder {
-    let mut user_builder: UserBuilder = get_user_builder(user, opts);
+) -> UserResponseBuilder {
+    let mut user_builder: UserResponseBuilder = get_user_builder(user, opts);
     user_builder.name(data.name.clone());
     if let Some(password_expires_days) = conf.security_compliance.password_expires_days {
         if let Some(pass) = passwords {
@@ -79,8 +79,8 @@ pub fn get_nonlocal_user_builder<O: IntoIterator<Item = user_option::Model>>(
     user: &user::Model,
     data: nonlocal_user::Model,
     opts: O,
-) -> UserBuilder {
-    let mut user_builder: UserBuilder = get_user_builder(user, opts);
+) -> UserResponseBuilder {
+    let mut user_builder: UserResponseBuilder = get_user_builder(user, opts);
     user_builder.name(data.name.clone());
     user_builder
 }
@@ -92,8 +92,8 @@ pub fn get_federated_user_builder<
     user: &user::Model,
     data: F,
     opts: O,
-) -> UserBuilder {
-    let mut user_builder: UserBuilder = get_user_builder(user, opts);
+) -> UserResponseBuilder {
+    let mut user_builder: UserResponseBuilder = get_user_builder(user, opts);
     if let Some(first) = data.into_iter().next() {
         if let Some(name) = first.display_name {
             user_builder.name(name.clone());

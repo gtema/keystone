@@ -39,17 +39,24 @@ impl ResourceBackend for SqlBackend {
     }
 
     /// Get single domain by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
     async fn get_domain<'a>(
         &self,
         db: &DatabaseConnection,
         domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError> {
-        Ok(get_domain(&self.config, db, domain_id).await?)
+        Ok(get_domain_by_id(&self.config, db, domain_id).await?)
+    }
+
+    /// Get single domain by Name
+    async fn get_domain_by_name<'a>(
+        &self,
+        db: &DatabaseConnection,
+        domain_name: &'a str,
+    ) -> Result<Option<Domain>, ResourceProviderError> {
+        Ok(get_domain_by_name(&self.config, db, domain_name).await?)
     }
 
     /// Get single project by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
     async fn get_project<'a>(
         &self,
         db: &DatabaseConnection,
@@ -57,27 +64,65 @@ impl ResourceBackend for SqlBackend {
     ) -> Result<Option<Project>, ResourceProviderError> {
         Ok(get_project(&self.config, db, project_id).await?)
     }
+
+    /// Get single project by Name and Domain ID
+    async fn get_project_by_name<'a>(
+        &self,
+        db: &DatabaseConnection,
+        name: &'a str,
+        domain_id: &'a str,
+    ) -> Result<Option<Project>, ResourceProviderError> {
+        Ok(get_project_by_name(&self.config, db, name, domain_id).await?)
+    }
 }
 
-pub async fn get_domain(
+pub async fn get_domain_by_id<I: AsRef<str>>(
     _conf: &Config,
     db: &DatabaseConnection,
-    domain_id: &str,
+    domain_id: I,
 ) -> Result<Option<Domain>, ResourceDatabaseError> {
     let domain_select =
-        DbProject::find_by_id(domain_id).filter(db_project::Column::IsDomain.eq(true));
+        DbProject::find_by_id(domain_id.as_ref()).filter(db_project::Column::IsDomain.eq(true));
 
     let domain_entry: Option<db_project::Model> = domain_select.one(db).await?;
     domain_entry.map(TryInto::try_into).transpose()
 }
 
-pub async fn get_project(
+pub async fn get_domain_by_name<N: AsRef<str>>(
     _conf: &Config,
     db: &DatabaseConnection,
-    domain_id: &str,
+    domain_name: N,
+) -> Result<Option<Domain>, ResourceDatabaseError> {
+    let domain_select = DbProject::find()
+        .filter(db_project::Column::IsDomain.eq(true))
+        .filter(db_project::Column::Name.eq(domain_name.as_ref()));
+
+    let domain_entry: Option<db_project::Model> = domain_select.one(db).await?;
+    domain_entry.map(TryInto::try_into).transpose()
+}
+
+pub async fn get_project<I: AsRef<str>>(
+    _conf: &Config,
+    db: &DatabaseConnection,
+    domain_id: I,
 ) -> Result<Option<Project>, ResourceDatabaseError> {
     let project_select =
-        DbProject::find_by_id(domain_id).filter(db_project::Column::IsDomain.eq(false));
+        DbProject::find_by_id(domain_id.as_ref()).filter(db_project::Column::IsDomain.eq(false));
+
+    let project_entry: Option<db_project::Model> = project_select.one(db).await?;
+    project_entry.map(TryInto::try_into).transpose()
+}
+
+pub async fn get_project_by_name<N: AsRef<str>, D: AsRef<str>>(
+    _conf: &Config,
+    db: &DatabaseConnection,
+    name: N,
+    domain_id: D,
+) -> Result<Option<Project>, ResourceDatabaseError> {
+    let project_select = DbProject::find()
+        .filter(db_project::Column::IsDomain.eq(false))
+        .filter(db_project::Column::Name.eq(name.as_ref()))
+        .filter(db_project::Column::DomainId.eq(domain_id.as_ref()));
 
     let project_entry: Option<db_project::Model> = project_select.one(db).await?;
     project_entry.map(TryInto::try_into).transpose()

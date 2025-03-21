@@ -42,6 +42,22 @@ pub fn hash_password<S: AsRef<[u8]>>(
     }
 }
 
+pub fn verify_password<P: AsRef<[u8]>, H: AsRef<str>>(
+    conf: &Config,
+    password: P,
+    hash: H,
+) -> Result<bool, IdentityProviderPasswordHashError> {
+    match conf.identity.password_hashing_algorithm {
+        PasswordHashingAlgo::Bcrypt => {
+            let password_bytes = verify_length_and_trunc_password(
+                password.as_ref(),
+                max(conf.identity.max_password_length, 72),
+            );
+            Ok(bcrypt::verify(password_bytes, hash.as_ref())?)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

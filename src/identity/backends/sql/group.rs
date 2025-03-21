@@ -48,12 +48,15 @@ pub async fn list(
     Ok(results)
 }
 
-pub async fn get(
+pub async fn get<S: AsRef<str>>(
     _conf: &Config,
     db: &DatabaseConnection,
-    group_id: &str,
+    group_id: S,
 ) -> Result<Option<Group>, IdentityDatabaseError> {
-    Ok(DbGroup::find_by_id(group_id).one(db).await?.map(Into::into))
+    Ok(DbGroup::find_by_id(group_id.as_ref())
+        .one(db)
+        .await?
+        .map(Into::into))
 }
 
 pub async fn create(
@@ -74,16 +77,18 @@ pub async fn create(
     Ok(db_entry.into())
 }
 
-pub async fn delete(
+pub async fn delete<S: AsRef<str>>(
     _conf: &Config,
     db: &DatabaseConnection,
-    group_id: &str,
+    group_id: S,
 ) -> Result<(), IdentityDatabaseError> {
-    let res = DbGroup::delete_by_id(group_id).exec(db).await?;
+    let res = DbGroup::delete_by_id(group_id.as_ref()).exec(db).await?;
     if res.rows_affected == 1 {
         Ok(())
     } else {
-        Err(IdentityDatabaseError::GroupNotFound(group_id.to_string()))
+        Err(IdentityDatabaseError::GroupNotFound(
+            group_id.as_ref().to_string(),
+        ))
     }
 }
 
@@ -101,14 +106,14 @@ impl From<group::Model> for Group {
     }
 }
 
-pub async fn list_for_user(
+pub async fn list_for_user<S: AsRef<str>>(
     _conf: &Config,
     db: &DatabaseConnection,
-    user_id: &str,
+    user_id: S,
 ) -> Result<Vec<Group>, IdentityDatabaseError> {
     let groups: Vec<(user_group_membership::Model, Vec<group::Model>)> =
         DbUserGroupMembership::find()
-            .filter(user_group_membership::Column::UserId.eq(user_id))
+            .filter(user_group_membership::Column::UserId.eq(user_id.as_ref()))
             .find_with_related(DbGroup)
             .all(db)
             .await?;

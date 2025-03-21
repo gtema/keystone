@@ -26,19 +26,34 @@ use crate::identity::backends::error::IdentityDatabaseError;
 use crate::identity::types::UserCreate;
 
 /// Load local user record with passwords from database
-pub async fn load_local_user_with_passwords<S: AsRef<str>>(
+pub async fn load_local_user_with_passwords<S1: AsRef<str>, S2: AsRef<str>, S3: AsRef<str>>(
     db: &DatabaseConnection,
-    user_id: S,
+    user_id: Option<S1>,
+    name: Option<S2>,
+    domain_id: Option<S3>,
 ) -> Result<
-    Option<(
-        local_user::Model,
-        impl IntoIterator<Item = password::Model> + use<S>,
-    )>,
+    Option<(local_user::Model, impl IntoIterator<Item = password::Model>)>,
     IdentityDatabaseError,
 > {
-    let results: Vec<(local_user::Model, Vec<password::Model>)> = LocalUser::find()
-        .filter(local_user::Column::UserId.eq(user_id.as_ref()))
+    let mut select = LocalUser::find();
+    if let Some(user_id) = user_id {
+        select = select.filter(local_user::Column::UserId.eq(user_id.as_ref()))
+    } else {
+        select = select
+            .filter(
+                local_user::Column::Name.eq(name
+                    .ok_or(IdentityDatabaseError::UserIdOrNameWithDomain)?
+                    .as_ref()),
+            )
+            .filter(
+                local_user::Column::DomainId.eq(domain_id
+                    .ok_or(IdentityDatabaseError::UserIdOrNameWithDomain)?
+                    .as_ref()),
+            );
+    }
+    let results: Vec<(local_user::Model, Vec<password::Model>)> = select
         .find_with_related(Password)
+        .order_by(password::Column::CreatedAtInt, Order::Desc)
         .all(db)
         .await?;
     Ok(results.first().cloned())
@@ -74,7 +89,7 @@ pub async fn load_local_users_passwords<L: IntoIterator<Item = Option<i32>>>(
     passwords.into_iter().for_each(|item| {
         let vec = hashmap
             .get_mut(&item.local_user_id)
-            .expect("Failed finding key on passwords hashmap");
+            .expect("failed to find key on passwords hashmap");
         vec.push(item);
     });
 
@@ -115,4 +130,28 @@ pub async fn create(
     let db_user: local_user::Model = entry.insert(db).await?;
 
     Ok(db_user)
+}
+
+pub async fn get_by_name_and_domain<N: AsRef<str>, D: AsRef<str>>(
+    _conf: &Config,
+    db: &DatabaseConnection,
+    name: N,
+    domain_id: D,
+) -> Result<Option<local_user::Model>, IdentityDatabaseError> {
+    Ok(LocalUser::find()
+        .filter(local_user::Column::Name.eq(name.as_ref()))
+        .filter(local_user::Column::DomainId.eq(domain_id.as_ref()))
+        .one(db)
+        .await?)
+}
+
+pub async fn get_by_user_id<U: AsRef<str>>(
+    _conf: &Config,
+    db: &DatabaseConnection,
+    user_id: U,
+) -> Result<Option<local_user::Model>, IdentityDatabaseError> {
+    Ok(LocalUser::find()
+        .filter(local_user::Column::UserId.eq(user_id.as_ref()))
+        .one(db)
+        .await?)
 }

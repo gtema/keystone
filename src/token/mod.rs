@@ -27,12 +27,13 @@ pub mod types;
 pub mod unscoped;
 
 use crate::config::{Config, TokenProvider as TokenProviderType};
+use crate::resource::types::{Domain, Project};
 pub use error::TokenProviderError;
 use types::TokenBackend;
 
 pub use application_credential::ApplicationCredentialToken;
-pub use domain_scoped::DomainScopeToken;
-pub use project_scoped::ProjectScopeToken;
+pub use domain_scoped::{DomainScopeToken, DomainScopeTokenBuilder};
+pub use project_scoped::{ProjectScopeToken, ProjectScopeTokenBuilder};
 pub use types::Token;
 pub use unscoped::{UnscopedToken, UnscopedTokenBuilder};
 
@@ -68,6 +69,8 @@ pub trait TokenApi: Send + Sync + Clone {
         user_id: U,
         methods: Vec<String>,
         audit_ids: Vec<String>,
+        project: Option<&Project>,
+        domain: Option<&Domain>,
     ) -> Result<Token, TokenProviderError>
     where
         U: AsRef<str>;
@@ -78,7 +81,7 @@ pub trait TokenApi: Send + Sync + Clone {
 #[async_trait]
 impl TokenApi for TokenProvider {
     /// Validate token
-    #[tracing::instrument(level = "info", skip(self))]
+    #[tracing::instrument(level = "info", skip(self, credential))]
     async fn validate_token<'a>(
         &self,
         credential: &'a str,
@@ -101,23 +104,63 @@ impl TokenApi for TokenProvider {
         user_id: U,
         methods: Vec<String>,
         audit_ids: Vec<String>,
+        project: Option<&Project>,
+        domain: Option<&Domain>,
     ) -> Result<Token, TokenProviderError>
     where
         U: AsRef<str>,
     {
-        let token = Token::Unscoped(
-            UnscopedTokenBuilder::default()
-                .user_id(user_id.as_ref())
-                .methods(methods.into_iter())
-                .audit_ids(audit_ids.into_iter())
-                .expires_at(
-                    Local::now()
-                        .to_utc()
-                        .checked_add_signed(TimeDelta::seconds(self.config.token.expiration as i64))
-                        .ok_or(TokenProviderError::ExpiryCalculation)?,
-                )
-                .build()?,
-        );
+        let token = if let Some(project) = &project {
+            Token::ProjectScope(
+                ProjectScopeTokenBuilder::default()
+                    .user_id(user_id.as_ref())
+                    .methods(methods.into_iter())
+                    .audit_ids(audit_ids.into_iter())
+                    .expires_at(
+                        Local::now()
+                            .to_utc()
+                            .checked_add_signed(TimeDelta::seconds(
+                                self.config.token.expiration as i64,
+                            ))
+                            .ok_or(TokenProviderError::ExpiryCalculation)?,
+                    )
+                    .project_id(project.id.clone())
+                    .build()?,
+            )
+        } else if let Some(domain) = &domain {
+            Token::DomainScope(
+                DomainScopeTokenBuilder::default()
+                    .user_id(user_id.as_ref())
+                    .methods(methods.into_iter())
+                    .audit_ids(audit_ids.into_iter())
+                    .expires_at(
+                        Local::now()
+                            .to_utc()
+                            .checked_add_signed(TimeDelta::seconds(
+                                self.config.token.expiration as i64,
+                            ))
+                            .ok_or(TokenProviderError::ExpiryCalculation)?,
+                    )
+                    .domain_id(domain.id.clone())
+                    .build()?,
+            )
+        } else {
+            Token::Unscoped(
+                UnscopedTokenBuilder::default()
+                    .user_id(user_id.as_ref())
+                    .methods(methods.into_iter())
+                    .audit_ids(audit_ids.into_iter())
+                    .expires_at(
+                        Local::now()
+                            .to_utc()
+                            .checked_add_signed(TimeDelta::seconds(
+                                self.config.token.expiration as i64,
+                            ))
+                            .ok_or(TokenProviderError::ExpiryCalculation)?,
+                    )
+                    .build()?,
+            )
+        };
         Ok(token)
     }
 
@@ -147,6 +190,8 @@ mock! {
             user_id: U,
             methods: Vec<String>,
             audit_ids: Vec<String>,
+            project: Option<&Project>,
+            domain: Option<&Domain>,
         ) -> Result<Token, TokenProviderError>
         where
             U: AsRef<str>;
