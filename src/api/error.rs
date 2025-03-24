@@ -113,7 +113,8 @@ pub enum KeystoneApiError {
 
 impl IntoResponse for KeystoneApiError {
     fn into_response(self) -> Response {
-        error!("Error happened during request processing: {:?}", self);
+        error!("Error happened during request processing: {:#?}", self);
+        //tracing::debug!("stacktrace: {}", self.backtrace());
         match self {
             KeystoneApiError::Conflict(_) => (
                 StatusCode::CONFLICT,

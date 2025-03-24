@@ -16,8 +16,6 @@ use crate::api::common;
 use crate::api::error::{KeystoneApiError, TokenError};
 use crate::api::v3::auth::token::types::{ProjectBuilder, Token, TokenBuilder, UserBuilder};
 use crate::api::v3::role::types::Role;
-use crate::assignment::AssignmentApi;
-use crate::assignment::types::RoleAssignmentListParametersBuilder;
 use crate::identity::{IdentityApi, types::UserResponse};
 use crate::keystone::ServiceState;
 use crate::resource::{
@@ -55,12 +53,12 @@ impl Token {
             }
             ProviderToken::DomainScope(_token) => {
                 response.domain(domain.ok_or(KeystoneApiError::InternalError(
-                    "domain scope missing".to_string(),
+                    "domain scope information missing".to_string(),
                 ))?);
             }
             ProviderToken::ProjectScope(token) => {
                 let project = project.ok_or(KeystoneApiError::InternalError(
-                    "domain scope missing".to_string(),
+                    "project scope information missing".to_string(),
                 ))?;
 
                 let mut project_response = ProjectBuilder::default();
@@ -75,26 +73,12 @@ impl Token {
                 }
                 response.project(project_response.build().map_err(TokenError::from)?);
 
-                let token_roles = state
-                    .provider
-                    .get_assignment_provider()
-                    .list_role_assignments(
-                        &state.db,
-                        &state.provider,
-                        &RoleAssignmentListParametersBuilder::default()
-                            .user_id(user.id.clone())
-                            .project_id(&token.project_id)
-                            .build()?,
-                    )
-                    .await?;
                 response.roles(
-                    token_roles
+                    token
+                        .roles
+                        .clone()
                         .into_iter()
-                        .map(|x| Role {
-                            id: x.role_id.clone(),
-                            name: x.role_name.clone().unwrap_or_default(),
-                            ..Default::default()
-                        })
+                        .map(Into::into)
                         .collect::<Vec<Role>>(),
                 );
             }
@@ -171,26 +155,12 @@ impl Token {
                 }
                 response.project(project_response.build().map_err(TokenError::from)?);
 
-                let token_roles = state
-                    .provider
-                    .get_assignment_provider()
-                    .list_role_assignments(
-                        &state.db,
-                        &state.provider,
-                        &RoleAssignmentListParametersBuilder::default()
-                            .user_id(user.id)
-                            .project_id(&token.project_id)
-                            .build()?,
-                    )
-                    .await?;
                 response.roles(
-                    token_roles
+                    token
+                        .roles
+                        .clone()
                         .into_iter()
-                        .map(|x| Role {
-                            id: x.role_id.clone(),
-                            name: x.role_name.clone().unwrap_or_default(),
-                            ..Default::default()
-                        })
+                        .map(Into::into)
                         .collect::<Vec<Role>>(),
                 );
             }
@@ -211,7 +181,7 @@ mod tests {
     use crate::api::v3::role::types::Role;
     use crate::assignment::{
         MockAssignmentProvider,
-        types::{Assignment, AssignmentType, RoleAssignmentListParameters},
+        types::{Assignment, AssignmentType, Role as ProviderRole, RoleAssignmentListParameters},
     };
     use crate::config::Config;
     use crate::identity::{MockIdentityProvider, types::UserResponse};
@@ -402,6 +372,11 @@ mod tests {
             &ProviderToken::ProjectScope(ProjectScopeToken {
                 user_id: "bar".into(),
                 project_id: "project_id".into(),
+                roles: vec![ProviderRole {
+                    id: "rid".into(),
+                    name: "role_name".into(),
+                    ..Default::default()
+                }],
                 ..Default::default()
             }),
         )

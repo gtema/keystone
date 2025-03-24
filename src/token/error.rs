@@ -115,4 +115,18 @@ pub enum TokenProviderError {
         #[from]
         source: crate::token::domain_scoped::DomainScopeTokenBuilderError,
     },
+
+    #[error(transparent)]
+    AssignmentProvider {
+        /// The source of the error.
+        #[from]
+        source: crate::assignment::error::AssignmentProviderError,
+    },
+
+    #[error(transparent)]
+    ResourceProvider {
+        /// The source of the error.
+        #[from]
+        source: crate::resource::error::ResourceProviderError,
+    },
 }

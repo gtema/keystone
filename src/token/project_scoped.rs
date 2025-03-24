@@ -18,6 +18,8 @@ use rmp::{decode::read_pfix, encode::write_pfix};
 use std::collections::BTreeMap;
 use std::io::Write;
 
+use crate::assignment::types::Role;
+use crate::resource::types::Project;
 use crate::token::{
     error::TokenProviderError,
     fernet::{self, MsgPackToken},
@@ -35,6 +37,11 @@ pub struct ProjectScopeToken {
     pub audit_ids: Vec<String>,
     pub expires_at: DateTime<Utc>,
     pub project_id: String,
+
+    #[builder(default)]
+    pub roles: Vec<Role>,
+    #[builder(default)]
+    pub project: Option<Project>,
 }
 
 impl ProjectScopeTokenBuilder {
@@ -106,6 +113,7 @@ impl MsgPackToken for ProjectScopeToken {
             expires_at,
             audit_ids,
             project_id,
+            ..Default::default()
         })
     }
 }
@@ -125,6 +133,7 @@ mod tests {
             project_id: Uuid::new_v4().simple().to_string(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         };
         let auth_map = BTreeMap::from([(1, "password".into())]);
         let mut buf = vec![];

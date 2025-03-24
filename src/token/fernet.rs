@@ -336,6 +336,7 @@ pub(super) mod tests {
             domain_id: Uuid::new_v4().simple().to_string(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         });
 
         let mut backend = FernetTokenProvider::default();
@@ -379,6 +380,7 @@ pub(super) mod tests {
             project_id: Uuid::new_v4().simple().to_string(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         });
 
         let mut backend = FernetTokenProvider::default();
@@ -427,6 +429,7 @@ pub(super) mod tests {
             application_credential_id: Uuid::new_v4().simple().to_string(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         });
 
         let mut backend = FernetTokenProvider::default();
