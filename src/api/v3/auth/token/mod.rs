@@ -131,7 +131,7 @@ async fn post(
     }
 
     if let Some(authed_user) = &user {
-        let token = state.provider.get_token_provider().issue_token(
+        let mut token = state.provider.get_token_provider().issue_token(
             authed_user.id.clone(),
             methods,
             Vec::<String>::from([URL_SAFE
@@ -141,6 +141,24 @@ async fn post(
             project.as_ref(),
             domain.as_ref(),
         )?;
+
+        state
+            .provider
+            .get_token_provider()
+            .populate_role_assignments(&mut token, &state.db, &state.provider)
+            .await?;
+
+        state
+            .provider
+            .get_token_provider()
+            .expand_project_information(&mut token, &state.db, &state.provider)
+            .await?;
+
+        state
+            .provider
+            .get_token_provider()
+            .expand_domain_information(&mut token, &state.db, &state.provider)
+            .await?;
 
         let api_token = TokenResponse {
             token: ApiResponseToken::from_user_auth(
@@ -194,12 +212,30 @@ async fn show(
         .map_err(|_| KeystoneApiError::InvalidHeader)?
         .to_string();
 
-    let token = state
+    let mut token = state
         .provider
         .get_token_provider()
         .validate_token(&subject_token, None)
         .await
         .map_err(|_| KeystoneApiError::InvalidToken)?;
+
+    state
+        .provider
+        .get_token_provider()
+        .populate_role_assignments(&mut token, &state.db, &state.provider)
+        .await?;
+
+    state
+        .provider
+        .get_token_provider()
+        .expand_project_information(&mut token, &state.db, &state.provider)
+        .await?;
+
+    state
+        .provider
+        .get_token_provider()
+        .expand_domain_information(&mut token, &state.db, &state.provider)
+        .await?;
 
     let response_token = ApiResponseToken::from_provider_token(&state, &token).await?;
 
@@ -266,6 +302,15 @@ mod tests {
                 ..Default::default()
             }))
         });
+        token_mock
+            .expect_populate_role_assignments()
+            .returning(|_, _, _| Ok(()));
+        token_mock
+            .expect_expand_project_information()
+            .returning(|_, _, _| Ok(()));
+        token_mock
+            .expect_expand_domain_information()
+            .returning(|_, _, _| Ok(()));
 
         let provider = ProviderBuilder::default()
             .config(config.clone())
@@ -392,7 +437,15 @@ mod tests {
                 ..Default::default()
             }))
         });
-
+        token_mock
+            .expect_populate_role_assignments()
+            .returning(|_, _, _| Ok(()));
+        token_mock
+            .expect_expand_project_information()
+            .returning(|_, _, _| Ok(()));
+        token_mock
+            .expect_expand_domain_information()
+            .returning(|_, _, _| Ok(()));
         token_mock
             .expect_encode_token()
             .returning(|_| Ok("token".to_string()));

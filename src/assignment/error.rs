@@ -55,6 +55,12 @@ pub enum AssignmentProviderError {
         source: RoleAssignmentListForMultipleActorTargetParametersBuilderError,
     },
 
+    #[error("building role assignment query: {}", source)]
+    RoleAssignmentListParametersBuilder {
+        #[from]
+        source: RoleAssignmentListParametersBuilderError,
+    },
+
     #[error("building role data: {}", source)]
     RoleBuilderError {
         #[from]

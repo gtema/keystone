@@ -18,6 +18,8 @@ use rmp::{decode::read_pfix, encode::write_pfix};
 use std::collections::BTreeMap;
 use std::io::Write;
 
+use crate::assignment::types::Role;
+use crate::resource::types::Project;
 use crate::token::{
     error::TokenProviderError,
     fernet::{self, MsgPackToken},
@@ -35,6 +37,11 @@ pub struct ApplicationCredentialToken {
     pub expires_at: DateTime<Utc>,
     pub project_id: String,
     pub application_credential_id: String,
+
+    #[builder(default)]
+    pub roles: Vec<Role>,
+    #[builder(default)]
+    pub project: Option<Project>,
 }
 
 impl ApplicationCredentialTokenBuilder {
@@ -110,6 +117,7 @@ impl MsgPackToken for ApplicationCredentialToken {
             audit_ids,
             project_id,
             application_credential_id,
+            ..Default::default()
         })
     }
 }
@@ -130,6 +138,7 @@ mod tests {
             application_credential_id: Uuid::new_v4().simple().to_string(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         };
         let auth_map = BTreeMap::from([(1, "password".into())]);
         let mut buf = vec![];
