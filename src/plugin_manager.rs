@@ -15,6 +15,7 @@
 use std::collections::HashMap;
 
 use crate::assignment::types::AssignmentBackend;
+use crate::catalog::types::CatalogBackend;
 use crate::identity::types::IdentityBackend;
 use crate::resource::types::ResourceBackend;
 
@@ -24,6 +25,8 @@ use crate::resource::types::ResourceBackend;
 pub struct PluginManager {
     /// Assignments backend plugin
     assignment_backends: HashMap<String, Box<dyn AssignmentBackend>>,
+    /// Catalog backend plugins
+    catalog_backends: HashMap<String, Box<dyn CatalogBackend>>,
     /// Identity backend plugins
     identity_backends: HashMap<String, Box<dyn IdentityBackend>>,
     /// Resource backend plugins
@@ -48,6 +51,12 @@ impl PluginManager {
         name: S,
     ) -> Option<&Box<dyn AssignmentBackend>> {
         self.assignment_backends.get(name.as_ref())
+    }
+
+    /// Get registered catalog backend
+    #[allow(clippy::borrowed_box)]
+    pub fn get_catalog_backend<S: AsRef<str>>(&self, name: S) -> Option<&Box<dyn CatalogBackend>> {
+        self.catalog_backends.get(name.as_ref())
     }
 
     /// Get registered identity backend

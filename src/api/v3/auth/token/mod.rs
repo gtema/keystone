@@ -12,12 +12,19 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{Json, extract::State, http::HeaderMap, http::StatusCode, response::IntoResponse};
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::HeaderMap,
+    http::StatusCode,
+    response::IntoResponse,
+};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
-use crate::api::{auth::Auth, common::get_domain, error::KeystoneApiError};
+use crate::api::{Catalog, auth::Auth, common::get_domain, error::KeystoneApiError};
+use crate::catalog::CatalogApi;
 use crate::identity::IdentityApi;
 use crate::identity::types::UserResponse;
 use crate::keystone::ServiceState;
@@ -26,7 +33,7 @@ use crate::resource::{
     types::{Domain, Project},
 };
 use crate::token::TokenApi;
-use types::{AuthRequest, Scope, Token as ApiResponseToken, TokenResponse};
+use types::{AuthRequest, CreateTokenParameters, Scope, Token as ApiResponseToken, TokenResponse};
 
 mod common;
 pub mod types;
@@ -40,7 +47,7 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     post,
     path = "/",
     description = "Issue token",
-    params(),
+    params(CreateTokenParameters),
     responses(
         (status = OK, description = "Token object", body = TokenResponse),
     ),
@@ -48,6 +55,7 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
 )]
 #[tracing::instrument(name = "api::token_post", level = "debug", skip(state, req))]
 async fn post(
+    Query(query): Query<CreateTokenParameters>,
     State(state): State<ServiceState>,
     Json(req): Json<AuthRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
@@ -160,7 +168,7 @@ async fn post(
             .expand_domain_information(&mut token, &state.db, &state.provider)
             .await?;
 
-        let api_token = TokenResponse {
+        let mut api_token = TokenResponse {
             token: ApiResponseToken::from_user_auth(
                 &state,
                 &token,
@@ -170,6 +178,15 @@ async fn post(
             )
             .await?,
         };
+        if !query.nocatalog.is_some_and(|x| x) {
+            let catalog: Catalog = state
+                .provider
+                .get_catalog_provider()
+                .get_catalog(&state.db, true)
+                .await?
+                .into();
+            api_token.token.catalog = Some(catalog);
+        }
         return Ok((
             StatusCode::OK,
             [(
@@ -260,6 +277,7 @@ mod tests {
     use super::openapi_router;
     use crate::api::v3::auth::token::types::TokenResponse;
     use crate::assignment::MockAssignmentProvider;
+    use crate::catalog::MockCatalogProvider;
     use crate::config::Config;
     use crate::identity::{MockIdentityProvider, types::UserResponse};
     use crate::keystone::Service;
@@ -276,6 +294,7 @@ mod tests {
         let db = DatabaseConnection::Disconnected;
         let config = Config::default();
         let assignment_mock = MockAssignmentProvider::default();
+        let catalog_mock = MockCatalogProvider::default();
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock.expect_get_user().returning(|_, id: &'_ str| {
             Ok(Some(UserResponse {
@@ -315,6 +334,7 @@ mod tests {
         let provider = ProviderBuilder::default()
             .config(config.clone())
             .assignment(assignment_mock)
+            .catalog(catalog_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)
@@ -382,6 +402,7 @@ mod tests {
         let db = DatabaseConnection::Disconnected;
         let config = Config::default();
         let mut assignment_mock = MockAssignmentProvider::default();
+        let mut catalog_mock = MockCatalogProvider::default();
         assignment_mock
             .expect_list_role_assignments()
             .returning(|_, _, _| Ok(Vec::new()));
@@ -449,10 +470,14 @@ mod tests {
         token_mock
             .expect_encode_token()
             .returning(|_| Ok("token".to_string()));
+        catalog_mock
+            .expect_get_catalog()
+            .returning(|_, _| Ok(Vec::new()));
 
         let provider = ProviderBuilder::default()
             .config(config.clone())
             .assignment(assignment_mock)
+            .catalog(catalog_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)

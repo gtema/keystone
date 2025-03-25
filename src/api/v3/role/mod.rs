@@ -116,6 +116,7 @@ mod tests {
         MockAssignmentProvider,
         types::{Role, RoleListParameters},
     };
+    use crate::catalog::MockCatalogProvider;
     use crate::config::Config;
     use crate::identity::MockIdentityProvider;
     use crate::keystone::{Service, ServiceState};
@@ -136,11 +137,13 @@ mod tests {
                 ..Default::default()
             }))
         });
+        let catalog_mock = MockCatalogProvider::default();
         let identity_mock = MockIdentityProvider::default();
 
         let provider = ProviderBuilder::default()
             .config(config.clone())
             .assignment(assignment_mock)
+            .catalog(catalog_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)

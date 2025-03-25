@@ -12,18 +12,5 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod api;
-pub mod assignment;
-pub mod catalog;
-pub mod config;
-pub mod db;
 pub mod error;
-pub mod identity;
-pub mod keystone;
-pub mod plugin_manager;
-pub mod provider;
-pub mod resource;
-pub mod token;
-
-#[cfg(test)]
-mod tests;
+pub mod sql;

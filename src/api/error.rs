@@ -22,6 +22,7 @@ use thiserror::Error;
 use tracing::error;
 
 use crate::assignment::error::AssignmentProviderError;
+use crate::catalog::error::CatalogProviderError;
 use crate::identity::error::IdentityProviderError;
 use crate::resource::error::ResourceProviderError;
 use crate::token::error::TokenProviderError;
@@ -63,6 +64,12 @@ pub enum KeystoneApiError {
     AssignmentError {
         #[from]
         source: AssignmentProviderError,
+    },
+
+    #[error(transparent)]
+    CatalogError {
+        #[from]
+        source: CatalogProviderError,
     },
 
     #[error(transparent)]
