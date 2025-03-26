@@ -107,3 +107,29 @@ impl Default for local_user::Model {
         }
     }
 }
+
+impl Default for service::Model {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            r#type: None,
+            enabled: false,
+            extra: None,
+        }
+    }
+}
+
+impl Default for endpoint::Model {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            legacy_endpoint_id: None,
+            interface: String::new(),
+            service_id: String::new(),
+            url: String::new(),
+            enabled: false,
+            extra: None,
+            region_id: None,
+        }
+    }
+}

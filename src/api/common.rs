@@ -56,6 +56,7 @@ mod tests {
     use super::*;
 
     use crate::assignment::MockAssignmentProvider;
+    use crate::catalog::MockCatalogProvider;
     use crate::config::Config;
     use crate::identity::MockIdentityProvider;
     use crate::keystone::Service;
@@ -92,9 +93,11 @@ mod tests {
         let identity_mock = MockIdentityProvider::default();
         let token_mock = MockTokenProvider::default();
         let assignment_mock = MockAssignmentProvider::default();
+        let catalog_mock = MockCatalogProvider::default();
         let provider = ProviderBuilder::default()
             .config(config.clone())
             .assignment(assignment_mock)
+            .catalog(catalog_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)

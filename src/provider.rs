@@ -17,6 +17,9 @@ use mockall_double::double;
 use crate::assignment::AssignmentApi;
 #[double]
 use crate::assignment::AssignmentProvider;
+use crate::catalog::CatalogApi;
+#[double]
+use crate::catalog::CatalogProvider;
 use crate::config::Config;
 use crate::error::KeystoneError;
 use crate::identity::IdentityApi;
@@ -42,6 +45,7 @@ use crate::token::TokenProvider;
 pub struct Provider {
     pub config: Config,
     assignment: AssignmentProvider,
+    catalog: CatalogProvider,
     identity: IdentityProvider,
     resource: ResourceProvider,
     token: TokenProvider,
@@ -50,6 +54,7 @@ pub struct Provider {
 impl Provider {
     pub fn new(cfg: Config, plugin_manager: PluginManager) -> Result<Self, KeystoneError> {
         let assignment_provider = AssignmentProvider::new(&cfg, &plugin_manager)?;
+        let catalog_provider = CatalogProvider::new(&cfg, &plugin_manager)?;
         let identity_provider = IdentityProvider::new(&cfg, &plugin_manager)?;
         let resource_provider = ResourceProvider::new(&cfg, &plugin_manager)?;
         let token_provider = TokenProvider::new(&cfg)?;
@@ -57,6 +62,7 @@ impl Provider {
         Ok(Self {
             config: cfg,
             assignment: assignment_provider,
+            catalog: catalog_provider,
             identity: identity_provider,
             resource: resource_provider,
             token: token_provider,
@@ -65,6 +71,10 @@ impl Provider {
 
     pub fn get_assignment_provider(&self) -> &impl AssignmentApi {
         &self.assignment
+    }
+
+    pub fn get_catalog_provider(&self) -> &impl CatalogApi {
+        &self.catalog
     }
 
     pub fn get_identity_provider(&self) -> &impl IdentityApi {

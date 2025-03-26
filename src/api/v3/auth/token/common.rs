@@ -183,6 +183,7 @@ mod tests {
         MockAssignmentProvider,
         types::{Assignment, AssignmentType, Role as ProviderRole, RoleAssignmentListParameters},
     };
+    use crate::catalog::MockCatalogProvider;
     use crate::config::Config;
     use crate::identity::{MockIdentityProvider, types::UserResponse};
     use crate::keystone::Service;
@@ -224,9 +225,11 @@ mod tests {
             });
         let token_mock = MockTokenProvider::default();
         let assignment_mock = MockAssignmentProvider::default();
+        let catalog_mock = MockCatalogProvider::default();
         let provider = ProviderBuilder::default()
             .config(config.clone())
             .assignment(assignment_mock)
+            .catalog(catalog_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)
@@ -277,9 +280,11 @@ mod tests {
             });
         let token_mock = MockTokenProvider::default();
         let assignment_mock = MockAssignmentProvider::default();
+        let catalog_mock = MockCatalogProvider::default();
         let provider = ProviderBuilder::default()
             .config(config.clone())
             .assignment(assignment_mock)
+            .catalog(catalog_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)
@@ -344,6 +349,7 @@ mod tests {
             });
         let token_mock = MockTokenProvider::default();
         let mut assignment_mock = MockAssignmentProvider::default();
+        let catalog_mock = MockCatalogProvider::default();
         assignment_mock.expect_list_role_assignments().returning(
             |_, _, q: &RoleAssignmentListParameters| {
                 Ok(vec![Assignment {
@@ -359,6 +365,7 @@ mod tests {
         let provider = ProviderBuilder::default()
             .config(config.clone())
             .assignment(assignment_mock)
+            .catalog(catalog_mock)
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)

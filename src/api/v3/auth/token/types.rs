@@ -20,9 +20,10 @@ use axum::{
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::api::error::TokenError;
+use crate::api::types::Catalog;
 use crate::api::v3::role::types::Role;
 use crate::identity::types as identity_types;
 use crate::resource::types as resource_provider_types;
@@ -74,6 +75,11 @@ pub struct Token {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub roles: Option<Vec<Role>>,
+
+    /// A catalog object.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
+    pub catalog: Option<Catalog>,
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -266,4 +272,11 @@ impl TryFrom<&BackendToken> for Token {
         token.expires_at(*value.expires_at());
         Ok(token.build()?)
     }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
+pub struct CreateTokenParameters {
+    /// The authentication response excludes the service catalog. By default, the response includes
+    /// the service catalog.
+    pub nocatalog: Option<bool>,
 }

@@ -18,8 +18,11 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
+use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
+
+use crate::catalog::types::{Endpoint as ProviderEndpoint, Service};
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct Versions {
@@ -85,5 +88,70 @@ impl Default for MediaType {
             base: "application/json".into(),
             r#type: "application/vnd.openstack.identity-v3+json".into(),
         }
+    }
+}
+
+/// A catalog object
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct Catalog(Vec<CatalogService>);
+
+impl IntoResponse for Catalog {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(self)).into_response()
+    }
+}
+
+/// A catalog object
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(strip_option, into))]
+pub struct CatalogService {
+    pub r#type: Option<String>,
+    pub name: Option<String>,
+    pub id: String,
+    pub endpoints: Vec<Endpoint>,
+}
+
+impl From<(Service, Vec<ProviderEndpoint>)> for CatalogService {
+    fn from(value: (Service, Vec<ProviderEndpoint>)) -> Self {
+        Self {
+            id: value.0.id.clone(),
+            name: value.0.name.clone(),
+            r#type: value.0.r#type,
+            endpoints: value.1.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+/// A Catalog Endpoint
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(strip_option, into))]
+pub struct Endpoint {
+    pub id: String,
+    pub url: String,
+    pub interface: String,
+    pub region: Option<String>,
+    pub region_id: Option<String>,
+}
+
+impl From<ProviderEndpoint> for Endpoint {
+    fn from(value: ProviderEndpoint) -> Self {
+        Self {
+            id: value.id.clone(),
+            interface: value.interface.clone(),
+            url: value.url.clone(),
+            region: value.region_id.clone(),
+            region_id: value.region_id.clone(),
+        }
+    }
+}
+
+impl From<Vec<(Service, Vec<ProviderEndpoint>)>> for Catalog {
+    fn from(value: Vec<(Service, Vec<ProviderEndpoint>)>) -> Self {
+        Self(
+            value
+                .into_iter()
+                .map(|(srv, eps)| (srv, eps).into())
+                .collect(),
+        )
     }
 }

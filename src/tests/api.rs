@@ -16,6 +16,7 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 use crate::assignment::MockAssignmentProvider;
+use crate::catalog::MockCatalogProvider;
 use crate::config::Config;
 use crate::identity::MockIdentityProvider;
 use crate::keystone::{Service, ServiceState};
@@ -27,6 +28,7 @@ pub(crate) fn get_mocked_state_unauthed() -> ServiceState {
     let db = DatabaseConnection::Disconnected;
     let config = Config::default();
     let assignment_mock = MockAssignmentProvider::default();
+    let catalog_mock = MockCatalogProvider::default();
     let identity_mock = MockIdentityProvider::default();
     let resource_mock = MockResourceProvider::default();
     let mut token_mock = MockTokenProvider::default();
@@ -37,6 +39,7 @@ pub(crate) fn get_mocked_state_unauthed() -> ServiceState {
     let provider = ProviderBuilder::default()
         .config(config.clone())
         .assignment(assignment_mock)
+        .catalog(catalog_mock)
         .identity(identity_mock)
         .resource(resource_mock)
         .token(token_mock)
@@ -58,10 +61,12 @@ pub(crate) fn get_mocked_state(identity_mock: MockIdentityProvider) -> ServiceSt
         }))
     });
     let assignment_mock = MockAssignmentProvider::default();
+    let catalog_mock = MockCatalogProvider::default();
 
     let provider = ProviderBuilder::default()
         .config(config.clone())
         .assignment(assignment_mock)
+        .catalog(catalog_mock)
         .identity(identity_mock)
         .resource(resource_mock)
         .token(token_mock)
