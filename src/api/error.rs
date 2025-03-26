@@ -45,7 +45,7 @@ pub enum KeystoneApiError {
     #[error("missing x-subject-token header")]
     SubjectTokenMissing,
 
-    #[error("invalid header")]
+    #[error("invalid header header")]
     InvalidHeader,
 
     #[error("invalid token")]

@@ -33,7 +33,10 @@ use crate::resource::{
     types::{Domain, Project},
 };
 use crate::token::TokenApi;
-use types::{AuthRequest, CreateTokenParameters, Scope, Token as ApiResponseToken, TokenResponse};
+use types::{
+    AuthRequest, CreateTokenParameters, Scope, Token as ApiResponseToken, TokenResponse,
+    ValidateTokenParameters,
+};
 
 mod common;
 pub mod types;
@@ -206,7 +209,7 @@ async fn post(
     get,
     path = "/",
     description = "Validate token",
-    params(),
+    params(ValidateTokenParameters),
     responses(
         (status = OK, description = "Token object", body = TokenResponse),
     ),
@@ -219,6 +222,7 @@ async fn post(
 )]
 async fn show(
     Auth(_user_auth): Auth,
+    Query(query): Query<ValidateTokenParameters>,
     headers: HeaderMap,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
@@ -232,9 +236,12 @@ async fn show(
     let mut token = state
         .provider
         .get_token_provider()
-        .validate_token(&subject_token, None)
+        .validate_token(&subject_token, query.allow_expired, None)
         .await
-        .map_err(|_| KeystoneApiError::InvalidToken)?;
+        .map_err(|_| KeystoneApiError::NotFound {
+            resource: "token".into(),
+            identifier: String::new(),
+        })?;
 
     state
         .provider
@@ -315,7 +322,7 @@ mod tests {
                 }))
             });
         let mut token_mock = MockTokenProvider::default();
-        token_mock.expect_validate_token().returning(|_, _| {
+        token_mock.expect_validate_token().returning(|_, _, _| {
             Ok(Token::Unscoped(UnscopedToken {
                 user_id: "bar".into(),
                 ..Default::default()
@@ -378,6 +385,149 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_get_allow_expired() {
+        let db = DatabaseConnection::Disconnected;
+        let config = Config::default();
+        let assignment_mock = MockAssignmentProvider::default();
+        let catalog_mock = MockCatalogProvider::default();
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock.expect_get_user().returning(|_, id: &'_ str| {
+            Ok(Some(UserResponse {
+                id: id.to_string(),
+                domain_id: "user_domain_id".into(),
+                ..Default::default()
+            }))
+        });
+
+        let mut resource_mock = MockResourceProvider::default();
+        resource_mock
+            .expect_get_domain()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "user_domain_id")
+            .returning(|_, _| {
+                Ok(Some(Domain {
+                    id: "user_domain_id".into(),
+                    ..Default::default()
+                }))
+            });
+        let mut token_mock = MockTokenProvider::default();
+        token_mock
+            .expect_validate_token()
+            .withf(|token: &'_ str, _, _| token == "foo")
+            .returning(|_, _, _| {
+                Ok(Token::Unscoped(UnscopedToken {
+                    user_id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
+        token_mock
+            .expect_validate_token()
+            .withf(|token: &'_ str, allow_expired: &Option<bool>, _| {
+                token == "bar" && *allow_expired == Some(true)
+            })
+            .returning(|_, _, _| {
+                Ok(Token::Unscoped(UnscopedToken {
+                    user_id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
+        token_mock
+            .expect_populate_role_assignments()
+            .returning(|_, _, _| Ok(()));
+        token_mock
+            .expect_expand_project_information()
+            .returning(|_, _, _| Ok(()));
+        token_mock
+            .expect_expand_domain_information()
+            .returning(|_, _, _| Ok(()));
+
+        let provider = ProviderBuilder::default()
+            .config(config.clone())
+            .assignment(assignment_mock)
+            .catalog(catalog_mock)
+            .identity(identity_mock)
+            .resource(resource_mock)
+            .token(token_mock)
+            .build()
+            .unwrap();
+
+        let state = Arc::new(Service::new(config, db, provider).unwrap());
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state.clone());
+
+        let response = api
+            .as_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/?allow_expired=true")
+                    .header("x-auth-token", "foo")
+                    .header("x-subject-token", "bar")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_get_expired() {
+        let db = DatabaseConnection::Disconnected;
+        let config = Config::default();
+        let assignment_mock = MockAssignmentProvider::default();
+        let catalog_mock = MockCatalogProvider::default();
+        let identity_mock = MockIdentityProvider::default();
+        let resource_mock = MockResourceProvider::default();
+        let mut token_mock = MockTokenProvider::default();
+        token_mock
+            .expect_validate_token()
+            .withf(|token: &'_ str, _, _| token == "foo")
+            .returning(|_, _, _| {
+                Ok(Token::Unscoped(UnscopedToken {
+                    user_id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
+        token_mock
+            .expect_validate_token()
+            .withf(|token: &'_ str, _, _| token == "bar")
+            .returning(|_, _, _| Err(TokenProviderError::Expired));
+
+        let provider = ProviderBuilder::default()
+            .config(config.clone())
+            .assignment(assignment_mock)
+            .catalog(catalog_mock)
+            .identity(identity_mock)
+            .resource(resource_mock)
+            .token(token_mock)
+            .build()
+            .unwrap();
+
+        let state = Arc::new(Service::new(config, db, provider).unwrap());
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state.clone());
+
+        let response = api
+            .as_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("x-auth-token", "foo")
+                    .header("x-subject-token", "bar")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

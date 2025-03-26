@@ -101,7 +101,7 @@ mod tests {
         let config = Config::default();
         let mut token_mock = MockTokenProvider::default();
         let resource_mock = MockResourceProvider::default();
-        token_mock.expect_validate_token().returning(|_, _| {
+        token_mock.expect_validate_token().returning(|_, _, _| {
             Ok(Token::Unscoped(UnscopedToken {
                 user_id: "bar".into(),
                 ..Default::default()
