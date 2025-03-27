@@ -280,3 +280,12 @@ pub struct CreateTokenParameters {
     /// the service catalog.
     pub nocatalog: Option<bool>,
 }
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
+pub struct ValidateTokenParameters {
+    /// The authentication response excludes the service catalog. By default, the response includes
+    /// the service catalog.
+    pub nocatalog: Option<bool>,
+    /// Allow fetching a token that has expired. By default expired tokens return a 404 exception.
+    pub allow_expired: Option<bool>,
+}

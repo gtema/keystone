@@ -34,7 +34,7 @@ pub(crate) fn get_mocked_state_unauthed() -> ServiceState {
     let mut token_mock = MockTokenProvider::default();
     token_mock
         .expect_validate_token()
-        .returning(|_, _| Err(TokenProviderError::InvalidToken));
+        .returning(|_, _, _| Err(TokenProviderError::InvalidToken));
 
     let provider = ProviderBuilder::default()
         .config(config.clone())
@@ -54,7 +54,7 @@ pub(crate) fn get_mocked_state(identity_mock: MockIdentityProvider) -> ServiceSt
     let config = Config::default();
     let mut token_mock = MockTokenProvider::default();
     let resource_mock = MockResourceProvider::default();
-    token_mock.expect_validate_token().returning(|_, _| {
+    token_mock.expect_validate_token().returning(|_, _, _| {
         Ok(Token::Unscoped(UnscopedToken {
             user_id: "bar".into(),
             ..Default::default()

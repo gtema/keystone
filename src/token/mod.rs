@@ -72,6 +72,7 @@ pub trait TokenApi: Send + Sync + Clone {
     async fn validate_token<'a>(
         &self,
         credential: &'a str,
+        allow_expired: Option<bool>,
         window_seconds: Option<i64>,
     ) -> Result<Token, TokenProviderError>;
 
@@ -122,6 +123,7 @@ impl TokenApi for TokenProvider {
     async fn validate_token<'a>(
         &self,
         credential: &'a str,
+        allow_expired: Option<bool>,
         window_seconds: Option<i64>,
     ) -> Result<Token, TokenProviderError> {
         let token = self.backend_driver.decode(credential)?;
@@ -130,6 +132,7 @@ impl TokenApi for TokenProvider {
                 .expires_at()
                 .checked_add_signed(TimeDelta::seconds(window_seconds.unwrap_or(0)))
                 .unwrap_or(*token.expires_at())
+            && !allow_expired.unwrap_or(false)
         {
             return Err(TokenProviderError::Expired);
         }
@@ -351,6 +354,7 @@ mock! {
         async fn validate_token<'a>(
             &self,
             credential: &'a str,
+            allow_expired: Option<bool>,
             window_seconds: Option<i64>,
         ) -> Result<Token, TokenProviderError>;
 

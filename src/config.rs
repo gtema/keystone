@@ -67,7 +67,10 @@ pub struct Config {
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
-pub struct DefaultSection {}
+pub struct DefaultSection {
+    /// Debug logging
+    pub debug: Option<bool>,
+}
 
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct AuthSection {
