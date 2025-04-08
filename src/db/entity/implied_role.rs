@@ -43,6 +43,24 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Role1,
+    #[sea_orm(
+        belongs_to = "Entity",
+        from = "Column::ImpliedRoleId",
+        to = "Column::PriorRoleId"
+    )]
+    SelfReferencing,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+pub struct SelfReferencingLink;
+
+impl Linked for SelfReferencingLink {
+    type FromEntity = Entity;
+
+    type ToEntity = Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        vec![Relation::SelfReferencing.def()]
+    }
+}

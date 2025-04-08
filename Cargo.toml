@@ -54,6 +54,7 @@ http-body-util = "^0.1"
 mockall = { version = "^0.13" }
 sea-orm = { version = "*", features = ["mock"]}
 tempfile = { version = "^3.19" }
+tracing-test = { version = "^0.2" }
 
 [profile.release]
 opt-level = 3

@@ -20,6 +20,7 @@ use crate::assignment::AssignmentProviderError;
 use crate::config::Config;
 
 mod assignment;
+mod implied_role;
 mod role;
 
 #[derive(Clone, Debug, Default)]
