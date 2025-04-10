@@ -34,3 +34,12 @@ more reasonable test environment (comparable amount of python workers, etc,
 debug/release build) need to be established. However current test shows
 difference of factor **100** which is not going to be easy to beat.
 
+## Trying
+
+Trying Keystone (assuming you have the Rust build environment or you are in the 
+possession of the binary is as easy as `keystone -c etc/keystone.conf -vv`
+
+## Talks
+
+Detailed introduction of the project was given as 
+[ALASCA tech talk](https://www.youtube.com/watch?v=0Hx4Q22ZNFU).
