@@ -71,7 +71,6 @@ pub async fn list_rules(
 mod tests {
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
 
-    use crate::config::Config;
     use crate::db::entity::implied_role;
 
     use super::*;
@@ -143,7 +142,6 @@ mod tests {
                 get_implied_role_mock("5".into(), "6".into()),
             ]])
             .into_connection();
-        let config = Config::default();
         assert_eq!(
             list_rules(&db, true).await.unwrap(),
             BTreeMap::from([

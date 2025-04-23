@@ -1,5 +1,6 @@
 [package]
 name = "openstack_keystone"
+description = "OpenStack Keystone service"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
@@ -18,7 +19,7 @@ harness = false
 [dependencies]
 async-trait = { version = "^0.1" }
 axum = { version = "^0.8", features = ["macros"] }
-base64 = "0.22.1"
+base64 = { version = "^0.22" }
 bcrypt = { version = "0.17", features = ["alloc"] }
 bytes = { version = "^1.10" }
 chrono = { version = "^0.4" }
@@ -52,7 +53,7 @@ webauthn-rs = { version = "^0.5", features = ["danger-allow-state-serialisation"
 criterion = { version = "^0.5", features = ["async_tokio"] }
 http-body-util = "^0.1"
 mockall = { version = "^0.13" }
-sea-orm = { version = "*", features = ["mock"]}
+sea-orm = { version = "^1.1", features = ["mock"]}
 tempfile = { version = "^3.19" }
 tracing-test = { version = "^0.2" }
 

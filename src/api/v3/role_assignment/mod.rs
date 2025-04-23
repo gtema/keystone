@@ -88,39 +88,37 @@ mod tests {
         MockAssignmentProvider,
         types::{Assignment, AssignmentType, RoleAssignmentListParameters},
     };
-    use crate::catalog::MockCatalogProvider;
+
     use crate::config::Config;
-    use crate::identity::MockIdentityProvider;
+
     use crate::keystone::{Service, ServiceState};
-    use crate::provider::{Provider, ProviderBuilder};
-    use crate::resource::MockResourceProvider;
+    use crate::provider::Provider;
+
     use crate::token::{MockTokenProvider, Token, UnscopedToken};
 
     fn get_mocked_state(assignment_mock: MockAssignmentProvider) -> ServiceState {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
         let mut token_mock = MockTokenProvider::default();
-        let resource_mock = MockResourceProvider::default();
         token_mock.expect_validate_token().returning(|_, _, _| {
             Ok(Token::Unscoped(UnscopedToken {
                 user_id: "bar".into(),
                 ..Default::default()
             }))
         });
-        let identity_mock = MockIdentityProvider::default();
-        let catalog_mock = MockCatalogProvider::default();
 
-        let provider = ProviderBuilder::default()
-            .config(config.clone())
+        let provider = Provider::mocked_builder()
             .assignment(assignment_mock)
-            .catalog(catalog_mock)
-            .identity(identity_mock)
-            .resource(resource_mock)
             .token(token_mock)
             .build()
             .unwrap();
 
-        Arc::new(Service::new(config, db, provider).unwrap())
+        Arc::new(
+            Service::new(
+                Config::default(),
+                DatabaseConnection::Disconnected,
+                provider,
+            )
+            .unwrap(),
+        )
     }
 
     #[tokio::test]

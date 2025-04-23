@@ -288,7 +288,7 @@ mod tests {
     use crate::config::Config;
     use crate::identity::{MockIdentityProvider, types::UserResponse};
     use crate::keystone::Service;
-    use crate::provider::ProviderBuilder;
+    use crate::provider::Provider;
     use crate::resource::{
         MockResourceProvider,
         types::{Domain, Project},
@@ -298,10 +298,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_get() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let assignment_mock = MockAssignmentProvider::default();
-        let catalog_mock = MockCatalogProvider::default();
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock.expect_get_user().returning(|_, id: &'_ str| {
             Ok(Some(UserResponse {
@@ -338,17 +334,21 @@ mod tests {
             .expect_expand_domain_information()
             .returning(|_, _, _| Ok(()));
 
-        let provider = ProviderBuilder::default()
-            .config(config.clone())
-            .assignment(assignment_mock)
-            .catalog(catalog_mock)
+        let provider = Provider::mocked_builder()
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)
             .build()
             .unwrap();
 
-        let state = Arc::new(Service::new(config, db, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                Config::default(),
+                DatabaseConnection::Disconnected,
+                provider,
+            )
+            .unwrap(),
+        );
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -389,10 +389,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_allow_expired() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let assignment_mock = MockAssignmentProvider::default();
-        let catalog_mock = MockCatalogProvider::default();
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock.expect_get_user().returning(|_, id: &'_ str| {
             Ok(Some(UserResponse {
@@ -443,17 +439,21 @@ mod tests {
             .expect_expand_domain_information()
             .returning(|_, _, _| Ok(()));
 
-        let provider = ProviderBuilder::default()
-            .config(config.clone())
-            .assignment(assignment_mock)
-            .catalog(catalog_mock)
+        let provider = Provider::mocked_builder()
             .identity(identity_mock)
             .resource(resource_mock)
             .token(token_mock)
             .build()
             .unwrap();
 
-        let state = Arc::new(Service::new(config, db, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                Config::default(),
+                DatabaseConnection::Disconnected,
+                provider,
+            )
+            .unwrap(),
+        );
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -477,12 +477,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_expired() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-        let assignment_mock = MockAssignmentProvider::default();
-        let catalog_mock = MockCatalogProvider::default();
-        let identity_mock = MockIdentityProvider::default();
-        let resource_mock = MockResourceProvider::default();
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_validate_token()
@@ -498,17 +492,19 @@ mod tests {
             .withf(|token: &'_ str, _, _| token == "bar")
             .returning(|_, _, _| Err(TokenProviderError::Expired));
 
-        let provider = ProviderBuilder::default()
-            .config(config.clone())
-            .assignment(assignment_mock)
-            .catalog(catalog_mock)
-            .identity(identity_mock)
-            .resource(resource_mock)
+        let provider = Provider::mocked_builder()
             .token(token_mock)
             .build()
             .unwrap();
 
-        let state = Arc::new(Service::new(config, db, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                Config::default(),
+                DatabaseConnection::Disconnected,
+                provider,
+            )
+            .unwrap(),
+        );
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -549,7 +545,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_post() {
-        let db = DatabaseConnection::Disconnected;
         let config = Config::default();
         let mut assignment_mock = MockAssignmentProvider::default();
         let mut catalog_mock = MockCatalogProvider::default();
@@ -624,7 +619,7 @@ mod tests {
             .expect_get_catalog()
             .returning(|_, _| Ok(Vec::new()));
 
-        let provider = ProviderBuilder::default()
+        let provider = Provider::mocked_builder()
             .config(config.clone())
             .assignment(assignment_mock)
             .catalog(catalog_mock)
@@ -634,7 +629,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let state = Arc::new(Service::new(config, db, provider).unwrap());
+        let state =
+            Arc::new(Service::new(config, DatabaseConnection::Disconnected, provider).unwrap());
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())

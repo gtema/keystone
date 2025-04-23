@@ -15,63 +15,54 @@
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
-use crate::assignment::MockAssignmentProvider;
-use crate::catalog::MockCatalogProvider;
 use crate::config::Config;
 use crate::identity::MockIdentityProvider;
 use crate::keystone::{Service, ServiceState};
-use crate::provider::ProviderBuilder;
-use crate::resource::MockResourceProvider;
+use crate::provider::Provider;
 use crate::token::{MockTokenProvider, Token, TokenProviderError, UnscopedToken};
 
 pub(crate) fn get_mocked_state_unauthed() -> ServiceState {
-    let db = DatabaseConnection::Disconnected;
-    let config = Config::default();
-    let assignment_mock = MockAssignmentProvider::default();
-    let catalog_mock = MockCatalogProvider::default();
-    let identity_mock = MockIdentityProvider::default();
-    let resource_mock = MockResourceProvider::default();
     let mut token_mock = MockTokenProvider::default();
     token_mock
         .expect_validate_token()
         .returning(|_, _, _| Err(TokenProviderError::InvalidToken));
 
-    let provider = ProviderBuilder::default()
-        .config(config.clone())
-        .assignment(assignment_mock)
-        .catalog(catalog_mock)
-        .identity(identity_mock)
-        .resource(resource_mock)
+    let provider = Provider::mocked_builder()
         .token(token_mock)
         .build()
         .unwrap();
 
-    Arc::new(Service::new(config, db, provider).unwrap())
+    Arc::new(
+        Service::new(
+            Config::default(),
+            DatabaseConnection::Disconnected,
+            provider,
+        )
+        .unwrap(),
+    )
 }
 
 pub(crate) fn get_mocked_state(identity_mock: MockIdentityProvider) -> ServiceState {
-    let db = DatabaseConnection::Disconnected;
-    let config = Config::default();
     let mut token_mock = MockTokenProvider::default();
-    let resource_mock = MockResourceProvider::default();
     token_mock.expect_validate_token().returning(|_, _, _| {
         Ok(Token::Unscoped(UnscopedToken {
             user_id: "bar".into(),
             ..Default::default()
         }))
     });
-    let assignment_mock = MockAssignmentProvider::default();
-    let catalog_mock = MockCatalogProvider::default();
 
-    let provider = ProviderBuilder::default()
-        .config(config.clone())
-        .assignment(assignment_mock)
-        .catalog(catalog_mock)
+    let provider = Provider::mocked_builder()
         .identity(identity_mock)
-        .resource(resource_mock)
         .token(token_mock)
         .build()
         .unwrap();
 
-    Arc::new(Service::new(config, db, provider).unwrap())
+    Arc::new(
+        Service::new(
+            Config::default(),
+            DatabaseConnection::Disconnected,
+            provider,
+        )
+        .unwrap(),
+    )
 }

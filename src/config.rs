@@ -37,6 +37,9 @@ pub struct Config {
     #[serde(default)]
     pub catalog: CatalogSection,
 
+    #[serde(default)]
+    pub federation: FederationSection,
+
     /// Fernet tokens
     #[serde(default)]
     pub fernet_tokens: FernetTokenSection,
@@ -120,6 +123,11 @@ pub struct CatalogSection {
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
+pub struct FederationSection {
+    pub driver: String,
+}
+
+#[derive(Debug, Default, Deserialize, Clone)]
 pub struct IdentitySection {
     #[serde(default = "default_identity_driver")]
     pub driver: String,
@@ -194,6 +202,7 @@ impl Config {
             .set_default("fernet_tokens.max_active_keys", "3")?
             .set_default("assignment.driver", "sql")?
             .set_default("catalog.driver", "sql")?
+            .set_default("federation.driver", "sql")?
             .set_default("resource.driver", "sql")?
             .set_default("token.expiration", "3600")?;
         if std::path::Path::new(&path).is_file() {

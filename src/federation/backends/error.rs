@@ -12,19 +12,30 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod api;
-pub mod assignment;
-pub mod catalog;
-pub mod config;
-pub mod db;
-pub mod error;
-pub mod federation;
-pub mod identity;
-pub mod keystone;
-pub mod plugin_manager;
-pub mod provider;
-pub mod resource;
-pub mod token;
+use thiserror::Error;
 
-#[cfg(test)]
-mod tests;
+use crate::federation::types::*;
+
+#[derive(Error, Debug)]
+pub enum FederationDatabaseError {
+    #[error("data serialization error")]
+    Serde {
+        #[from]
+        source: serde_json::Error,
+    },
+
+    #[error("database error")]
+    Database {
+        #[from]
+        source: sea_orm::DbErr,
+    },
+
+    #[error("identity provider {0} not found")]
+    IdentityProviderNotFound(String),
+
+    #[error(transparent)]
+    IdentityProviderBuilder {
+        #[from]
+        source: IdentityProviderBuilderError,
+    },
+}

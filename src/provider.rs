@@ -22,6 +22,9 @@ use crate::catalog::CatalogApi;
 use crate::catalog::CatalogProvider;
 use crate::config::Config;
 use crate::error::KeystoneError;
+use crate::federation::FederationApi;
+#[double]
+use crate::federation::FederationProvider;
 use crate::identity::IdentityApi;
 #[double]
 use crate::identity::IdentityProvider;
@@ -46,6 +49,7 @@ pub struct Provider {
     pub config: Config,
     assignment: AssignmentProvider,
     catalog: CatalogProvider,
+    federation: FederationProvider,
     identity: IdentityProvider,
     resource: ResourceProvider,
     token: TokenProvider,
@@ -55,6 +59,7 @@ impl Provider {
     pub fn new(cfg: Config, plugin_manager: PluginManager) -> Result<Self, KeystoneError> {
         let assignment_provider = AssignmentProvider::new(&cfg, &plugin_manager)?;
         let catalog_provider = CatalogProvider::new(&cfg, &plugin_manager)?;
+        let federation_provider = FederationProvider::new(&cfg, &plugin_manager)?;
         let identity_provider = IdentityProvider::new(&cfg, &plugin_manager)?;
         let resource_provider = ResourceProvider::new(&cfg, &plugin_manager)?;
         let token_provider = TokenProvider::new(&cfg)?;
@@ -63,6 +68,7 @@ impl Provider {
             config: cfg,
             assignment: assignment_provider,
             catalog: catalog_provider,
+            federation: federation_provider,
             identity: identity_provider,
             resource: resource_provider,
             token: token_provider,
@@ -77,6 +83,10 @@ impl Provider {
         &self.catalog
     }
 
+    pub fn get_federation_provider(&self) -> &impl FederationApi {
+        &self.federation
+    }
+
     pub fn get_identity_provider(&self) -> &impl IdentityApi {
         &self.identity
     }
@@ -87,5 +97,27 @@ impl Provider {
 
     pub fn get_token_provider(&self) -> &impl TokenApi {
         &self.token
+    }
+}
+
+#[cfg(test)]
+impl Provider {
+    pub fn mocked_builder() -> ProviderBuilder {
+        let config = Config::default();
+        let identity_mock = crate::identity::MockIdentityProvider::default();
+        let resource_mock = crate::resource::MockResourceProvider::default();
+        let token_mock = crate::token::MockTokenProvider::default();
+        let assignment_mock = crate::assignment::MockAssignmentProvider::default();
+        let catalog_mock = crate::catalog::MockCatalogProvider::default();
+        let federation_mock = crate::federation::MockFederationProvider::default();
+
+        ProviderBuilder::default()
+            .config(config.clone())
+            .assignment(assignment_mock)
+            .catalog(catalog_mock)
+            .identity(identity_mock)
+            .federation(federation_mock)
+            .resource(resource_mock)
+            .token(token_mock)
     }
 }

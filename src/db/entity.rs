@@ -29,6 +29,7 @@ pub mod credential;
 pub mod endpoint;
 pub mod endpoint_group;
 pub mod expiring_user_group_membership;
+pub mod federated_identity_provider;
 pub mod federated_user;
 pub mod federation_protocol;
 pub mod group;
@@ -130,6 +131,24 @@ impl Default for endpoint::Model {
             enabled: false,
             extra: None,
             region_id: None,
+        }
+    }
+}
+
+impl Default for federated_identity_provider::Model {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            domain_id: None,
+            oidc_discovery_url: None,
+            oidc_client_id: None,
+            oidc_client_secret: None,
+            oidc_response_mode: None,
+            oidc_response_types: None,
+            jwt_validation_pubkeys: None,
+            bound_issuer: None,
+            provider_config: None,
         }
     }
 }

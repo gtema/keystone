@@ -23,6 +23,7 @@ use tracing::error;
 
 use crate::assignment::error::AssignmentProviderError;
 use crate::catalog::error::CatalogProviderError;
+use crate::federation::error::FederationProviderError;
 use crate::identity::error::IdentityProviderError;
 use crate::resource::error::ResourceProviderError;
 use crate::token::error::TokenProviderError;
@@ -70,6 +71,12 @@ pub enum KeystoneApiError {
     CatalogError {
         #[from]
         source: CatalogProviderError,
+    },
+
+    #[error(transparent)]
+    Federation {
+        #[from]
+        source: FederationProviderError,
     },
 
     #[error(transparent)]
@@ -137,7 +144,7 @@ impl IntoResponse for KeystoneApiError {
                 Json(json!({"error": {"code": StatusCode::UNAUTHORIZED.as_u16(), "message": self.to_string()}})),
                 ).into_response()
             }
-            KeystoneApiError::InternalError(_) | KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..} => {
+            KeystoneApiError::InternalError(_) | KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..} | KeystoneApiError::Federation {..} => {
                 (StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
               ).into_response()
@@ -160,6 +167,15 @@ impl KeystoneApiError {
                 identifier: x,
             },
             _ => Self::AssignmentError { source },
+        }
+    }
+    pub fn federation(source: FederationProviderError) -> Self {
+        match source {
+            FederationProviderError::IdentityProviderNotFound(x) => Self::NotFound {
+                resource: "identity provider".into(),
+                identifier: x,
+            },
+            _ => Self::Federation { source },
         }
     }
     pub fn identity(source: IdentityProviderError) -> Self {

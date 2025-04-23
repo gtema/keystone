@@ -89,5 +89,5 @@ enum WebauthnState {
     UserId,
     State,
     CreatedAt,
-    Type
+    Type,
 }
