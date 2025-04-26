@@ -55,20 +55,14 @@ mod tests {
 
     use super::*;
 
-    use crate::assignment::MockAssignmentProvider;
-    use crate::catalog::MockCatalogProvider;
     use crate::config::Config;
-    use crate::identity::MockIdentityProvider;
+
     use crate::keystone::Service;
-    use crate::provider::ProviderBuilder;
+    use crate::provider::Provider;
     use crate::resource::{MockResourceProvider, types::Domain};
-    use crate::token::MockTokenProvider;
 
     #[tokio::test]
     async fn test_get_domain() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
-
         let mut resource_mock = MockResourceProvider::default();
         resource_mock
             .expect_get_domain()
@@ -90,21 +84,19 @@ mod tests {
                     ..Default::default()
                 }))
             });
-        let identity_mock = MockIdentityProvider::default();
-        let token_mock = MockTokenProvider::default();
-        let assignment_mock = MockAssignmentProvider::default();
-        let catalog_mock = MockCatalogProvider::default();
-        let provider = ProviderBuilder::default()
-            .config(config.clone())
-            .assignment(assignment_mock)
-            .catalog(catalog_mock)
-            .identity(identity_mock)
+        let provider = Provider::mocked_builder()
             .resource(resource_mock)
-            .token(token_mock)
             .build()
             .unwrap();
 
-        let state = Arc::new(Service::new(config, db, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                Config::default(),
+                DatabaseConnection::Disconnected,
+                provider,
+            )
+            .unwrap(),
+        );
 
         assert_eq!(
             "domain_id",

@@ -183,24 +183,21 @@ mod tests {
         MockAssignmentProvider,
         types::{Assignment, AssignmentType, Role as ProviderRole, RoleAssignmentListParameters},
     };
-    use crate::catalog::MockCatalogProvider;
+
     use crate::config::Config;
     use crate::identity::{MockIdentityProvider, types::UserResponse};
     use crate::keystone::Service;
-    use crate::provider::ProviderBuilder;
+    use crate::provider::Provider;
     use crate::resource::{
         MockResourceProvider,
         types::{Domain, Project},
     };
     use crate::token::{
-        DomainScopeToken, MockTokenProvider, ProjectScopeToken, Token as ProviderToken,
-        UnscopedToken,
+        DomainScopeToken, ProjectScopeToken, Token as ProviderToken, UnscopedToken,
     };
 
     #[tokio::test]
     async fn test_from_unscoped() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
@@ -223,20 +220,20 @@ mod tests {
                     ..Default::default()
                 }))
             });
-        let token_mock = MockTokenProvider::default();
-        let assignment_mock = MockAssignmentProvider::default();
-        let catalog_mock = MockCatalogProvider::default();
-        let provider = ProviderBuilder::default()
-            .config(config.clone())
-            .assignment(assignment_mock)
-            .catalog(catalog_mock)
+        let provider = Provider::mocked_builder()
             .identity(identity_mock)
             .resource(resource_mock)
-            .token(token_mock)
             .build()
             .unwrap();
 
-        let state = Arc::new(Service::new(config, db, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                Config::default(),
+                DatabaseConnection::Disconnected,
+                provider,
+            )
+            .unwrap(),
+        );
 
         let api_token = Token::from_provider_token(
             &state,
@@ -255,8 +252,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_from_domain_scoped() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
@@ -278,20 +273,20 @@ mod tests {
                     ..Default::default()
                 }))
             });
-        let token_mock = MockTokenProvider::default();
-        let assignment_mock = MockAssignmentProvider::default();
-        let catalog_mock = MockCatalogProvider::default();
-        let provider = ProviderBuilder::default()
-            .config(config.clone())
-            .assignment(assignment_mock)
-            .catalog(catalog_mock)
+        let provider = Provider::mocked_builder()
             .identity(identity_mock)
             .resource(resource_mock)
-            .token(token_mock)
             .build()
             .unwrap();
 
-        let state = Arc::new(Service::new(config, db, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                Config::default(),
+                DatabaseConnection::Disconnected,
+                provider,
+            )
+            .unwrap(),
+        );
 
         let api_token = Token::from_provider_token(
             &state,
@@ -315,8 +310,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_from_project_scoped() {
-        let db = DatabaseConnection::Disconnected;
-        let config = Config::default();
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
@@ -347,9 +340,7 @@ mod tests {
                     ..Default::default()
                 }))
             });
-        let token_mock = MockTokenProvider::default();
         let mut assignment_mock = MockAssignmentProvider::default();
-        let catalog_mock = MockCatalogProvider::default();
         assignment_mock.expect_list_role_assignments().returning(
             |_, _, q: &RoleAssignmentListParameters| {
                 Ok(vec![Assignment {
@@ -362,17 +353,21 @@ mod tests {
                 }])
             },
         );
-        let provider = ProviderBuilder::default()
-            .config(config.clone())
+        let provider = Provider::mocked_builder()
             .assignment(assignment_mock)
-            .catalog(catalog_mock)
             .identity(identity_mock)
             .resource(resource_mock)
-            .token(token_mock)
             .build()
             .unwrap();
 
-        let state = Arc::new(Service::new(config, db, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                Config::default(),
+                DatabaseConnection::Disconnected,
+                provider,
+            )
+            .unwrap(),
+        );
 
         let api_token = Token::from_provider_token(
             &state,

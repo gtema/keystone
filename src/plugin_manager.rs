@@ -16,6 +16,7 @@ use std::collections::HashMap;
 
 use crate::assignment::types::AssignmentBackend;
 use crate::catalog::types::CatalogBackend;
+use crate::federation::types::FederationBackend;
 use crate::identity::types::IdentityBackend;
 use crate::resource::types::ResourceBackend;
 
@@ -27,6 +28,8 @@ pub struct PluginManager {
     assignment_backends: HashMap<String, Box<dyn AssignmentBackend>>,
     /// Catalog backend plugins
     catalog_backends: HashMap<String, Box<dyn CatalogBackend>>,
+    /// Federation backend plugins
+    federation_backends: HashMap<String, Box<dyn FederationBackend>>,
     /// Identity backend plugins
     identity_backends: HashMap<String, Box<dyn IdentityBackend>>,
     /// Resource backend plugins
@@ -57,6 +60,15 @@ impl PluginManager {
     #[allow(clippy::borrowed_box)]
     pub fn get_catalog_backend<S: AsRef<str>>(&self, name: S) -> Option<&Box<dyn CatalogBackend>> {
         self.catalog_backends.get(name.as_ref())
+    }
+
+    /// Get registered federation backend
+    #[allow(clippy::borrowed_box)]
+    pub fn get_federation_backend<S: AsRef<str>>(
+        &self,
+        name: S,
+    ) -> Option<&Box<dyn FederationBackend>> {
+        self.federation_backends.get(name.as_ref())
     }
 
     /// Get registered identity backend

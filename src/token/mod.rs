@@ -410,25 +410,16 @@ mod tests {
         MockAssignmentProvider,
         types::{Assignment, AssignmentType, Role, RoleAssignmentListParameters},
     };
-    use crate::catalog::MockCatalogProvider;
+
     use crate::config::Config;
-    use crate::identity::MockIdentityProvider;
-    use crate::provider::ProviderBuilder;
-    use crate::resource::MockResourceProvider;
-    use crate::token::{
-        DomainScopeToken, MockTokenProvider, ProjectScopeToken, Token, UnscopedToken,
-    };
+
+    use crate::token::{DomainScopeToken, ProjectScopeToken, Token, UnscopedToken};
 
     #[tokio::test]
     async fn test_populate_role_assignments() {
-        let config = Config::default();
-        let token_provider = TokenProvider::new(&config).unwrap();
+        let token_provider = TokenProvider::new(&Config::default()).unwrap();
         let db = DatabaseConnection::Disconnected;
-        let identity_mock = MockIdentityProvider::default();
-        let resource_mock = MockResourceProvider::default();
-        let token_mock = MockTokenProvider::default();
         let mut assignment_mock = MockAssignmentProvider::default();
-        let catalog_mock = MockCatalogProvider::default();
         assignment_mock
             .expect_list_role_assignments()
             .withf(|_, _, q: &RoleAssignmentListParameters| {
@@ -459,13 +450,8 @@ mod tests {
                     inherited: false,
                 }])
             });
-        let provider = ProviderBuilder::default()
-            .config(config.clone())
+        let provider = Provider::mocked_builder()
             .assignment(assignment_mock)
-            .catalog(catalog_mock)
-            .identity(identity_mock)
-            .resource(resource_mock)
-            .token(token_mock)
             .build()
             .unwrap();
 

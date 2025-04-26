@@ -16,6 +16,7 @@ use thiserror::Error;
 
 use crate::assignment::error::*;
 use crate::catalog::error::*;
+use crate::federation::error::*;
 use crate::identity::error::*;
 use crate::resource::error::*;
 use crate::token::TokenProviderError;
@@ -32,6 +33,12 @@ pub enum KeystoneError {
     CatalogError {
         #[from]
         source: CatalogProviderError,
+    },
+
+    #[error(transparent)]
+    FederationError {
+        #[from]
+        source: FederationProviderError,
     },
 
     #[error(transparent)]
