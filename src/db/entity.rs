@@ -30,6 +30,7 @@ pub mod endpoint;
 pub mod endpoint_group;
 pub mod expiring_user_group_membership;
 pub mod federated_identity_provider;
+pub mod federated_mapping;
 pub mod federated_user;
 pub mod federation_protocol;
 pub mod group;
@@ -149,6 +150,29 @@ impl Default for federated_identity_provider::Model {
             jwt_validation_pubkeys: None,
             bound_issuer: None,
             provider_config: None,
+        }
+    }
+}
+
+impl Default for federated_mapping::Model {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: String::new(),
+            idp_id: String::new(),
+            domain_id: None,
+            allowed_redirect_uris: None,
+            user_claim: String::new(),
+            user_claim_json_pointer: None,
+            groups_claim: None,
+            bound_audiences: None,
+            bound_subject: None,
+            bound_claims: None,
+            oidc_scopes: None,
+            claim_mappings: None,
+            token_user_id: None,
+            token_role_ids: None,
+            token_project_id: None,
         }
     }
 }

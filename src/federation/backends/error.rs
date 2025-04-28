@@ -33,9 +33,18 @@ pub enum FederationDatabaseError {
     #[error("identity provider {0} not found")]
     IdentityProviderNotFound(String),
 
+    #[error("mapping provider {0} not found")]
+    MappingNotFound(String),
+
     #[error(transparent)]
     IdentityProviderBuilder {
         #[from]
         source: IdentityProviderBuilderError,
+    },
+
+    #[error(transparent)]
+    MappingBuilder {
+        #[from]
+        source: MappingBuilderError,
     },
 }

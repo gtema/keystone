@@ -13,5 +13,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod identity_provider;
+pub mod mapping;
 
 pub use identity_provider::*;

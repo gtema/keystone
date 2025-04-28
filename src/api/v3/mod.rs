@@ -35,10 +35,7 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .nest("/auth", auth::openapi_router())
         .nest("/groups", group::openapi_router())
-        .nest(
-            "/federation/identity_providers",
-            federation::openapi_router(),
-        )
+        .nest("/federation", federation::openapi_router())
         .nest("/role_assignments", role_assignment::openapi_router())
         .nest("/roles", role::openapi_router())
         .nest("/users", user::openapi_router())
