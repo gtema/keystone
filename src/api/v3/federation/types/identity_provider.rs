@@ -229,7 +229,7 @@ impl From<IdentityProviderBuilderError> for KeystoneApiError {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct IdentityProviderList {
     /// Collection of identity provider objects
-    pub providers: Vec<IdentityProvider>,
+    pub identity_providers: Vec<IdentityProvider>,
 }
 
 impl IntoResponse for IdentityProviderList {

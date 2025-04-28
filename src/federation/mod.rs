@@ -65,6 +65,37 @@ pub trait FederationApi: Send + Sync + Clone {
         db: &DatabaseConnection,
         id: &'a str,
     ) -> Result<(), FederationProviderError>;
+
+    async fn list_mappings(
+        &self,
+        db: &DatabaseConnection,
+        params: &MappingListParameters,
+    ) -> Result<Vec<Mapping>, FederationProviderError>;
+
+    async fn get_mapping<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<Option<Mapping>, FederationProviderError>;
+
+    async fn create_mapping(
+        &self,
+        db: &DatabaseConnection,
+        idp: Mapping,
+    ) -> Result<Mapping, FederationProviderError>;
+
+    async fn update_mapping<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+        idp: MappingUpdate,
+    ) -> Result<Mapping, FederationProviderError>;
+
+    async fn delete_mapping<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<(), FederationProviderError>;
 }
 
 #[cfg(test)]
@@ -105,6 +136,42 @@ mock! {
             db: &DatabaseConnection,
             id: &'a str,
         ) -> Result<(), FederationProviderError>;
+
+        async fn list_mappings(
+            &self,
+            db: &DatabaseConnection,
+            params: &MappingListParameters,
+        ) -> Result<Vec<Mapping>, FederationProviderError>;
+
+        /// Get single mapping by ID
+        async fn get_mapping<'a>(
+            &self,
+            db: &DatabaseConnection,
+            id: &'a str,
+        ) -> Result<Option<Mapping>, FederationProviderError>;
+
+        /// Create mapping
+        async fn create_mapping(
+            &self,
+            db: &DatabaseConnection,
+            idp: Mapping,
+        ) -> Result<Mapping, FederationProviderError>;
+
+        /// Update mapping
+        async fn update_mapping<'a>(
+            &self,
+            db: &DatabaseConnection,
+            id: &'a str,
+            idp: MappingUpdate,
+        ) -> Result<Mapping, FederationProviderError>;
+
+        /// Delete mapping
+        async fn delete_mapping<'a>(
+            &self,
+            db: &DatabaseConnection,
+            id: &'a str,
+        ) -> Result<(), FederationProviderError>;
+
     }
 
     impl Clone for FederationProvider {
@@ -196,5 +263,60 @@ impl FederationApi for FederationProvider {
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
         self.backend_driver.delete_identity_provider(db, id).await
+    }
+
+    /// List mappings
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn list_mappings(
+        &self,
+        db: &DatabaseConnection,
+        params: &MappingListParameters,
+    ) -> Result<Vec<Mapping>, FederationProviderError> {
+        self.backend_driver.list_mappings(db, params).await
+    }
+
+    /// Get single mapping by ID
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn get_mapping<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<Option<Mapping>, FederationProviderError> {
+        self.backend_driver.get_mapping(db, id).await
+    }
+
+    /// Create mapping
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn create_mapping(
+        &self,
+        db: &DatabaseConnection,
+        idp: Mapping,
+    ) -> Result<Mapping, FederationProviderError> {
+        let mut mod_idp = idp;
+        mod_idp.id = Uuid::new_v4().into();
+
+        self.backend_driver.create_mapping(db, mod_idp).await
+    }
+
+    /// Update mapping
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn update_mapping<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+        idp: MappingUpdate,
+    ) -> Result<Mapping, FederationProviderError> {
+        // TODO: Check update of idp_id to enure it belongs to the same domain
+        self.backend_driver.update_mapping(db, id, idp).await
+    }
+
+    /// Delete identity provider
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn delete_mapping<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<(), FederationProviderError> {
+        self.backend_driver.delete_mapping(db, id).await
     }
 }

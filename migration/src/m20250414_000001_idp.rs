@@ -41,7 +41,7 @@ impl MigrationTrait for Migration {
                     .col(json_null(FederatedIdentityProvider::ProviderConfig))
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-user-passkey-credential")
+                            .name("fk-idp-project")
                             .from(
                                 FederatedIdentityProvider::Table,
                                 FederatedIdentityProvider::DomainId,
@@ -60,10 +60,65 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        manager
+            .create_table(
+                Table::create()
+                    .table(FederatedMapping::Table)
+                    .if_not_exists()
+                    .col(string_len(FederatedMapping::Id, 64).primary_key())
+                    .col(string_len(FederatedMapping::Name, 255))
+                    .col(string_len(FederatedMapping::IdpId, 64))
+                    .col(string_len_null(FederatedMapping::DomainId, 64))
+                    .col(string_len_null(FederatedMapping::AllowedRedirectUris, 1024))
+                    .col(string_len(FederatedMapping::UserClaim, 64))
+                    .col(string_len_null(FederatedMapping::UserClaimJsonPointer, 128))
+                    .col(string_len_null(FederatedMapping::GroupsClaim, 64))
+                    .col(string_len_null(FederatedMapping::BoundAudiences, 1024))
+                    .col(string_len_null(FederatedMapping::BoundSubject, 128))
+                    .col(json_null(FederatedMapping::BoundClaims))
+                    .col(string_len_null(FederatedMapping::OidcScopes, 128))
+                    .col(json_null(FederatedMapping::ClaimMappings))
+                    .col(string_len_null(FederatedMapping::TokenUserId, 64))
+                    .col(string_len_null(FederatedMapping::TokenRoleIds, 128))
+                    .col(string_len_null(FederatedMapping::TokenProjectId, 128))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk-idp-mapping-idp")
+                            .from(FederatedMapping::Table, FederatedMapping::IdpId)
+                            .to(
+                                FederatedIdentityProvider::Table,
+                                FederatedIdentityProvider::Id,
+                            )
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk-idp-mapping-project")
+                            .from(FederatedMapping::Table, FederatedMapping::DomainId)
+                            .to(Project, project::Column::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx-idp-mapping-domain")
+                    .table(FederatedMapping::Table)
+                    .col(FederatedMapping::DomainId)
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(FederatedMapping::Table).to_owned())
+            .await?;
+
         manager
             .drop_table(
                 Table::drop()
@@ -89,7 +144,26 @@ enum FederatedIdentityProvider {
     OidcResponseTypes,
     BoundIssuer,
     JwtValidationPubkeys,
-    //JwksUrl,
-    //JwksCaPem,
     ProviderConfig,
+}
+
+#[derive(DeriveIden)]
+enum FederatedMapping {
+    Table,
+    Id,
+    DomainId,
+    Name,
+    IdpId,
+    AllowedRedirectUris,
+    UserClaim,
+    UserClaimJsonPointer,
+    GroupsClaim,
+    BoundAudiences,
+    BoundSubject,
+    BoundClaims,
+    OidcScopes,
+    ClaimMappings,
+    TokenUserId,
+    TokenRoleIds,
+    TokenProjectId,
 }

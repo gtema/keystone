@@ -33,6 +33,10 @@ pub enum FederationProviderError {
     #[error("identity provider {0} not found")]
     IdentityProviderNotFound(String),
 
+    /// IDP mapping not found
+    #[error("mapping {0} not found")]
+    MappingNotFound(String),
+
     /// Identity provider error
     #[error(transparent)]
     FederationDatabase {
@@ -47,6 +51,7 @@ impl FederationProviderError {
             FederationDatabaseError::IdentityProviderNotFound(x) => {
                 Self::IdentityProviderNotFound(x)
             }
+            FederationDatabaseError::MappingNotFound(x) => Self::MappingNotFound(x),
             _ => Self::FederationDatabase { source },
         }
     }
