@@ -16,3 +16,4 @@ pub mod identity_provider;
 pub mod mapping;
 
 pub use identity_provider::*;
+pub use mapping::*;

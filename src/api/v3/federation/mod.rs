@@ -17,8 +17,11 @@ use utoipa_axum::router::OpenApiRouter;
 use crate::keystone::ServiceState;
 
 mod identity_provider;
+mod mapping;
 mod types;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
-    OpenApiRouter::new().nest("/identity_providers", identity_provider::openapi_router())
+    OpenApiRouter::new()
+        .nest("/identity_providers", identity_provider::openapi_router())
+        .nest("/mappings", mapping::openapi_router())
 }
