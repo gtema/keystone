@@ -41,6 +41,8 @@ pub enum AssignmentType {
     GroupProject,
     UserDomain,
     UserProject,
+    UserSystem,
+    GroupSystem,
 }
 
 /// Parameters for listing role assignments for role/target/actor
@@ -74,6 +76,13 @@ pub struct RoleAssignmentListParameters {
     /// membership.
     #[builder(default)]
     pub effective: Option<bool>,
+
+    /// If set to true, then the names of any entities returned will be include as well as their
+    /// IDs. Any value other than 0 (including no value) will be interpreted as true.
+    ///
+    /// New in version 3.6
+    #[builder(default)]
+    pub include_names: Option<bool>,
 }
 
 /// Querying effective role assignments for list of actors (typically user with all groups user is

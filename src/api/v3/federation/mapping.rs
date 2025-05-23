@@ -232,6 +232,10 @@ mod tests {
                     id: "id".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
+                    idp_id: "idp_id".into(),
+                    user_id_claim: "sub".into(),
+                    user_name_claim: "preferred_username".into(),
+                    domain_id_claim: Some("domain_id".into()),
                     ..Default::default()
                 }])
             });
@@ -263,7 +267,19 @@ mod tests {
                 id: "id".into(),
                 name: "name".into(),
                 domain_id: Some("did".into()),
-                ..Default::default()
+                idp_id: "idp_id".into(),
+                allowed_redirect_uris: None,
+                user_id_claim: "sub".into(),
+                user_name_claim: "preferred_username".into(),
+                domain_id_claim: Some("domain_id".into()),
+                groups_claim: None,
+                bound_audiences: None,
+                bound_subject: None,
+                bound_claims: None,
+                oidc_scopes: None,
+                token_user_id: None,
+                token_role_ids: None,
+                token_project_id: None
             }],
             res.mappings
         );
@@ -279,7 +295,7 @@ mod tests {
                     provider_types::MappingListParameters {
                         name: Some("name".into()),
                         domain_id: Some("did".into()),
-                        idp: Some("idp".into()),
+                        idp_id: Some("idp".into()),
                     } == *qp
                 },
             )
@@ -288,7 +304,19 @@ mod tests {
                     id: "id".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
-                    idp: Some("idp".into())..Default::default(),
+                    idp_id: "idp".into(),
+                    allowed_redirect_uris: None,
+                    user_id_claim: "sub".into(),
+                    user_name_claim: "preferred_username".into(),
+                    domain_id_claim: Some("domain_id".into()),
+                    groups_claim: None,
+                    bound_audiences: None,
+                    bound_subject: None,
+                    bound_claims: None,
+                    oidc_scopes: None,
+                    token_user_id: None,
+                    token_role_ids: None,
+                    token_project_id: None,
                 }])
             });
 
@@ -302,7 +330,7 @@ mod tests {
             .as_service()
             .oneshot(
                 Request::builder()
-                    .uri("/?name=name&domain_id=did")
+                    .uri("/?name=name&domain_id=did&idp_id=idp")
                     .header("x-auth-token", "foo")
                     .body(Body::empty())
                     .unwrap(),
@@ -332,6 +360,10 @@ mod tests {
                     id: "bar".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
+                    idp_id: "idp_id".into(),
+                    user_id_claim: "sub".into(),
+                    user_name_claim: "preferred_username".into(),
+                    domain_id_claim: Some("domain_id".into()),
                     ..Default::default()
                 }))
             });
@@ -377,13 +409,19 @@ mod tests {
                 id: "bar".into(),
                 name: "name".into(),
                 domain_id: Some("did".into()),
-                oidc_discovery_url: None,
-                oidc_client_id: None,
-                oidc_response_mode: None,
-                oidc_response_types: None,
-                jwt_validation_pubkeys: None,
-                bound_issuer: None,
-                provider_config: None
+                idp_id: "idp_id".into(),
+                allowed_redirect_uris: None,
+                user_id_claim: "sub".into(),
+                user_name_claim: "preferred_username".into(),
+                domain_id_claim: Some("domain_id".into()),
+                groups_claim: None,
+                bound_audiences: None,
+                bound_subject: None,
+                bound_claims: None,
+                oidc_scopes: None,
+                token_user_id: None,
+                token_role_ids: None,
+                token_project_id: None,
             },
             res.mapping,
         );
@@ -468,7 +506,6 @@ mod tests {
         let req = MappingUpdateRequest {
             mapping: MappingUpdate {
                 name: Some("name".into()),
-                oidc_client_id: Some(None),
                 ..Default::default()
             },
         };
@@ -525,7 +562,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "{:?}",
+            response.into_body().collect().await.unwrap()
+        );
 
         let response = api
             .as_service()

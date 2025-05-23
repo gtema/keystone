@@ -14,7 +14,8 @@
 
 use crate::api::common;
 use crate::api::error::{KeystoneApiError, TokenError};
-use crate::api::v3::auth::token::types::{ProjectBuilder, Token, TokenBuilder, UserBuilder};
+use crate::api::types::ProjectBuilder;
+use crate::api::v3::auth::token::types::{Token, TokenBuilder, UserBuilder};
 use crate::api::v3::role::types::Role;
 use crate::identity::{IdentityApi, types::UserResponse};
 use crate::keystone::ServiceState;

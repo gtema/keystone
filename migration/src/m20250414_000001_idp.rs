@@ -1,6 +1,7 @@
 use openstack_keystone::db::entity::prelude::Project;
-use openstack_keystone::db::entity::project;
+use openstack_keystone::db::entity::{federated_user, project};
 use sea_orm_migration::{prelude::*, schema::*};
+use sea_query::*;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -39,6 +40,10 @@ impl MigrationTrait for Migration {
                     .col(text_null(FederatedIdentityProvider::JwtValidationPubkeys))
                     .col(string_len_null(FederatedIdentityProvider::BoundIssuer, 255))
                     .col(json_null(FederatedIdentityProvider::ProviderConfig))
+                    .col(string_len_null(
+                        FederatedIdentityProvider::DefaultMappingName,
+                        255,
+                    ))
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-idp-project")
@@ -70,14 +75,16 @@ impl MigrationTrait for Migration {
                     .col(string_len(FederatedMapping::IdpId, 64))
                     .col(string_len_null(FederatedMapping::DomainId, 64))
                     .col(string_len_null(FederatedMapping::AllowedRedirectUris, 1024))
-                    .col(string_len(FederatedMapping::UserClaim, 64))
-                    .col(string_len_null(FederatedMapping::UserClaimJsonPointer, 128))
+                    .col(string_len(FederatedMapping::UserIdClaim, 64))
+                    .col(string_len(FederatedMapping::UserNameClaim, 64))
+                    .col(string_len_null(FederatedMapping::DomainIdClaim, 64))
+                    //.col(string_len_null(FederatedMapping::UserClaimJsonPointer, 128))
                     .col(string_len_null(FederatedMapping::GroupsClaim, 64))
                     .col(string_len_null(FederatedMapping::BoundAudiences, 1024))
                     .col(string_len_null(FederatedMapping::BoundSubject, 128))
                     .col(json_null(FederatedMapping::BoundClaims))
                     .col(string_len_null(FederatedMapping::OidcScopes, 128))
-                    .col(json_null(FederatedMapping::ClaimMappings))
+                    //.col(json_null(FederatedMapping::ClaimMappings))
                     .col(string_len_null(FederatedMapping::TokenUserId, 64))
                     .col(string_len_null(FederatedMapping::TokenRoleIds, 128))
                     .col(string_len_null(FederatedMapping::TokenProjectId, 128))
@@ -101,6 +108,7 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+
         manager
             .create_index(
                 Index::create()
@@ -111,10 +119,58 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        manager
+            .create_table(
+                Table::create()
+                    .table(FederatedAuthState::Table)
+                    .if_not_exists()
+                    .col(string_len(FederatedAuthState::IdpId, 64))
+                    .col(string_len(FederatedAuthState::MappingId, 64))
+                    .col(string_len(FederatedAuthState::State, 64).primary_key())
+                    .col(string_len(FederatedAuthState::Nonce, 64))
+                    .col(string_len(FederatedAuthState::RedirectUri, 256))
+                    .col(string_len(FederatedAuthState::PkceVerifier, 64))
+                    .col(date_time(FederatedAuthState::StartedAt))
+                    .col(json_null(FederatedAuthState::RequestedScope))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk-idp-auth-state-idp")
+                            .from(FederatedAuthState::Table, FederatedAuthState::IdpId)
+                            .to(
+                                FederatedIdentityProvider::Table,
+                                FederatedIdentityProvider::Id,
+                            )
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk-idp-auth-state-mapping")
+                            .from(FederatedAuthState::Table, FederatedAuthState::MappingId)
+                            .to(FederatedMapping::Table, FederatedMapping::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        //manager
+        //    .alter_table(
+        //        Table::alter()
+        //            .table(FederatedUser::Table)
+        //            .modify_column(ColumnDef::new(federated_user::Column::ProtocolId).null())
+        //            //.drop_foreign_key(FederatedUser::FederatedUserIdpIdFkey)
+        //            .to_owned(),
+        //    )
+        //    .await?;
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(FederatedAuthState::Table).to_owned())
+            .await?;
+
         manager
             .drop_table(Table::drop().table(FederatedMapping::Table).to_owned())
             .await?;
@@ -145,6 +201,7 @@ enum FederatedIdentityProvider {
     BoundIssuer,
     JwtValidationPubkeys,
     ProviderConfig,
+    DefaultMappingName,
 }
 
 #[derive(DeriveIden)]
@@ -155,15 +212,35 @@ enum FederatedMapping {
     Name,
     IdpId,
     AllowedRedirectUris,
-    UserClaim,
-    UserClaimJsonPointer,
+    UserIdClaim,
+    UserNameClaim,
+    DomainIdClaim,
     GroupsClaim,
     BoundAudiences,
     BoundSubject,
     BoundClaims,
     OidcScopes,
-    ClaimMappings,
     TokenUserId,
     TokenRoleIds,
     TokenProjectId,
+}
+
+#[derive(DeriveIden)]
+enum FederatedAuthState {
+    Table,
+    IdpId,
+    MappingId,
+    State,
+    Nonce,
+    RedirectUri,
+    PkceVerifier,
+    StartedAt,
+    RequestedScope,
+}
+
+#[derive(DeriveIden)]
+enum FederatedUser {
+    Table,
+    ProtocolId,
+    FederatedUserIdpIdFkey,
 }

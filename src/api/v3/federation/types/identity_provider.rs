@@ -61,6 +61,10 @@ pub struct IdentityProvider {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    pub default_mapping_name: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
     pub provider_config: Option<Value>,
 }
 
@@ -109,6 +113,10 @@ pub struct IdentityProviderCreate {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    pub default_mapping_name: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
     pub provider_config: Option<Value>,
 }
 
@@ -137,6 +145,10 @@ pub struct IdentityProviderUpdate {
 
     #[builder(default)]
     pub bound_issuer: Option<Option<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
+    pub default_mapping_name: Option<Option<String>>,
 
     #[builder(default)]
     pub provider_config: Option<Option<Value>>,
@@ -168,6 +180,7 @@ impl From<types::IdentityProvider> for IdentityProvider {
             oidc_response_types: value.oidc_response_types,
             jwt_validation_pubkeys: value.jwt_validation_pubkeys,
             bound_issuer: value.bound_issuer,
+            default_mapping_name: value.default_mapping_name,
             provider_config: value.provider_config,
         }
     }
@@ -186,6 +199,7 @@ impl From<IdentityProviderCreateRequest> for types::IdentityProvider {
             oidc_response_types: value.identity_provider.oidc_response_types,
             jwt_validation_pubkeys: value.identity_provider.jwt_validation_pubkeys,
             bound_issuer: value.identity_provider.bound_issuer,
+            default_mapping_name: value.identity_provider.default_mapping_name,
             provider_config: value.identity_provider.provider_config,
         }
     }
@@ -202,6 +216,7 @@ impl From<IdentityProviderUpdateRequest> for types::IdentityProviderUpdate {
             oidc_response_types: value.identity_provider.oidc_response_types,
             jwt_validation_pubkeys: value.identity_provider.jwt_validation_pubkeys,
             bound_issuer: value.identity_provider.bound_issuer,
+            default_mapping_name: value.identity_provider.default_mapping_name,
             provider_config: value.identity_provider.provider_config,
         }
     }

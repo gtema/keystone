@@ -14,15 +14,19 @@
 //! Common API helpers
 //!
 use crate::api::error::KeystoneApiError;
+use crate::api::types::ProjectScope;
 use crate::keystone::ServiceState;
-use crate::resource::{ResourceApi, types::Domain};
+use crate::resource::{
+    ResourceApi,
+    types::{Domain, Project},
+};
 
 pub async fn get_domain<I: AsRef<str>, N: AsRef<str>>(
     state: &ServiceState,
     id: Option<I>,
     name: Option<N>,
 ) -> Result<Domain, KeystoneApiError> {
-    let domain = if let Some(did) = &id {
+    if let Some(did) = &id {
         state
             .provider
             .get_resource_provider()
@@ -31,7 +35,7 @@ pub async fn get_domain<I: AsRef<str>, N: AsRef<str>>(
             .ok_or_else(|| KeystoneApiError::NotFound {
                 resource: "domain".into(),
                 identifier: did.as_ref().to_string(),
-            })?
+            })
     } else if let Some(name) = &name {
         state
             .provider
@@ -41,11 +45,60 @@ pub async fn get_domain<I: AsRef<str>, N: AsRef<str>>(
             .ok_or_else(|| KeystoneApiError::NotFound {
                 resource: "domain".into(),
                 identifier: name.as_ref().to_string(),
-            })?
+            })
     } else {
         return Err(KeystoneApiError::DomainIdOrName);
+    }
+}
+
+pub async fn find_project_from_scope(
+    state: &ServiceState,
+    scope: &ProjectScope,
+) -> Result<Option<Project>, KeystoneApiError> {
+    let project = if let Some(pid) = &scope.id {
+        state
+            .provider
+            .get_resource_provider()
+            .get_project(&state.db, pid)
+            .await?
+    } else if let Some(name) = &scope.name {
+        if let Some(domain) = &scope.domain {
+            let domain_id = match &domain.id {
+                Some(id) => id.clone(),
+                None => {
+                    state
+                        .provider
+                        .get_resource_provider()
+                        .find_domain_by_name(
+                            &state.db,
+                            &domain
+                                .name
+                                .clone()
+                                .ok_or(KeystoneApiError::DomainIdOrName)?,
+                        )
+                        .await?
+                        .ok_or(KeystoneApiError::NotFound {
+                            resource: "domain".to_string(),
+                            identifier: domain
+                                .name
+                                .clone()
+                                .ok_or(KeystoneApiError::DomainIdOrName)?,
+                        })?
+                        .id
+                }
+            };
+            state
+                .provider
+                .get_resource_provider()
+                .get_project_by_name(&state.db, name, &domain_id)
+                .await?
+        } else {
+            return Err(KeystoneApiError::ProjectDomain);
+        }
+    } else {
+        return Err(KeystoneApiError::ProjectIdOrName);
     };
-    Ok(domain)
+    Ok(project)
 }
 
 #[cfg(test)]

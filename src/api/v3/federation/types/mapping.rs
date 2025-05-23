@@ -46,12 +46,12 @@ pub struct Mapping {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_redirect_uris: Option<Vec<String>>,
 
-    #[builder(default)]
-    pub user_claim: String,
+    pub user_id_claim: String,
+    pub user_name_claim: String,
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_claim_json_pointer: Option<String>,
+    pub domain_id_claim: Option<String>,
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -72,10 +72,6 @@ pub struct Mapping {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc_scopes: Option<Vec<String>>,
-
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub claim_mappings: Option<Value>,
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -114,11 +110,12 @@ pub struct MappingCreate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_redirect_uris: Option<Vec<String>>,
 
-    pub user_claim: String,
+    pub user_id_claim: String,
+    pub user_name_claim: String,
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_claim_json_pointer: Option<String>,
+    pub domain_id_claim: Option<String>,
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -142,10 +139,6 @@ pub struct MappingCreate {
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub claim_mappings: Option<Value>,
-
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub token_user_id: Option<String>,
 
     #[builder(default)]
@@ -158,7 +151,7 @@ pub struct MappingCreate {
 }
 
 #[derive(Builder, Clone, Default, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct MappingUpdate {
     /// Mapping name
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -179,11 +172,15 @@ pub struct MappingUpdate {
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_claim: Option<String>,
+    pub user_id_claim: Option<String>,
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_claim_json_pointer: Option<Option<String>>,
+    pub user_name_claim: Option<String>,
+
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub domain_id_claim: Option<String>,
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -204,10 +201,6 @@ pub struct MappingUpdate {
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc_scopes: Option<Option<Vec<String>>>,
-
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub claim_mappings: Option<Value>,
 
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -244,14 +237,14 @@ impl From<types::Mapping> for Mapping {
             domain_id: value.domain_id,
             idp_id: value.idp_id,
             allowed_redirect_uris: value.allowed_redirect_uris,
-            user_claim: value.user_claim,
-            user_claim_json_pointer: value.user_claim_json_pointer,
+            user_id_claim: value.user_id_claim,
+            user_name_claim: value.user_name_claim,
+            domain_id_claim: value.domain_id_claim,
             groups_claim: value.groups_claim,
             bound_audiences: value.bound_audiences,
             bound_subject: value.bound_subject,
             bound_claims: value.bound_claims,
             oidc_scopes: value.oidc_scopes,
-            claim_mappings: value.claim_mappings,
             token_user_id: value.token_user_id,
             token_role_ids: value.token_role_ids,
             token_project_id: value.token_project_id,
@@ -267,14 +260,14 @@ impl From<MappingCreateRequest> for types::Mapping {
             domain_id: value.mapping.domain_id,
             idp_id: value.mapping.idp_id,
             allowed_redirect_uris: value.mapping.allowed_redirect_uris,
-            user_claim: value.mapping.user_claim,
-            user_claim_json_pointer: value.mapping.user_claim_json_pointer,
+            user_id_claim: value.mapping.user_id_claim,
+            user_name_claim: value.mapping.user_name_claim,
+            domain_id_claim: value.mapping.domain_id_claim,
             groups_claim: value.mapping.groups_claim,
             bound_audiences: value.mapping.bound_audiences,
             bound_subject: value.mapping.bound_subject,
             bound_claims: value.mapping.bound_claims,
             oidc_scopes: value.mapping.oidc_scopes,
-            claim_mappings: value.mapping.claim_mappings,
             token_user_id: value.mapping.token_user_id,
             token_role_ids: value.mapping.token_role_ids,
             token_project_id: value.mapping.token_project_id,
@@ -288,14 +281,14 @@ impl From<MappingUpdateRequest> for types::MappingUpdate {
             name: value.mapping.name,
             idp_id: value.mapping.idp_id,
             allowed_redirect_uris: value.mapping.allowed_redirect_uris,
-            user_claim: value.mapping.user_claim,
-            user_claim_json_pointer: value.mapping.user_claim_json_pointer,
+            user_id_claim: value.mapping.user_id_claim,
+            user_name_claim: value.mapping.user_name_claim,
+            domain_id_claim: value.mapping.domain_id_claim,
             groups_claim: value.mapping.groups_claim,
             bound_audiences: value.mapping.bound_audiences,
             bound_subject: value.mapping.bound_subject,
             bound_claims: value.mapping.bound_claims,
             oidc_scopes: value.mapping.oidc_scopes,
-            claim_mappings: value.mapping.claim_mappings,
             token_user_id: value.mapping.token_user_id,
             token_role_ids: value.mapping.token_role_ids,
             token_project_id: value.mapping.token_project_id,

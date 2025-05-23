@@ -12,6 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+pub mod auth_state;
 pub mod identity_provider;
 pub mod mapping;
 
@@ -22,6 +23,7 @@ use sea_orm::DatabaseConnection;
 use crate::config::Config;
 use crate::federation::FederationProviderError;
 
+pub use auth_state::*;
 pub use identity_provider::*;
 pub use mapping::*;
 
@@ -97,6 +99,27 @@ pub trait FederationBackend: DynClone + Send + Sync + std::fmt::Debug {
 
     /// Delete mapping
     async fn delete_mapping<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<(), FederationProviderError>;
+
+    /// Get authentication state
+    async fn get_auth_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<Option<AuthState>, FederationProviderError>;
+
+    /// Create new authentication state
+    async fn create_auth_state(
+        &self,
+        db: &DatabaseConnection,
+        state: AuthState,
+    ) -> Result<AuthState, FederationProviderError>;
+
+    /// Delete authentication state
+    async fn delete_auth_state<'a>(
         &self,
         db: &DatabaseConnection,
         id: &'a str,

@@ -36,6 +36,15 @@ pub enum FederationDatabaseError {
     #[error("mapping provider {0} not found")]
     MappingNotFound(String),
 
+    #[error("auth state {0} not found")]
+    AuthStateNotFound(String),
+
+    #[error(transparent)]
+    AuthStateBuilder {
+        #[from]
+        source: AuthStateBuilderError,
+    },
+
     #[error(transparent)]
     IdentityProviderBuilder {
         #[from]

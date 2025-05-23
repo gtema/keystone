@@ -44,7 +44,7 @@ pub trait AssignmentApi: Send + Sync + Clone {
         &self,
         db: &DatabaseConnection,
         params: &RoleListParameters,
-    ) -> Result<Vec<Role>, AssignmentProviderError>;
+    ) -> Result<impl IntoIterator<Item = Role>, AssignmentProviderError>;
 
     /// Get a single role
     async fn get_role<'a>(
@@ -59,7 +59,7 @@ pub trait AssignmentApi: Send + Sync + Clone {
         db: &DatabaseConnection,
         provider: &Provider,
         params: &RoleAssignmentListParameters,
-    ) -> Result<Vec<Assignment>, AssignmentProviderError>;
+    ) -> Result<impl IntoIterator<Item = Assignment>, AssignmentProviderError>;
 }
 
 #[cfg(test)]
@@ -127,7 +127,7 @@ impl AssignmentApi for AssignmentProvider {
         &self,
         db: &DatabaseConnection,
         params: &RoleListParameters,
-    ) -> Result<Vec<Role>, AssignmentProviderError> {
+    ) -> Result<impl IntoIterator<Item = Role>, AssignmentProviderError> {
         self.backend_driver.list_roles(db, params).await
     }
 
@@ -148,32 +148,39 @@ impl AssignmentApi for AssignmentProvider {
         db: &DatabaseConnection,
         provider: &Provider,
         params: &RoleAssignmentListParameters,
-    ) -> Result<Vec<Assignment>, AssignmentProviderError> {
-        let mut request = RoleAssignmentListForMultipleActorTargetParametersBuilder::default();
-        let mut actors: Vec<String> = Vec::new();
-        let mut targets: Vec<RoleAssignmentTarget> = Vec::new();
-        if let Some(role_id) = &params.role_id {
-            request.role_id(role_id);
-        }
+    ) -> Result<impl IntoIterator<Item = Assignment>, AssignmentProviderError> {
         if let Some(true) = &params.effective {
+            let mut request = RoleAssignmentListForMultipleActorTargetParametersBuilder::default();
+            let mut actors: Vec<String> = Vec::new();
+            let mut targets: Vec<RoleAssignmentTarget> = Vec::new();
+            if let Some(role_id) = &params.role_id {
+                request.role_id(role_id);
+            }
             if let Some(uid) = &params.user_id {
-                let users = provider
-                    .get_identity_provider()
-                    .list_groups_for_user(db, uid)
-                    .await?;
-                actors.extend(users.into_iter().map(|x| x.id));
-            };
+                actors.push(uid.into());
+            }
+            if let Some(true) = &params.effective {
+                if let Some(uid) = &params.user_id {
+                    let users = provider
+                        .get_identity_provider()
+                        .list_groups_for_user(db, uid)
+                        .await?;
+                    actors.extend(users.into_iter().map(|x| x.id));
+                };
+            }
+            if let Some(val) = &params.project_id {
+                targets.push(RoleAssignmentTarget {
+                    target_id: val.clone(),
+                    ..Default::default()
+                });
+            }
+            request.targets(targets);
+            request.actors(actors);
+            self.backend_driver
+                .list_assignments_for_multiple_actors_and_targets(db, &request.build()?)
+                .await
+        } else {
+            self.backend_driver.list_assignments(db, params).await
         }
-        if let Some(val) = &params.project_id {
-            targets.push(RoleAssignmentTarget {
-                target_id: val.clone(),
-                ..Default::default()
-            });
-        }
-        request.targets(targets);
-        request.actors(actors);
-        self.backend_driver
-            .list_assignments_for_multiple_actors_and_targets(db, &request.build()?)
-            .await
     }
 }

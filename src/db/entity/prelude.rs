@@ -28,6 +28,7 @@ pub use super::credential::Entity as Credential;
 pub use super::endpoint::Entity as Endpoint;
 pub use super::endpoint_group::Entity as EndpointGroup;
 pub use super::expiring_user_group_membership::Entity as ExpiringUserGroupMembership;
+pub use super::federated_auth_state::Entity as FederatedAuthState;
 pub use super::federated_identity_provider::Entity as FederatedIdentityProvider;
 pub use super::federated_mapping::Entity as FederatedMapping;
 pub use super::federated_user::Entity as FederatedUser;

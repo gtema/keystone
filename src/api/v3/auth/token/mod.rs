@@ -20,21 +20,25 @@ use axum::{
     response::IntoResponse,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
+use tracing::debug;
 use utoipa_axum::{router::OpenApiRouter, routes};
 use uuid::Uuid;
 
-use crate::api::{Catalog, auth::Auth, common::get_domain, error::KeystoneApiError};
+use crate::api::types::Scope;
+use crate::api::{
+    Catalog,
+    auth::Auth,
+    common::{find_project_from_scope, get_domain},
+    error::KeystoneApiError,
+};
 use crate::catalog::CatalogApi;
 use crate::identity::IdentityApi;
 use crate::identity::types::UserResponse;
 use crate::keystone::ServiceState;
-use crate::resource::{
-    ResourceApi,
-    types::{Domain, Project},
-};
+use crate::resource::types::{Domain, Project};
 use crate::token::TokenApi;
 use types::{
-    AuthRequest, CreateTokenParameters, Scope, Token as ApiResponseToken, TokenResponse,
+    AuthRequest, CreateTokenParameters, Token as ApiResponseToken, TokenResponse,
     ValidateTokenParameters,
 };
 
@@ -66,52 +70,11 @@ async fn post(
     let mut user: Option<UserResponse> = None;
     let mut project: Option<Project> = None;
     let mut domain: Option<Domain> = None;
+    debug!("Scope is {:?}", req.auth.scope);
 
     match req.auth.scope {
         Some(Scope::Project(scope)) => {
-            project = if let Some(pid) = &scope.id {
-                state
-                    .provider
-                    .get_resource_provider()
-                    .get_project(&state.db, pid)
-                    .await?
-            } else if let Some(name) = &scope.name {
-                if let Some(domain) = scope.domain {
-                    let domain_id = match domain.id {
-                        Some(id) => id.clone(),
-                        None => {
-                            state
-                                .provider
-                                .get_resource_provider()
-                                .find_domain_by_name(
-                                    &state.db,
-                                    &domain
-                                        .name
-                                        .clone()
-                                        .ok_or(KeystoneApiError::DomainIdOrName)?,
-                                )
-                                .await?
-                                .ok_or(KeystoneApiError::NotFound {
-                                    resource: "domain".to_string(),
-                                    identifier: domain
-                                        .name
-                                        .clone()
-                                        .ok_or(KeystoneApiError::DomainIdOrName)?,
-                                })?
-                                .id
-                        }
-                    };
-                    state
-                        .provider
-                        .get_resource_provider()
-                        .get_project_by_name(&state.db, name, &domain_id)
-                        .await?
-                } else {
-                    return Err(KeystoneApiError::ProjectDomain);
-                }
-            } else {
-                return Err(KeystoneApiError::ProjectIdOrName);
-            };
+            project = find_project_from_scope(&state, &scope).await?;
             if !project.as_ref().is_some_and(|target| target.enabled) {
                 return Err(KeystoneApiError::Unauthorized);
             }
@@ -138,6 +101,27 @@ async fn post(
                 );
                 methods.push(method.clone());
             }
+        } else if method == "token" {
+            if let Some(token) = &req.auth.identity.token {
+                let current_token = state
+                    .provider
+                    .get_token_provider()
+                    .validate_token(&token.id, Some(false), None)
+                    .await
+                    .map_err(|_| KeystoneApiError::NotFound {
+                        resource: "token".into(),
+                        identifier: String::new(),
+                    })?;
+                user = state
+                    .provider
+                    .get_identity_provider()
+                    .get_user(&state.db, current_token.user_id())
+                    .await
+                    .map_err(|_| KeystoneApiError::NotFound {
+                        resource: "user".into(),
+                        identifier: current_token.user_id().clone(),
+                    })?;
+            }
         }
     }
 
@@ -157,7 +141,8 @@ async fn post(
             .provider
             .get_token_provider()
             .populate_role_assignments(&mut token, &state.db, &state.provider)
-            .await?;
+            .await
+            .map_err(|_| KeystoneApiError::Forbidden)?;
 
         state
             .provider

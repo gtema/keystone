@@ -15,6 +15,7 @@
 use chrono::Local;
 use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
+use serde_json::json;
 
 use crate::config::Config;
 use crate::db::entity::{prelude::User as DbUser, user};
@@ -52,7 +53,10 @@ pub(super) async fn create(
     let entry: user::ActiveModel = user::ActiveModel {
         id: Set(user.id.clone()),
         enabled: Set(user.enabled),
-        extra: Set(Some(serde_json::to_string(&user.extra)?)),
+        extra: Set(Some(serde_json::to_string(
+            // For keystone it is important to have at least "{}"
+            &user.extra.as_ref().or(Some(&json!({}))),
+        )?)),
         default_project_id: Set(user.default_project_id.clone()),
         last_active_at,
         created_at: Set(Some(now)),

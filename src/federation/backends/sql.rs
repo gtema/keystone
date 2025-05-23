@@ -19,6 +19,7 @@ use super::super::types::*;
 use crate::config::Config;
 use crate::federation::FederationProviderError;
 
+mod auth_state;
 mod identity_provider;
 mod mapping;
 
@@ -26,8 +27,6 @@ mod mapping;
 pub struct SqlBackend {
     pub config: Config,
 }
-
-impl SqlBackend {}
 
 #[async_trait]
 impl FederationBackend for SqlBackend {
@@ -138,6 +137,38 @@ impl FederationBackend for SqlBackend {
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
         mapping::delete(&self.config, db, id)
+            .await
+            .map_err(FederationProviderError::database)
+    }
+
+    /// Get auth state by ID
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn get_auth_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<Option<AuthState>, FederationProviderError> {
+        Ok(auth_state::get(&self.config, db, id).await?)
+    }
+
+    /// Create new auth state
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn create_auth_state(
+        &self,
+        db: &DatabaseConnection,
+        state: AuthState,
+    ) -> Result<AuthState, FederationProviderError> {
+        Ok(auth_state::create(&self.config, db, state).await?)
+    }
+
+    /// Delete auth state
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn delete_auth_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<(), FederationProviderError> {
+        auth_state::delete(&self.config, db, id)
             .await
             .map_err(FederationProviderError::database)
     }

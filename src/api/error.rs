@@ -14,12 +14,15 @@
 
 use axum::{
     Json,
+    extract::rejection::JsonRejection,
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde_json::json;
 use thiserror::Error;
 use tracing::error;
+
+use crate::api::v3::federation::error::OidcError;
 
 use crate::assignment::error::AssignmentProviderError;
 use crate::catalog::error::CatalogProviderError;
@@ -40,8 +43,11 @@ pub enum KeystoneApiError {
         identifier: String,
     },
 
-    #[error("missing authorization")]
+    #[error("The request you have made requires authentication.")]
     Unauthorized,
+
+    #[error("You are not authorized to perform the requested action.")]
+    Forbidden,
 
     #[error("missing x-subject-token header")]
     SubjectTokenMissing,
@@ -77,6 +83,12 @@ pub enum KeystoneApiError {
     Federation {
         #[from]
         source: FederationProviderError,
+    },
+
+    #[error(transparent)]
+    Oidc {
+        #[from]
+        source: OidcError,
     },
 
     #[error(transparent)]
@@ -123,6 +135,13 @@ pub enum KeystoneApiError {
 
     #[error("project domain must be present")]
     ProjectDomain,
+
+    #[error(transparent)]
+    JsonExtractorRejection(#[from] JsonRejection),
+
+    /// Others.
+    #[error(transparent)]
+    Other(#[from] eyre::Report),
 }
 
 impl IntoResponse for KeystoneApiError {
@@ -144,13 +163,13 @@ impl IntoResponse for KeystoneApiError {
                 Json(json!({"error": {"code": StatusCode::UNAUTHORIZED.as_u16(), "message": self.to_string()}})),
                 ).into_response()
             }
-            KeystoneApiError::InternalError(_) | KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..} | KeystoneApiError::Federation {..} => {
+            KeystoneApiError::InternalError(_) | KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..} | KeystoneApiError::Federation {..} | KeystoneApiError::Oidc{..} | KeystoneApiError::Other(..) => {
                 (StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
               ).into_response()
             }
             _ =>  {
-            // KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} | KeystoneApiError::WebAuthN{..} | KeystoneApiError::Uuid {..} | KeystoneApiError::Serde {..} | KeystoneApiError::DomainIdOrName | KeystoneApiError::ProjectIdOrName | KeystoneApiError::ProjectDomain => 
+            // KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} | KeystoneApiError::WebAuthN{..} | KeystoneApiError::Uuid {..} | KeystoneApiError::Serde {..} | KeystoneApiError::DomainIdOrName | KeystoneApiError::ProjectIdOrName | KeystoneApiError::ProjectDomain =>
                 (StatusCode::BAD_REQUEST,
                 Json(json!({"error": {"code": StatusCode::BAD_REQUEST.as_u16(), "message": self.to_string()}})),
               ).into_response()
@@ -173,6 +192,10 @@ impl KeystoneApiError {
         match source {
             FederationProviderError::IdentityProviderNotFound(x) => Self::NotFound {
                 resource: "identity provider".into(),
+                identifier: x,
+            },
+            FederationProviderError::MappingNotFound(x) => Self::NotFound {
+                resource: "mapping provider".into(),
                 identifier: x,
             },
             _ => Self::Federation { source },
@@ -219,7 +242,7 @@ pub enum TokenError {
     #[error("error building token user data: {}", source)]
     ProjectBuilder {
         #[from]
-        source: crate::api::v3::auth::token::types::ProjectBuilderError,
+        source: crate::api::types::ProjectBuilderError,
     },
 
     #[error(transparent)]

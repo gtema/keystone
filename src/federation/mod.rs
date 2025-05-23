@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 pub mod backends;
 pub mod error;
-pub(crate) mod types;
+pub mod types;
 
 use crate::config::Config;
 use crate::federation::backends::sql::SqlBackend;
@@ -92,6 +92,24 @@ pub trait FederationApi: Send + Sync + Clone {
     ) -> Result<Mapping, FederationProviderError>;
 
     async fn delete_mapping<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<(), FederationProviderError>;
+
+    async fn get_auth_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<Option<AuthState>, FederationProviderError>;
+
+    async fn create_auth_state(
+        &self,
+        db: &DatabaseConnection,
+        state: AuthState,
+    ) -> Result<AuthState, FederationProviderError>;
+
+    async fn delete_auth_state<'a>(
         &self,
         db: &DatabaseConnection,
         id: &'a str,
@@ -172,6 +190,23 @@ mock! {
             id: &'a str,
         ) -> Result<(), FederationProviderError>;
 
+        async fn get_auth_state<'a>(
+            &self,
+            db: &DatabaseConnection,
+            id: &'a str,
+        ) -> Result<Option<AuthState>, FederationProviderError>;
+
+        async fn create_auth_state(
+            &self,
+            db: &DatabaseConnection,
+            state: AuthState,
+        ) -> Result<AuthState, FederationProviderError>;
+
+        async fn delete_auth_state<'a>(
+            &self,
+            db: &DatabaseConnection,
+            id: &'a str,
+        ) -> Result<(), FederationProviderError>;
     }
 
     impl Clone for FederationProvider {
@@ -318,5 +353,35 @@ impl FederationApi for FederationProvider {
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
         self.backend_driver.delete_mapping(db, id).await
+    }
+
+    /// Get auth state by ID
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn get_auth_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<Option<AuthState>, FederationProviderError> {
+        self.backend_driver.get_auth_state(db, id).await
+    }
+
+    /// Create new auth state
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn create_auth_state(
+        &self,
+        db: &DatabaseConnection,
+        state: AuthState,
+    ) -> Result<AuthState, FederationProviderError> {
+        self.backend_driver.create_auth_state(db, state).await
+    }
+
+    /// Delete auth state
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn delete_auth_state<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<(), FederationProviderError> {
+        self.backend_driver.delete_auth_state(db, id).await
     }
 }

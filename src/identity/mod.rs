@@ -61,6 +61,13 @@ pub trait IdentityApi: Send + Sync + Clone {
         user_id: &'a str,
     ) -> Result<Option<UserResponse>, IdentityProviderError>;
 
+    async fn find_federated_user<'a>(
+        &self,
+        db: &DatabaseConnection,
+        idp_id: &'a str,
+        unique_id: &'a str,
+    ) -> Result<Option<UserResponse>, IdentityProviderError>;
+
     async fn create_user(
         &self,
         db: &DatabaseConnection,
@@ -183,6 +190,13 @@ mock! {
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
+        ) -> Result<Option<UserResponse>, IdentityProviderError>;
+
+        async fn find_federated_user<'a>(
+            &self,
+            db: &DatabaseConnection,
+            idp_id: &'a str,
+            unique_id: &'a str,
         ) -> Result<Option<UserResponse>, IdentityProviderError>;
 
         async fn create_user(
@@ -364,6 +378,19 @@ impl IdentityApi for IdentityProvider {
         self.backend_driver.get_user(db, user_id).await
     }
 
+    /// Find federated user by IDP and Unique ID
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn find_federated_user<'a>(
+        &self,
+        db: &DatabaseConnection,
+        idp_id: &'a str,
+        unique_id: &'a str,
+    ) -> Result<Option<UserResponse>, IdentityProviderError> {
+        self.backend_driver
+            .find_federated_user(db, idp_id, unique_id)
+            .await
+    }
+
     /// Create user
     #[tracing::instrument(level = "info", skip(self, db))]
     async fn create_user(
@@ -372,7 +399,7 @@ impl IdentityApi for IdentityProvider {
         user: UserCreate,
     ) -> Result<UserResponse, IdentityProviderError> {
         let mut mod_user = user;
-        mod_user.id = Uuid::new_v4().into();
+        mod_user.id = Uuid::new_v4().simple().to_string();
         if mod_user.enabled.is_none() {
             mod_user.enabled = Some(true);
         }
@@ -417,7 +444,7 @@ impl IdentityApi for IdentityProvider {
         group: GroupCreate,
     ) -> Result<Group, IdentityProviderError> {
         let mut res = group;
-        res.id = Some(Uuid::new_v4().into());
+        res.id = Some(Uuid::new_v4().simple().to_string());
         self.backend_driver.create_group(db, res).await
     }
 

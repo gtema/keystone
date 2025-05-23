@@ -40,6 +40,12 @@ pub enum IdentityDatabaseError {
         source: UserResponseBuilderError,
     },
 
+    #[error("building user federation")]
+    FederatedUserBuilderError {
+        #[from]
+        source: FederationBuilderError,
+    },
+
     #[error("database data")]
     Database {
         #[from]

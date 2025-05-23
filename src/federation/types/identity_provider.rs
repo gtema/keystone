@@ -50,11 +50,14 @@ pub struct IdentityProvider {
     pub bound_issuer: Option<String>,
 
     #[builder(default)]
+    pub default_mapping_name: Option<String>,
+
+    #[builder(default)]
     pub provider_config: Option<Value>,
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct IdentityProviderUpdate {
     /// Provider name
     pub name: Option<String>,
@@ -79,6 +82,9 @@ pub struct IdentityProviderUpdate {
 
     #[builder(default)]
     pub bound_issuer: Option<Option<String>>,
+
+    #[builder(default)]
+    pub default_mapping_name: Option<Option<String>>,
 
     #[builder(default)]
     pub provider_config: Option<Option<Value>>,

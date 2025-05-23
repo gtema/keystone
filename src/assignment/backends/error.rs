@@ -44,4 +44,7 @@ pub enum AssignmentDatabaseError {
         #[from]
         source: sea_orm::DbErr,
     },
+
+    #[error("invalid assignment type: {0}")]
+    InvalidAssignmentType(String),
 }

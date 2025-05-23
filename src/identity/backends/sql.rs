@@ -117,6 +117,17 @@ impl IdentityBackend for SqlBackend {
         Ok(get_user(&self.config, db, user_id).await?)
     }
 
+    /// Find federated user by IDP and Unique ID
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn find_federated_user<'a>(
+        &self,
+        db: &DatabaseConnection,
+        idp_id: &'a str,
+        unique_id: &'a str,
+    ) -> Result<Option<UserResponse>, IdentityProviderError> {
+        Ok(find_federated_user(&self.config, db, idp_id, unique_id).await?)
+    }
+
     /// Create user
     #[tracing::instrument(level = "debug", skip(self, db))]
     async fn create_user(
@@ -410,13 +421,70 @@ pub async fn get_user(
     Ok(None)
 }
 
+pub async fn find_federated_user<I: AsRef<str>, U: AsRef<str>>(
+    conf: &Config,
+    db: &DatabaseConnection,
+    idp_id: I,
+    unique_id: U,
+) -> Result<Option<UserResponse>, IdentityDatabaseError> {
+    if let Some(federated_entry) =
+        federated_user::find_by_idp_and_unique_id(conf, db, idp_id, unique_id).await?
+    {
+        return get_user(conf, db, &federated_entry.user_id).await;
+    }
+    Ok(None)
+}
+
 async fn create_user(
     conf: &Config,
     db: &DatabaseConnection,
     user: UserCreate,
 ) -> Result<UserResponse, IdentityDatabaseError> {
     let main_user = user::create(conf, db, &user).await?;
-    if let Some(_federated) = &user.federated {
+    if let Some(federation_data) = &user.federated {
+        let mut federated_entities: Vec<db_federated_user::Model> = Vec::new();
+        for federated_user in federation_data {
+            if federated_user.protocols.is_empty() {
+                federated_entities.push(
+                    federated_user::create(
+                        conf,
+                        db,
+                        db_federated_user::ActiveModel {
+                            id: NotSet,
+                            user_id: Set(user.id.clone()),
+                            idp_id: Set(federated_user.idp_id.clone()),
+                            protocol_id: Set("oidc".into()),
+                            unique_id: Set(federated_user.unique_id.clone()),
+                            display_name: Set(Some(user.name.clone())),
+                        },
+                    )
+                    .await?,
+                );
+            } else {
+                for proto in &federated_user.protocols {
+                    federated_entities.push(
+                        federated_user::create(
+                            conf,
+                            db,
+                            db_federated_user::ActiveModel {
+                                id: NotSet,
+                                user_id: Set(user.id.clone()),
+                                idp_id: Set(federated_user.idp_id.clone()),
+                                protocol_id: Set(proto.protocol_id.clone()),
+                                unique_id: Set(proto.unique_id.clone()),
+                                display_name: Set(Some(user.name.clone())),
+                            },
+                        )
+                        .await?,
+                    );
+                }
+            }
+        }
+
+        let builder =
+            common::get_federated_user_builder(&main_user, federated_entities, Vec::new());
+
+        Ok(builder.build()?)
     } else {
         // Local user
         let local_user = local_user::create(conf, db, &user).await?;
@@ -432,18 +500,18 @@ async fn create_user(
 
             passwords.push(password_entry);
         }
-        return Ok(common::get_local_user_builder(
+        Ok(common::get_local_user_builder(
             conf,
             &main_user,
             local_user,
             Some(passwords),
             Vec::new(),
         )
-        .build()?);
+        .build()?)
     }
-    let ub = common::get_user_builder(&main_user, Vec::new()).build()?;
+    // let ub = common::get_user_builder(&main_user, Vec::new()).build()?;
 
-    Ok(ub)
+    // Ok(ub)
 }
 
 #[cfg(test)]

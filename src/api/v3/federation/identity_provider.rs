@@ -30,6 +30,7 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .routes(routes!(list, create))
         .routes(routes!(show, update, remove))
+    //.routes(routes!(auth::auth))
 }
 
 /// List identity providers
@@ -238,6 +239,7 @@ mod tests {
                     id: "id".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
+                    default_mapping_name: Some("dummy".into()),
                     ..Default::default()
                 }])
             });
@@ -275,6 +277,7 @@ mod tests {
                 oidc_response_types: None,
                 jwt_validation_pubkeys: None,
                 bound_issuer: None,
+                default_mapping_name: Some("dummy".into()),
                 provider_config: None
             }],
             res.identity_providers
@@ -343,6 +346,7 @@ mod tests {
                     id: "bar".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
+                    default_mapping_name: Some("dummy".into()),
                     ..Default::default()
                 }))
             });
@@ -394,6 +398,7 @@ mod tests {
                 oidc_response_types: None,
                 jwt_validation_pubkeys: None,
                 bound_issuer: None,
+                default_mapping_name: Some("dummy".into()),
                 provider_config: None
             },
             res.identity_provider,

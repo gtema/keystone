@@ -35,10 +35,13 @@ pub struct Mapping {
     pub allowed_redirect_uris: Option<Vec<String>>,
 
     #[builder(default)]
-    pub user_claim: String,
+    pub user_id_claim: String,
 
     #[builder(default)]
-    pub user_claim_json_pointer: Option<String>,
+    pub user_name_claim: String,
+
+    #[builder(default)]
+    pub domain_id_claim: Option<String>,
 
     #[builder(default)]
     pub groups_claim: Option<String>,
@@ -55,9 +58,8 @@ pub struct Mapping {
     #[builder(default)]
     pub oidc_scopes: Option<Vec<String>>,
 
-    #[builder(default)]
-    pub claim_mappings: Option<Value>,
-
+    //#[builder(default)]
+    //pub claim_mappings: Option<Value>,
     #[builder(default)]
     pub token_user_id: Option<String>,
 
@@ -69,9 +71,9 @@ pub struct Mapping {
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct MappingUpdate {
-    /// Provider name
+    /// Mapping name
     pub name: Option<String>,
 
     // TODO: on update must check that domain_id match
@@ -82,10 +84,13 @@ pub struct MappingUpdate {
     pub allowed_redirect_uris: Option<Option<Vec<String>>>,
 
     #[builder(default)]
-    pub user_claim: Option<String>,
+    pub user_id_claim: Option<String>,
 
     #[builder(default)]
-    pub user_claim_json_pointer: Option<Option<String>>,
+    pub user_name_claim: Option<String>,
+
+    #[builder(default)]
+    pub domain_id_claim: Option<String>,
 
     #[builder(default)]
     pub groups_claim: Option<Option<String>>,
@@ -101,9 +106,6 @@ pub struct MappingUpdate {
 
     #[builder(default)]
     pub oidc_scopes: Option<Option<Vec<String>>>,
-
-    #[builder(default)]
-    pub claim_mappings: Option<Value>,
 
     #[builder(default)]
     pub token_user_id: Option<Option<String>>,

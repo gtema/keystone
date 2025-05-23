@@ -25,9 +25,6 @@ pub struct Model {
     pub idp_id: String,
     pub mapping_id: String,
     pub remote_id_attribute: Option<String>,
-    pub oidc_client_id: Option<String>,
-    pub oidc_client_secret: Option<String>,
-    pub oidc_provider_metadata_url: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -129,4 +129,7 @@ pub enum TokenProviderError {
         #[from]
         source: crate::resource::error::ResourceProviderError,
     },
+
+    #[error("actor has no roles on scope")]
+    ActorHasNoRolesOnTarget,
 }
