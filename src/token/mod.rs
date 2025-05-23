@@ -220,7 +220,7 @@ impl TokenApi for TokenProvider {
     ) -> Result<(), TokenProviderError> {
         match token {
             Token::ProjectScope(data) => {
-                let token_roles = provider
+                data.roles = provider
                     .get_assignment_provider()
                     .list_role_assignments(
                         db,
@@ -231,18 +231,20 @@ impl TokenApi for TokenProvider {
                             .build()
                             .map_err(AssignmentProviderError::from)?,
                     )
-                    .await?;
-                data.roles = token_roles
+                    .await?
                     .into_iter()
                     .map(|x| Role {
                         id: x.role_id.clone(),
                         name: x.role_name.clone().unwrap_or_default(),
                         ..Default::default()
                     })
-                    .collect::<Vec<Role>>();
+                    .collect();
+                if data.roles.is_empty() {
+                    return Err(TokenProviderError::ActorHasNoRolesOnTarget);
+                }
             }
             Token::DomainScope(data) => {
-                let token_roles = provider
+                data.roles = provider
                     .get_assignment_provider()
                     .list_role_assignments(
                         db,
@@ -253,18 +255,20 @@ impl TokenApi for TokenProvider {
                             .build()
                             .map_err(AssignmentProviderError::from)?,
                     )
-                    .await?;
-                data.roles = token_roles
+                    .await?
                     .into_iter()
                     .map(|x| Role {
                         id: x.role_id.clone(),
                         name: x.role_name.clone().unwrap_or_default(),
                         ..Default::default()
                     })
-                    .collect::<Vec<Role>>();
+                    .collect();
+                if data.roles.is_empty() {
+                    return Err(TokenProviderError::ActorHasNoRolesOnTarget);
+                }
             }
             Token::ApplicationCredential(data) => {
-                let token_roles = provider
+                data.roles = provider
                     .get_assignment_provider()
                     .list_role_assignments(
                         db,
@@ -275,15 +279,17 @@ impl TokenApi for TokenProvider {
                             .build()
                             .map_err(AssignmentProviderError::from)?,
                     )
-                    .await?;
-                data.roles = token_roles
+                    .await?
                     .into_iter()
                     .map(|x| Role {
                         id: x.role_id.clone(),
                         name: x.role_name.clone().unwrap_or_default(),
                         ..Default::default()
                     })
-                    .collect::<Vec<Role>>();
+                    .collect();
+                if data.roles.is_empty() {
+                    return Err(TokenProviderError::ActorHasNoRolesOnTarget);
+                }
             }
             _ => {}
         }

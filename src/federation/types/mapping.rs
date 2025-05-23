@@ -18,83 +18,112 @@ use serde_json::Value;
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[builder(setter(strip_option, into))]
-pub struct IdentityProvider {
-    /// Federation provider ID
+pub struct Mapping {
+    /// Federation IDP mapping ID
     pub id: String,
 
-    /// Provider name
+    /// Mapping name
     pub name: String,
 
     #[builder(default)]
     pub domain_id: Option<String>,
 
-    #[builder(default)]
-    pub oidc_discovery_url: Option<String>,
+    /// IDP ID
+    pub idp_id: String,
 
     #[builder(default)]
-    pub oidc_client_id: Option<String>,
+    pub allowed_redirect_uris: Option<Vec<String>>,
 
     #[builder(default)]
-    pub oidc_client_secret: Option<String>,
+    pub user_id_claim: String,
 
     #[builder(default)]
-    pub oidc_response_mode: Option<String>,
+    pub user_name_claim: String,
 
     #[builder(default)]
-    pub oidc_response_types: Option<Vec<String>>,
+    pub domain_id_claim: Option<String>,
 
     #[builder(default)]
-    pub jwt_validation_pubkeys: Option<Vec<String>>,
+    pub groups_claim: Option<String>,
 
     #[builder(default)]
-    pub bound_issuer: Option<String>,
+    pub bound_audiences: Option<Vec<String>>,
 
     #[builder(default)]
-    pub default_mapping_name: Option<String>,
+    pub bound_subject: Option<String>,
 
     #[builder(default)]
-    pub provider_config: Option<Value>,
+    pub bound_claims: Option<Value>,
+
+    #[builder(default)]
+    pub oidc_scopes: Option<Vec<String>>,
+
+    //#[builder(default)]
+    //pub claim_mappings: Option<Value>,
+    #[builder(default)]
+    pub token_user_id: Option<String>,
+
+    #[builder(default)]
+    pub token_role_ids: Option<Vec<String>>,
+
+    #[builder(default)]
+    pub token_project_id: Option<String>,
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[builder(setter(into))]
-pub struct IdentityProviderUpdate {
-    /// Provider name
+pub struct MappingUpdate {
+    /// Mapping name
     pub name: Option<String>,
 
+    // TODO: on update must check that domain_id match
     #[builder(default)]
-    pub oidc_discovery_url: Option<Option<String>>,
+    pub idp_id: Option<String>,
 
     #[builder(default)]
-    pub oidc_client_id: Option<Option<String>>,
+    pub allowed_redirect_uris: Option<Option<Vec<String>>>,
 
     #[builder(default)]
-    pub oidc_client_secret: Option<Option<String>>,
+    pub user_id_claim: Option<String>,
 
     #[builder(default)]
-    pub oidc_response_mode: Option<Option<String>>,
+    pub user_name_claim: Option<String>,
 
     #[builder(default)]
-    pub oidc_response_types: Option<Option<Vec<String>>>,
+    pub domain_id_claim: Option<String>,
 
     #[builder(default)]
-    pub jwt_validation_pubkeys: Option<Option<Vec<String>>>,
+    pub groups_claim: Option<Option<String>>,
 
     #[builder(default)]
-    pub bound_issuer: Option<Option<String>>,
+    pub bound_audiences: Option<Option<Vec<String>>>,
 
     #[builder(default)]
-    pub default_mapping_name: Option<Option<String>>,
+    pub bound_subject: Option<Option<String>>,
 
     #[builder(default)]
-    pub provider_config: Option<Option<Value>>,
+    pub bound_claims: Option<Value>,
+
+    #[builder(default)]
+    pub oidc_scopes: Option<Option<Vec<String>>>,
+
+    #[builder(default)]
+    pub token_user_id: Option<Option<String>>,
+
+    #[builder(default)]
+    pub token_role_ids: Option<Option<Vec<String>>>,
+
+    #[builder(default)]
+    pub token_project_id: Option<Option<String>>,
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[builder(setter(strip_option, into))]
-pub struct IdentityProviderListParameters {
-    /// Filters the response by IDP name.
+pub struct MappingListParameters {
+    /// Filters the response by Mapping name.
     pub name: Option<String>,
     /// Filters the response by a domain_id ID.
     pub domain_id: Option<String>,
+    /// Filters the response by IDP ID.
+    pub idp_id: Option<String>,
 }

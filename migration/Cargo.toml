@@ -11,6 +11,8 @@ path = "src/lib.rs"
 [dependencies]
 async-std = { version = "1", features = ["attributes", "tokio1"] }
 openstack_keystone = {path = "../"}
+serde_json = "1.0.140"
+uuid = "1.16.0"
 
 [dependencies.sea-orm-migration]
 version = "1.1.0"

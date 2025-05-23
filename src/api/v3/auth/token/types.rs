@@ -23,10 +23,9 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::api::error::TokenError;
-use crate::api::types::Catalog;
+use crate::api::types::*;
 use crate::api::v3::role::types::Role;
 use crate::identity::types as identity_types;
-use crate::resource::types as resource_provider_types;
 use crate::token::Token as BackendToken;
 
 /// Authorization token
@@ -126,6 +125,9 @@ pub struct Identity {
 
     /// The password object, contains the authentication information.
     pub password: Option<PasswordAuth>,
+
+    /// The token object, contains the authentication information.
+    pub token: Option<TokenAuth>,
 }
 
 /// The password object, contains the authentication information.
@@ -176,45 +178,6 @@ impl TryFrom<UserPassword> for identity_types::UserPasswordAuthRequest {
     }
 }
 
-/// The authorization scope, including the system (Since v3.10), a project, or a domain (Since
-/// v3.4). If multiple scopes are specified in the same request (e.g. project and domain or domain
-/// and system) an HTTP 400 Bad Request will be returned, as a token cannot be simultaneously
-/// scoped to multiple authorization targets. An ID is sufficient to uniquely identify a project
-/// but if a project is specified by name, then the domain of the project must also be specified in
-/// order to uniquely identify the project by name. A domain scope may be specified by either the
-/// domain’s ID or name with equivalent results.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
-pub enum Scope {
-    /// Project scope
-    #[serde(rename = "project")]
-    Project(ProjectScope),
-    /// Domain scope
-    #[serde(rename = "domain")]
-    Domain(Domain),
-}
-
-/// Project scope information
-#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
-pub struct ProjectScope {
-    /// Project ID
-    pub id: Option<String>,
-    /// Project Name
-    pub name: Option<String>,
-    /// project domain
-    pub domain: Option<Domain>,
-}
-
-/// Project information
-#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
-pub struct Project {
-    /// Project ID
-    pub id: String,
-    /// Project Name
-    pub name: String,
-    /// project domain
-    pub domain: Domain,
-}
-
 /// User information
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(into))]
@@ -231,36 +194,6 @@ pub struct User {
     pub password_expires_at: Option<DateTime<Utc>>,
 }
 
-/// Domain information
-#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
-#[builder(setter(into))]
-pub struct Domain {
-    /// Domain ID
-    #[builder(default)]
-    pub id: Option<String>,
-    /// Domain Name
-    #[builder(default)]
-    pub name: Option<String>,
-}
-
-impl From<resource_provider_types::Domain> for Domain {
-    fn from(value: resource_provider_types::Domain) -> Self {
-        Self {
-            id: Some(value.id.clone()),
-            name: Some(value.name.clone()),
-        }
-    }
-}
-
-impl From<&resource_provider_types::Domain> for Domain {
-    fn from(value: &resource_provider_types::Domain) -> Self {
-        Self {
-            id: Some(value.id.clone()),
-            name: Some(value.name.clone()),
-        }
-    }
-}
-
 impl TryFrom<&BackendToken> for Token {
     type Error = TokenError;
 
@@ -272,6 +205,14 @@ impl TryFrom<&BackendToken> for Token {
         token.expires_at(*value.expires_at());
         Ok(token.build()?)
     }
+}
+
+/// The token object, contains the authentication information.
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(strip_option, into))]
+pub struct TokenAuth {
+    /// An authentication token.
+    pub id: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]

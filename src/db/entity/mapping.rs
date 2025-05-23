@@ -24,9 +24,6 @@ pub struct Model {
     #[sea_orm(column_type = "Text", nullable)]
     pub rules: Option<String>,
     pub schema_version: String,
-    pub oidc_user_claim: Option<String>,
-    pub oidc_groups_claim: Option<String>,
-    pub oidc_scopes: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

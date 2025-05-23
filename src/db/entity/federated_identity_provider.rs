@@ -17,6 +17,7 @@ pub struct Model {
     #[sea_orm(column_type = "Text", nullable)]
     pub jwt_validation_pubkeys: Option<String>,
     pub bound_issuer: Option<String>,
+    pub default_mapping_name: Option<String>,
     pub provider_config: Option<Json>,
 }
 

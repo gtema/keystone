@@ -15,7 +15,8 @@
 use thiserror::Error;
 
 use crate::identity::backends::error::*;
-use crate::identity::types::{DomainBuilderError, UserResponseBuilderError};
+use crate::identity::types::*;
+//{DomainBuilderError, UserResponseBuilderError};
 use crate::resource::error::ResourceProviderError;
 
 #[derive(Error, Debug)]
@@ -48,6 +49,18 @@ pub enum IdentityProviderError {
     UserBuilder {
         #[from]
         source: UserResponseBuilderError,
+    },
+
+    #[error(transparent)]
+    UserCreateBuilder {
+        #[from]
+        source: UserCreateBuilderError,
+    },
+
+    #[error(transparent)]
+    FederatedUserBuilder {
+        #[from]
+        source: FederationBuilderError,
     },
 
     #[error(transparent)]

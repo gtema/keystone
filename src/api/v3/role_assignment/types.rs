@@ -41,6 +41,7 @@ pub struct Assignment {
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct Role {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 }
 
@@ -64,11 +65,17 @@ pub struct Domain {
     pub id: String,
 }
 
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct System {
+    pub id: String,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Scope {
     Project(Project),
     Domain(Domain),
+    System(System),
 }
 
 impl TryFrom<types::Assignment> for Assignment {
@@ -110,6 +117,22 @@ impl TryFrom<types::Assignment> for Assignment {
                     id: value.actor_id.clone(),
                 });
                 builder.scope(Scope::Project(Project {
+                    id: value.target_id.clone(),
+                }));
+            }
+            types::AssignmentType::UserSystem => {
+                builder.user(User {
+                    id: value.actor_id.clone(),
+                });
+                builder.scope(Scope::System(System {
+                    id: value.target_id.clone(),
+                }));
+            }
+            types::AssignmentType::GroupSystem => {
+                builder.group(Group {
+                    id: value.actor_id.clone(),
+                });
+                builder.scope(Scope::System(System {
                     id: value.target_id.clone(),
                 }));
             }
@@ -169,6 +192,13 @@ pub struct RoleAssignmentListParameters {
     /// Filters the response by a user ID.
     #[serde(rename = "user.id")]
     pub user_id: Option<String>,
+
+    /// If set to true, then the names of any entities returned will be include as well as their
+    /// IDs. Any value other than 0 (including no value) will be interpreted as true.
+    ///
+    /// New in version 3.6
+    #[serde(default)]
+    pub include_names: Option<bool>,
 }
 
 impl TryFrom<RoleAssignmentListParameters> for types::RoleAssignmentListParameters {
@@ -197,6 +227,9 @@ impl TryFrom<RoleAssignmentListParameters> for types::RoleAssignmentListParamete
 
         if let Some(val) = value.effective {
             builder.effective(val);
+        }
+        if let Some(val) = value.include_names {
+            builder.include_names(val);
         }
         Ok(builder.build()?)
     }

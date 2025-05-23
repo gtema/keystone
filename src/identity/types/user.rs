@@ -76,18 +76,20 @@ pub struct UserCreate {
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct UserUpdate {
     /// The user name. Must be unique within the owning domain.
-    pub name: Option<String>,
+    #[builder(default)]
+    pub name: Option<Option<String>>,
     /// If the user is enabled, this value is true. If the user is disabled, this value is false.
+    #[builder(default)]
     pub enabled: Option<bool>,
     /// The resource description
     #[builder(default)]
-    pub description: Option<String>,
+    pub description: Option<Option<String>>,
     /// The ID of the default project for the user.
     #[builder(default)]
-    pub default_project_id: Option<String>,
+    pub default_project_id: Option<Option<String>>,
     /// User password
     #[builder(default)]
     pub password: Option<String>,
@@ -128,6 +130,9 @@ pub struct Federation {
     /// Protocols
     #[builder(default)]
     pub protocols: Vec<FederationProtocol>,
+
+    #[builder]
+    pub unique_id: String,
 }
 
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
