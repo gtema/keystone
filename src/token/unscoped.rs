@@ -27,7 +27,7 @@ use crate::token::{
 
 #[derive(Builder, Clone, Debug, Default, PartialEq)]
 #[builder(setter(strip_option, into))]
-pub struct UnscopedToken {
+pub struct UnscopedPayload {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]
     pub methods: Vec<String>,
@@ -36,7 +36,7 @@ pub struct UnscopedToken {
     pub expires_at: DateTime<Utc>,
 }
 
-impl UnscopedTokenBuilder {
+impl UnscopedPayloadBuilder {
     pub fn methods<I, V>(&mut self, iter: I) -> &mut Self
     where
         I: Iterator<Item = V>,
@@ -60,14 +60,14 @@ impl UnscopedTokenBuilder {
     }
 }
 
-impl From<UnscopedToken> for Token {
-    fn from(value: UnscopedToken) -> Self {
+impl From<UnscopedPayload> for Token {
+    fn from(value: UnscopedPayload) -> Self {
         Token::Unscoped(value)
     }
 }
 
-impl MsgPackToken for UnscopedToken {
-    type Token = UnscopedToken;
+impl MsgPackToken for UnscopedPayload {
+    type Token = UnscopedPayload;
 
     fn assemble<W: Write>(
         &self,
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let token = UnscopedToken {
+        let token = UnscopedPayload {
             user_id: Uuid::new_v4().simple().to_string(),
             methods: vec!["password".into()],
             audit_ids: vec!["Zm9vCg".into()],
@@ -125,7 +125,7 @@ mod tests {
         let mut buf = vec![];
         token.assemble(&mut buf, &auth_map).unwrap();
         let encoded_buf = buf.clone();
-        let decoded = UnscopedToken::disassemble(&mut encoded_buf.as_slice(), &auth_map).unwrap();
+        let decoded = UnscopedPayload::disassemble(&mut encoded_buf.as_slice(), &auth_map).unwrap();
         assert_eq!(token, decoded);
     }
 }

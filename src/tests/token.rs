@@ -26,7 +26,7 @@ pub fn setup_config() -> Config {
     let mut tmp_file = File::create(file_path).unwrap();
     write!(tmp_file, "BFTs1CIVIBLTP4GOrQ26VETrJ7Zwz1O4wbEcCQ966eM=").unwrap();
     let mut config = Config::new(PathBuf::new()).unwrap();
-    config.fernet_tokens.key_repository = keys_dir.into_path();
+    config.fernet_tokens.key_repository = keys_dir.keep();
     config.auth.methods = vec![
         "password".into(),
         "token".into(),

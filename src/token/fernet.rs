@@ -26,9 +26,11 @@ use std::io::Write;
 
 use crate::config::Config;
 use crate::token::{
-    TokenProviderError, application_credential::ApplicationCredentialToken,
-    domain_scoped::DomainScopeToken, fernet_utils::FernetUtils, project_scoped::ProjectScopeToken,
-    types::*, unscoped::UnscopedToken,
+    TokenProviderError, application_credential::ApplicationCredentialPayload,
+    domain_scoped::DomainScopePayload, federation_domain_scoped::FederationDomainScopePayload,
+    federation_project_scoped::FederationProjectScopePayload,
+    federation_unscoped::FederationUnscopedPayload, fernet_utils::FernetUtils,
+    project_scoped::ProjectScopePayload, types::*, unscoped::UnscopedPayload,
 };
 
 #[derive(Default, Clone)]
@@ -116,10 +118,13 @@ impl FernetTokenProvider {
     fn decode(&self, rd: &mut &[u8]) -> Result<Token, TokenProviderError> {
         if let Marker::FixArray(_) = read_marker(rd).map_err(ValueReadError::from)? {
             match read_payload_token_type(rd)? {
-                0 => Ok(UnscopedToken::disassemble(rd, &self.auth_map)?.into()),
-                1 => Ok(DomainScopeToken::disassemble(rd, &self.auth_map)?.into()),
-                2 => Ok(ProjectScopeToken::disassemble(rd, &self.auth_map)?.into()),
-                9 => Ok(ApplicationCredentialToken::disassemble(rd, &self.auth_map)?.into()),
+                0 => Ok(UnscopedPayload::disassemble(rd, &self.auth_map)?.into()),
+                1 => Ok(DomainScopePayload::disassemble(rd, &self.auth_map)?.into()),
+                2 => Ok(ProjectScopePayload::disassemble(rd, &self.auth_map)?.into()),
+                4 => Ok(FederationUnscopedPayload::disassemble(rd, &self.auth_map)?.into()),
+                5 => Ok(FederationProjectScopePayload::disassemble(rd, &self.auth_map)?.into()),
+                6 => Ok(FederationDomainScopePayload::disassemble(rd, &self.auth_map)?.into()),
+                9 => Ok(ApplicationCredentialPayload::disassemble(rd, &self.auth_map)?.into()),
                 other => Err(TokenProviderError::InvalidTokenType(other)),
             }
         } else {
@@ -149,6 +154,27 @@ impl FernetTokenProvider {
                 write_array_len(&mut buf, 6)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 write_pfix(&mut buf, 2)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                data.assemble(&mut buf, &self.auth_map)?;
+            }
+            Token::FederationUnscoped(data) => {
+                write_array_len(&mut buf, 7)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                write_pfix(&mut buf, 4)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                data.assemble(&mut buf, &self.auth_map)?;
+            }
+            Token::FederationProjectScope(data) => {
+                write_array_len(&mut buf, 8)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                write_pfix(&mut buf, 5)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                data.assemble(&mut buf, &self.auth_map)?;
+            }
+            Token::FederationDomainScope(data) => {
+                write_array_len(&mut buf, 8)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                write_pfix(&mut buf, 6)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 data.assemble(&mut buf, &self.auth_map)?;
             }
@@ -251,7 +277,7 @@ pub(super) mod tests {
         let mut tmp_file = File::create(file_path).unwrap();
         write!(tmp_file, "BFTs1CIVIBLTP4GOrQ26VETrJ7Zwz1O4wbEcCQ966eM=").unwrap();
         let mut config = Config::new(PathBuf::new()).unwrap();
-        config.fernet_tokens.key_repository = keys_dir.into_path();
+        config.fernet_tokens.key_repository = keys_dir.keep();
         config.auth.methods = vec![
             "password".into(),
             "token".into(),
@@ -288,7 +314,7 @@ pub(super) mod tests {
 
     #[tokio::test]
     async fn test_unscoped_roundtrip() {
-        let token = Token::Unscoped(UnscopedToken {
+        let token = Token::Unscoped(UnscopedPayload {
             user_id: Uuid::new_v4().simple().to_string(),
             methods: vec!["password".into()],
             audit_ids: vec!["Zm9vCg".into()],
@@ -330,7 +356,7 @@ pub(super) mod tests {
 
     #[tokio::test]
     async fn test_domain_roundtrip() {
-        let token = Token::DomainScope(DomainScopeToken {
+        let token = Token::DomainScope(DomainScopePayload {
             user_id: Uuid::new_v4().simple().to_string(),
             methods: vec!["password".into()],
             domain_id: Uuid::new_v4().simple().to_string(),
@@ -374,13 +400,168 @@ pub(super) mod tests {
 
     #[tokio::test]
     async fn test_project_roundtrip() {
-        let token = Token::ProjectScope(ProjectScopeToken {
+        let token = Token::ProjectScope(ProjectScopePayload {
             user_id: Uuid::new_v4().simple().to_string(),
             methods: vec!["password".into()],
             project_id: Uuid::new_v4().simple().to_string(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
             ..Default::default()
+        });
+
+        let mut backend = FernetTokenProvider::default();
+        let config = crate::tests::token::setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        let encrypted = backend.encrypt(&token).unwrap();
+        let dec_token = backend.decrypt(&encrypted).unwrap();
+        assert_eq!(token, dec_token);
+    }
+
+    #[tokio::test]
+    async fn test_decrypt_federation_unscoped() {
+        let token = "gAAAAABoMdfwBgwjAfYCp3RisL_XKSdGKmBqg7ia8jkfsKIXnap_bQ5gUTZGwgEERlpFKzbwpkV-cpiFDuhe9RAnCtbQxEhP7Rg1vt1VLm8afGTulDaLclqot2NC-BONFO2k3V3KyIa-Xrq0mCEGOk-BhNZy2C6iwrWanPCjCuZrWCq4FBirtMs2vrnZPWG5FTGqqkvdQvGj";
+
+        let mut backend = FernetTokenProvider::default();
+        let config = setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        if let Token::FederationUnscoped(decrypted) = backend.decrypt(token).unwrap() {
+            assert_eq!(decrypted.user_id, "8980e124df5245509131bdc5c66c54cc");
+            assert_eq!(decrypted.methods, vec!["openid"]);
+            assert_eq!(
+                decrypted.expires_at.to_rfc3339(),
+                "2025-05-24T16:30:03+00:00"
+            );
+            assert_eq!(
+                decrypted.audit_ids,
+                vec!["3622030ded92477095dadcde340770e5"]
+            );
+            assert_eq!(decrypted.idp_id, "idp_id");
+            assert_eq!(decrypted.protocol_id, "oidc");
+            assert_eq!(decrypted.group_ids, vec!["g1", "g2"]);
+        } else {
+            panic!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_federation_unscoped_roundtrip() {
+        let token = Token::FederationUnscoped(FederationUnscopedPayload {
+            user_id: Uuid::new_v4().simple().to_string(),
+            methods: vec!["password".into()],
+            group_ids: vec!["g1".into()],
+            idp_id: "idp_id".into(),
+            protocol_id: "proto".into(),
+
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: Local::now().trunc_subsecs(0).into(),
+        });
+
+        let mut backend = FernetTokenProvider::default();
+        let config = crate::tests::token::setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        let encrypted = backend.encrypt(&token).unwrap();
+        let dec_token = backend.decrypt(&encrypted).unwrap();
+        assert_eq!(token, dec_token);
+    }
+
+    #[tokio::test]
+    async fn test_decrypt_federation_project_scope() {
+        let token = "gAAAAABoNdYE5zCP0qQtHqhdbZHQ7YdLvfDlUTpLou8FJFoMKsd4I9jyVyaWrluYXKXofnwzemA-wybhtbNruwqDYH-wmHdMlgYuZyy21o8ylphU5yd2b-5KvGpXo61fTVTzhdHFTzJKVit_7Lcwq0S45xQ9x14sVRd870NEwfmOvUVR5BGzmnpFLvWtkaPSpbxMAzfn_NSC";
+
+        let mut backend = FernetTokenProvider::default();
+        let config = setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        if let Token::FederationProjectScope(decrypted) = backend.decrypt(token).unwrap() {
+            assert_eq!(decrypted.user_id, "8980e124df5245509131bdc5c66c54cc");
+            assert_eq!(decrypted.methods, vec!["openid"]);
+            assert_eq!(
+                decrypted.expires_at.to_rfc3339(),
+                "2025-05-27T17:11:00+00:00",
+            );
+            assert_eq!(
+                decrypted.audit_ids,
+                vec!["dcbf4d403b7a45dca32d029d54c953d9"]
+            );
+            assert_eq!(decrypted.project_id, "pid");
+            assert_eq!(decrypted.idp_id, "idp_id");
+            assert_eq!(decrypted.protocol_id, "oidc");
+            assert_eq!(decrypted.group_ids, vec!["g1", "g2"]);
+        } else {
+            panic!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_federation_project_scope_roundtrip() {
+        let token = Token::FederationProjectScope(FederationProjectScopePayload {
+            user_id: Uuid::new_v4().simple().to_string(),
+            methods: vec!["password".into()],
+            project_id: "pid".into(),
+            group_ids: vec!["g1".into()],
+            idp_id: "idp_id".into(),
+            protocol_id: "proto".into(),
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: Local::now().trunc_subsecs(0).into(),
+        });
+
+        let mut backend = FernetTokenProvider::default();
+        let config = crate::tests::token::setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        let encrypted = backend.encrypt(&token).unwrap();
+        let dec_token = backend.decrypt(&encrypted).unwrap();
+        assert_eq!(token, dec_token);
+    }
+
+    #[tokio::test]
+    async fn test_decrypt_federation_domain_scope() {
+        let token = "gAAAAABoNddwFaB2Oq26-4f8nRK3Bph7-QsIh30Rbefbb78owJXaQcjNQm5Qq1gHouS6JSqgfpdna3ML1vdTVnVnFScX-T-CZ-CqtBPUuEBHFEzdNBDKQHloYajZ2sknwbe_uIs1SDS9tBFLvkVth1eVjDhdEawINHjUCFhNPObZKas5V0j7bsvChNeZBKsznruJwCtcrWr5";
+
+        let mut backend = FernetTokenProvider::default();
+        let config = setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        if let Token::FederationDomainScope(decrypted) = backend.decrypt(token).unwrap() {
+            assert_eq!(decrypted.user_id, "8980e124df5245509131bdc5c66c54cc");
+            assert_eq!(decrypted.methods, vec!["openid"]);
+            assert_eq!(
+                decrypted.expires_at.to_rfc3339(),
+                "2025-05-27T17:17:04+00:00",
+            );
+            assert_eq!(
+                decrypted.audit_ids,
+                vec!["ab892135f51240f5bae8ec7179873bf6"]
+            );
+            assert_eq!(decrypted.domain_id, "did");
+            assert_eq!(decrypted.idp_id, "idp_id");
+            assert_eq!(decrypted.protocol_id, "oidc");
+            assert_eq!(decrypted.group_ids, vec!["g1", "g2"]);
+        } else {
+            panic!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_federation_domain_scope_roundtrip() {
+        let token = Token::FederationDomainScope(FederationDomainScopePayload {
+            user_id: Uuid::new_v4().simple().to_string(),
+            methods: vec!["password".into()],
+            domain_id: "pid".into(),
+            group_ids: vec!["g1".into()],
+            idp_id: "idp_id".into(),
+            protocol_id: "proto".into(),
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: Local::now().trunc_subsecs(0).into(),
         });
 
         let mut backend = FernetTokenProvider::default();
@@ -422,7 +603,7 @@ pub(super) mod tests {
 
     #[tokio::test]
     async fn test_application_credential_roundtrip() {
-        let token = Token::ApplicationCredential(ApplicationCredentialToken {
+        let token = Token::ApplicationCredential(ApplicationCredentialPayload {
             user_id: Uuid::new_v4().simple().to_string(),
             methods: vec!["application_credential".into()],
             project_id: Uuid::new_v4().simple().to_string(),

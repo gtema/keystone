@@ -18,8 +18,6 @@ use rmp::{decode::read_pfix, encode::write_pfix};
 use std::collections::BTreeMap;
 use std::io::Write;
 
-use crate::assignment::types::Role;
-use crate::resource::types::Project;
 use crate::token::{
     error::TokenProviderError,
     fernet::{self, MsgPackToken},
@@ -27,24 +25,22 @@ use crate::token::{
     types::Token,
 };
 
+/// Federated unscoped token payload
 #[derive(Builder, Clone, Debug, Default, PartialEq)]
 #[builder(setter(strip_option, into))]
-pub struct ProjectScopePayload {
+pub struct FederationUnscopedPayload {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]
     pub methods: Vec<String>,
     #[builder(default, setter(name = _audit_ids))]
     pub audit_ids: Vec<String>,
     pub expires_at: DateTime<Utc>,
-    pub project_id: String,
-
-    #[builder(default)]
-    pub roles: Vec<Role>,
-    #[builder(default)]
-    pub project: Option<Project>,
+    pub idp_id: String,
+    pub protocol_id: String,
+    pub group_ids: Vec<String>,
 }
 
-impl ProjectScopePayloadBuilder {
+impl FederationUnscopedPayloadBuilder {
     pub fn methods<I, V>(&mut self, iter: I) -> &mut Self
     where
         I: Iterator<Item = V>,
@@ -68,14 +64,14 @@ impl ProjectScopePayloadBuilder {
     }
 }
 
-impl From<ProjectScopePayload> for Token {
-    fn from(value: ProjectScopePayload) -> Self {
-        Token::ProjectScope(value)
+impl From<FederationUnscopedPayload> for Token {
+    fn from(value: FederationUnscopedPayload) -> Self {
+        Token::FederationUnscoped(value)
     }
 }
 
-impl MsgPackToken for ProjectScopePayload {
-    type Token = ProjectScopePayload;
+impl MsgPackToken for FederationUnscopedPayload {
+    type Token = FederationUnscopedPayload;
 
     fn assemble<W: Write>(
         &self,
@@ -88,7 +84,9 @@ impl MsgPackToken for ProjectScopePayload {
             fernet::encode_auth_methods(self.methods.clone(), auth_map)? as u8,
         )
         .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
-        fernet_utils::write_uuid(wd, &self.project_id)?;
+        fernet_utils::write_list_of_uuids(wd, self.group_ids.iter())?;
+        fernet_utils::write_uuid(wd, &self.idp_id)?;
+        fernet_utils::write_uuid(wd, &self.protocol_id)?;
         fernet_utils::write_time(wd, self.expires_at)?;
         fernet_utils::write_audit_ids(wd, self.audit_ids.clone())?;
 
@@ -101,10 +99,13 @@ impl MsgPackToken for ProjectScopePayload {
     ) -> Result<Self::Token, TokenProviderError> {
         // Order of reading is important
         let user_id = fernet_utils::read_uuid(rd)?;
+        println!("u: {:?}", user_id);
         let methods: Vec<String> = fernet::decode_auth_methods(read_pfix(rd)?.into(), auth_map)?
             .into_iter()
             .collect();
-        let project_id = fernet_utils::read_uuid(rd)?;
+        let group_ids = fernet_utils::read_list_of_uuids(rd)?;
+        let idp_id = fernet_utils::read_uuid(rd)?;
+        let protocol_id = fernet_utils::read_uuid(rd)?;
         let expires_at = fernet_utils::read_time(rd)?;
         let audit_ids: Vec<String> = fernet_utils::read_audit_ids(rd)?.into_iter().collect();
         Ok(Self {
@@ -112,8 +113,9 @@ impl MsgPackToken for ProjectScopePayload {
             methods,
             expires_at,
             audit_ids,
-            project_id,
-            ..Default::default()
+            group_ids: group_ids.into_iter().collect(),
+            idp_id,
+            protocol_id,
         })
     }
 }
@@ -127,20 +129,21 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let token = ProjectScopePayload {
+        let token = FederationUnscopedPayload {
             user_id: Uuid::new_v4().simple().to_string(),
-            methods: vec!["password".into()],
-            project_id: Uuid::new_v4().simple().to_string(),
+            methods: vec!["oidc".into()],
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
-            ..Default::default()
+            group_ids: vec!["g1".into()],
+            idp_id: "idp_id".into(),
+            protocol_id: "proto".into(),
         };
-        let auth_map = BTreeMap::from([(1, "password".into())]);
+        let auth_map = BTreeMap::from([(1, "oidc".into())]);
         let mut buf = vec![];
         token.assemble(&mut buf, &auth_map).unwrap();
         let encoded_buf = buf.clone();
         let decoded =
-            ProjectScopePayload::disassemble(&mut encoded_buf.as_slice(), &auth_map).unwrap();
+            FederationUnscopedPayload::disassemble(&mut encoded_buf.as_slice(), &auth_map).unwrap();
         assert_eq!(token, decoded);
     }
 }

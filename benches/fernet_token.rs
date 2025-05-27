@@ -21,7 +21,7 @@ fn bench_decrypt_token(c: &mut Criterion) {
 
     let mut backend = FernetTokenProvider::default();
     let mut config = Config::new(PathBuf::new()).unwrap();
-    config.fernet_tokens.key_repository = tmp_dir.into_path();
+    config.fernet_tokens.key_repository = tmp_dir.keep();
     backend.set_config(config);
     backend.load_keys().unwrap();
 

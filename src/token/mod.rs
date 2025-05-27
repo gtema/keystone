@@ -21,6 +21,9 @@ use sea_orm::DatabaseConnection;
 pub mod application_credential;
 pub mod domain_scoped;
 pub mod error;
+pub mod federation_domain_scoped;
+pub mod federation_project_scoped;
+pub mod federation_unscoped;
 pub mod fernet;
 pub mod fernet_utils;
 pub mod project_scoped;
@@ -41,11 +44,11 @@ use crate::resource::{
 pub use error::TokenProviderError;
 use types::TokenBackend;
 
-pub use application_credential::ApplicationCredentialToken;
-pub use domain_scoped::{DomainScopeToken, DomainScopeTokenBuilder};
-pub use project_scoped::{ProjectScopeToken, ProjectScopeTokenBuilder};
+pub use application_credential::ApplicationCredentialPayload;
+pub use domain_scoped::{DomainScopePayload, DomainScopePayloadBuilder};
+pub use project_scoped::{ProjectScopePayload, ProjectScopePayloadBuilder};
 pub use types::Token;
-pub use unscoped::{UnscopedToken, UnscopedTokenBuilder};
+pub use unscoped::{UnscopedPayload, UnscopedPayloadBuilder};
 
 #[derive(Clone, Debug)]
 pub struct TokenProvider {
@@ -152,7 +155,7 @@ impl TokenApi for TokenProvider {
     {
         let token = if let Some(project) = project {
             Token::ProjectScope(
-                ProjectScopeTokenBuilder::default()
+                ProjectScopePayloadBuilder::default()
                     .user_id(user_id.as_ref())
                     .methods(methods.into_iter())
                     .audit_ids(audit_ids.into_iter())
@@ -170,7 +173,7 @@ impl TokenApi for TokenProvider {
             )
         } else if let Some(domain) = domain {
             Token::DomainScope(
-                DomainScopeTokenBuilder::default()
+                DomainScopePayloadBuilder::default()
                     .user_id(user_id.as_ref())
                     .methods(methods.into_iter())
                     .audit_ids(audit_ids.into_iter())
@@ -188,7 +191,7 @@ impl TokenApi for TokenProvider {
             )
         } else {
             Token::Unscoped(
-                UnscopedTokenBuilder::default()
+                UnscopedPayloadBuilder::default()
                     .user_id(user_id.as_ref())
                     .methods(methods.into_iter())
                     .audit_ids(audit_ids.into_iter())
@@ -419,7 +422,7 @@ mod tests {
 
     use crate::config::Config;
 
-    use crate::token::{DomainScopeToken, ProjectScopeToken, Token, UnscopedToken};
+    use crate::token::{DomainScopePayload, ProjectScopePayload, Token, UnscopedPayload};
 
     #[tokio::test]
     async fn test_populate_role_assignments() {
@@ -461,7 +464,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let mut ptoken = Token::ProjectScope(ProjectScopeToken {
+        let mut ptoken = Token::ProjectScope(ProjectScopePayload {
             user_id: "bar".into(),
             project_id: "project_id".into(),
             ..Default::default()
@@ -484,7 +487,7 @@ mod tests {
             panic!("Not project scope");
         }
 
-        let mut dtoken = Token::DomainScope(DomainScopeToken {
+        let mut dtoken = Token::DomainScope(DomainScopePayload {
             user_id: "bar".into(),
             domain_id: "domain_id".into(),
             ..Default::default()
@@ -507,7 +510,7 @@ mod tests {
             panic!("Not domain scope");
         }
 
-        let mut utoken = Token::Unscoped(UnscopedToken {
+        let mut utoken = Token::Unscoped(UnscopedPayload {
             user_id: "bar".into(),
             ..Default::default()
         });

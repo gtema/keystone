@@ -99,21 +99,21 @@ pub enum TokenProviderError {
     UnscopedBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::unscoped::UnscopedTokenBuilderError,
+        source: crate::token::unscoped::UnscopedPayloadBuilderError,
     },
 
     #[error(transparent)]
     ProjectScopeBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::project_scoped::ProjectScopeTokenBuilderError,
+        source: crate::token::project_scoped::ProjectScopePayloadBuilderError,
     },
 
     #[error(transparent)]
     DomainScopeBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::domain_scoped::DomainScopeTokenBuilderError,
+        source: crate::token::domain_scoped::DomainScopePayloadBuilderError,
     },
 
     #[error(transparent)]

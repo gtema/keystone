@@ -28,7 +28,7 @@ use crate::token::{
 };
 
 #[derive(Builder, Clone, Debug, Default, PartialEq)]
-pub struct ApplicationCredentialToken {
+pub struct ApplicationCredentialPayload {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]
     pub methods: Vec<String>,
@@ -44,7 +44,7 @@ pub struct ApplicationCredentialToken {
     pub project: Option<Project>,
 }
 
-impl ApplicationCredentialTokenBuilder {
+impl ApplicationCredentialPayloadBuilder {
     pub fn methods<I, V>(&mut self, iter: I) -> &mut Self
     where
         I: Iterator<Item = V>,
@@ -68,14 +68,14 @@ impl ApplicationCredentialTokenBuilder {
     }
 }
 
-impl From<ApplicationCredentialToken> for Token {
-    fn from(value: ApplicationCredentialToken) -> Self {
+impl From<ApplicationCredentialPayload> for Token {
+    fn from(value: ApplicationCredentialPayload) -> Self {
         Token::ApplicationCredential(value)
     }
 }
 
-impl MsgPackToken for ApplicationCredentialToken {
-    type Token = ApplicationCredentialToken;
+impl MsgPackToken for ApplicationCredentialPayload {
+    type Token = ApplicationCredentialPayload;
 
     fn assemble<W: Write>(
         &self,
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let token = ApplicationCredentialToken {
+        let token = ApplicationCredentialPayload {
             user_id: Uuid::new_v4().simple().to_string(),
             methods: vec!["password".into()],
             project_id: Uuid::new_v4().simple().to_string(),
@@ -145,7 +145,7 @@ mod tests {
         token.assemble(&mut buf, &auth_map).unwrap();
         let encoded_buf = buf.clone();
         let decoded =
-            ApplicationCredentialToken::disassemble(&mut encoded_buf.as_slice(), &auth_map)
+            ApplicationCredentialPayload::disassemble(&mut encoded_buf.as_slice(), &auth_map)
                 .unwrap();
         assert_eq!(token, decoded);
     }

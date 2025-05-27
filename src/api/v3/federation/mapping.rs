@@ -194,12 +194,12 @@ mod tests {
     };
     use crate::keystone::{Service, ServiceState};
     use crate::provider::Provider;
-    use crate::token::{MockTokenProvider, Token, UnscopedToken};
+    use crate::token::{MockTokenProvider, Token, UnscopedPayload};
 
     fn get_mocked_state(federation_mock: MockFederationProvider) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
         token_mock.expect_validate_token().returning(|_, _, _| {
-            Ok(Token::Unscoped(UnscopedToken {
+            Ok(Token::Unscoped(UnscopedPayload {
                 user_id: "bar".into(),
                 ..Default::default()
             }))
