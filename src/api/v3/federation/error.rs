@@ -69,6 +69,7 @@ pub enum OidcError {
     #[error(transparent)]
     MappedUserDataBuilder {
         #[from]
+        #[allow(private_interfaces)]
         source: MappedUserDataBuilderError,
     },
 }
