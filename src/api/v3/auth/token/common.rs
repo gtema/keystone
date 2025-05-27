@@ -86,6 +86,9 @@ impl Token {
             ProviderToken::ApplicationCredential(_token) => {
                 todo!();
             }
+            _ => {
+                todo!();
+            }
         }
         Ok(response.build().map_err(TokenError::from)?)
     }
@@ -168,6 +171,9 @@ impl Token {
             ProviderToken::ApplicationCredential(_token) => {
                 todo!();
             }
+            _ => {
+                todo!();
+            }
         }
         Ok(response.build().map_err(TokenError::from)?)
     }
@@ -194,7 +200,7 @@ mod tests {
         types::{Domain, Project},
     };
     use crate::token::{
-        DomainScopeToken, ProjectScopeToken, Token as ProviderToken, UnscopedToken,
+        DomainScopePayload, ProjectScopePayload, Token as ProviderToken, UnscopedPayload,
     };
 
     #[tokio::test]
@@ -238,7 +244,7 @@ mod tests {
 
         let api_token = Token::from_provider_token(
             &state,
-            &ProviderToken::Unscoped(UnscopedToken {
+            &ProviderToken::Unscoped(UnscopedPayload {
                 user_id: "bar".into(),
                 ..Default::default()
             }),
@@ -291,7 +297,7 @@ mod tests {
 
         let api_token = Token::from_provider_token(
             &state,
-            &ProviderToken::DomainScope(DomainScopeToken {
+            &ProviderToken::DomainScope(DomainScopePayload {
                 user_id: "bar".into(),
                 domain_id: "domain_id".into(),
                 ..Default::default()
@@ -372,7 +378,7 @@ mod tests {
 
         let api_token = Token::from_provider_token(
             &state,
-            &ProviderToken::ProjectScope(ProjectScopeToken {
+            &ProviderToken::ProjectScope(ProjectScopePayload {
                 user_id: "bar".into(),
                 project_id: "project_id".into(),
                 roles: vec![ProviderRole {

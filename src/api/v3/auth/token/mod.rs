@@ -304,7 +304,7 @@ mod tests {
             });
         let mut token_mock = MockTokenProvider::default();
         token_mock.expect_validate_token().returning(|_, _, _| {
-            Ok(Token::Unscoped(UnscopedToken {
+            Ok(Token::Unscoped(UnscopedPayload {
                 user_id: "bar".into(),
                 ..Default::default()
             }))
@@ -398,7 +398,7 @@ mod tests {
             .expect_validate_token()
             .withf(|token: &'_ str, _, _| token == "foo")
             .returning(|_, _, _| {
-                Ok(Token::Unscoped(UnscopedToken {
+                Ok(Token::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
                     ..Default::default()
                 }))
@@ -409,7 +409,7 @@ mod tests {
                 token == "bar" && *allow_expired == Some(true)
             })
             .returning(|_, _, _| {
-                Ok(Token::Unscoped(UnscopedToken {
+                Ok(Token::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
                     ..Default::default()
                 }))
@@ -467,7 +467,7 @@ mod tests {
             .expect_validate_token()
             .withf(|token: &'_ str, _, _| token == "foo")
             .returning(|_, _, _| {
-                Ok(Token::Unscoped(UnscopedToken {
+                Ok(Token::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
                     ..Default::default()
                 }))
@@ -582,7 +582,7 @@ mod tests {
             });
         let mut token_mock = MockTokenProvider::default();
         token_mock.expect_issue_token().returning(|_, _, _, _, _| {
-            Ok(Token::ProjectScope(ProjectScopeToken {
+            Ok(Token::ProjectScope(ProjectScopePayload {
                 user_id: "bar".into(),
                 methods: Vec::from(["password".to_string()]),
                 ..Default::default()

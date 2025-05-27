@@ -48,7 +48,7 @@ url = { version = "2.5", features = ["serde"] }
 utoipa = { version = "5.3", features = ["axum_extras", "chrono"] }
 utoipa-axum = { version = "0.2" }
 utoipa-swagger-ui = { version = "9.0", features = ["axum", "vendored"], default-features = false }
-uuid = { version = "1.16", features = ["v4"] }
+uuid = { version = "1.17", features = ["v4"] }
 webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
 
 [dev-dependencies]

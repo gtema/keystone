@@ -17,17 +17,23 @@ use dyn_clone::DynClone;
 
 use crate::config::Config;
 use crate::token::TokenProviderError;
-use crate::token::application_credential::ApplicationCredentialToken;
-use crate::token::domain_scoped::DomainScopeToken;
-use crate::token::project_scoped::ProjectScopeToken;
-use crate::token::unscoped::UnscopedToken;
+use crate::token::application_credential::ApplicationCredentialPayload;
+use crate::token::domain_scoped::DomainScopePayload;
+use crate::token::federation_domain_scoped::FederationDomainScopePayload;
+use crate::token::federation_project_scoped::FederationProjectScopePayload;
+use crate::token::federation_unscoped::FederationUnscopedPayload;
+use crate::token::project_scoped::ProjectScopePayload;
+use crate::token::unscoped::UnscopedPayload;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
-    Unscoped(UnscopedToken),
-    DomainScope(DomainScopeToken),
-    ProjectScope(ProjectScopeToken),
-    ApplicationCredential(ApplicationCredentialToken),
+    Unscoped(UnscopedPayload),
+    DomainScope(DomainScopePayload),
+    ProjectScope(ProjectScopePayload),
+    FederationUnscoped(FederationUnscopedPayload),
+    FederationProjectScope(FederationProjectScopePayload),
+    FederationDomainScope(FederationDomainScopePayload),
+    ApplicationCredential(ApplicationCredentialPayload),
 }
 
 impl Token {
@@ -36,6 +42,9 @@ impl Token {
             Token::Unscoped(x) => &x.user_id,
             Token::ProjectScope(x) => &x.user_id,
             Token::DomainScope(x) => &x.user_id,
+            Token::FederationUnscoped(x) => &x.user_id,
+            Token::FederationProjectScope(x) => &x.user_id,
+            Token::FederationDomainScope(x) => &x.user_id,
             Token::ApplicationCredential(x) => &x.user_id,
         }
     }
@@ -45,6 +54,9 @@ impl Token {
             Token::Unscoped(x) => &x.expires_at,
             Token::ProjectScope(x) => &x.expires_at,
             Token::DomainScope(x) => &x.expires_at,
+            Token::FederationUnscoped(x) => &x.expires_at,
+            Token::FederationProjectScope(x) => &x.expires_at,
+            Token::FederationDomainScope(x) => &x.expires_at,
             Token::ApplicationCredential(x) => &x.expires_at,
         }
     }
@@ -54,6 +66,9 @@ impl Token {
             Token::Unscoped(x) => &x.methods,
             Token::ProjectScope(x) => &x.methods,
             Token::DomainScope(x) => &x.methods,
+            Token::FederationUnscoped(x) => &x.methods,
+            Token::FederationProjectScope(x) => &x.methods,
+            Token::FederationDomainScope(x) => &x.methods,
             Token::ApplicationCredential(x) => &x.methods,
         }
     }
@@ -63,6 +78,9 @@ impl Token {
             Token::Unscoped(x) => &x.audit_ids,
             Token::ProjectScope(x) => &x.audit_ids,
             Token::DomainScope(x) => &x.audit_ids,
+            Token::FederationUnscoped(x) => &x.audit_ids,
+            Token::FederationProjectScope(x) => &x.audit_ids,
+            Token::FederationDomainScope(x) => &x.audit_ids,
             Token::ApplicationCredential(x) => &x.audit_ids,
         }
     }

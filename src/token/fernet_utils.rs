@@ -109,19 +109,28 @@ pub fn read_uuid(rd: &mut &[u8]) -> Result<String, TokenProviderError> {
                             .as_simple()
                             .to_string());
                     }
+                    println!("1");
                 }
                 Marker::False => {
                     // This is not uuid
-                    if let Marker::Bin8 = read_marker(rd).map_err(ValueReadError::from)? {
-                        return Ok(String::from_utf8_lossy(&read_bin_data(
-                            read_pfix(rd)?.into(),
-                            rd,
-                        )?)
-                        .to_string());
+                    match read_marker(rd).map_err(ValueReadError::from)? {
+                        Marker::Bin8 => {
+                            return Ok(String::from_utf8_lossy(&read_bin_data(
+                                read_pfix(rd)?.into(),
+                                rd,
+                            )?)
+                            .to_string());
+                        }
+                        Marker::FixStr(len) => {
+                            return Ok(read_str_data(len.into(), rd)?);
+                        }
+                        other => {
+                            return Err(TokenProviderError::InvalidTokenUuidMarker(other));
+                        }
                     }
                 }
-                _ => {
-                    return Err(TokenProviderError::InvalidTokenUuid);
+                other => {
+                    return Err(TokenProviderError::InvalidTokenUuidMarker(other));
                 }
             }
         }
@@ -132,6 +141,7 @@ pub fn read_uuid(rd: &mut &[u8]) -> Result<String, TokenProviderError> {
             return Err(TokenProviderError::InvalidTokenUuidMarker(other));
         }
     }
+    println!("here");
     Err(TokenProviderError::InvalidTokenUuid)
 }
 
@@ -208,6 +218,34 @@ pub fn write_audit_ids<W: RmpWrite, I: IntoIterator<Item = String>>(
     Ok(())
 }
 
+/// Decode array of strings ids from the payload
+pub fn read_list_of_uuids(
+    rd: &mut &[u8],
+) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
+    if let Marker::FixArray(len) = read_marker(rd).map_err(ValueReadError::from)? {
+        let mut result: Vec<String> = Vec::new();
+        for _ in 0..len {
+            result.push(read_uuid(rd)?);
+        }
+        return Ok(result.into_iter());
+    }
+    Err(TokenProviderError::InvalidToken)
+}
+
+/// Encode array of bytes into the payload
+pub fn write_list_of_uuids<W: RmpWrite, I: IntoIterator<Item = V>, V: AsRef<str>>(
+    wd: &mut W,
+    data: I,
+) -> Result<(), TokenProviderError> {
+    let vals = Vec::from_iter(data);
+    write_array_len(wd, vals.len() as u32)
+        .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+    for val in vals.iter() {
+        write_uuid(wd, val.as_ref())?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::FernetUtils;
@@ -232,7 +270,7 @@ mod tests {
         write!(tmp_file, "foo").unwrap();
 
         let utils = FernetUtils {
-            key_repository: tmp_dir.into_path(),
+            key_repository: tmp_dir.keep(),
             ..Default::default()
         };
         let keys: Vec<String> = utils.load_keys_async().await.unwrap().into_iter().collect();

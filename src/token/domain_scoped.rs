@@ -29,7 +29,7 @@ use crate::token::{
 
 #[derive(Builder, Clone, Debug, Default, PartialEq)]
 #[builder(setter(strip_option, into))]
-pub struct DomainScopeToken {
+pub struct DomainScopePayload {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]
     pub methods: Vec<String>,
@@ -44,7 +44,7 @@ pub struct DomainScopeToken {
     pub domain: Option<Domain>,
 }
 
-impl DomainScopeTokenBuilder {
+impl DomainScopePayloadBuilder {
     pub fn methods<I, V>(&mut self, iter: I) -> &mut Self
     where
         I: Iterator<Item = V>,
@@ -68,14 +68,14 @@ impl DomainScopeTokenBuilder {
     }
 }
 
-impl From<DomainScopeToken> for Token {
-    fn from(value: DomainScopeToken) -> Self {
+impl From<DomainScopePayload> for Token {
+    fn from(value: DomainScopePayload) -> Self {
         Token::DomainScope(value)
     }
 }
 
-impl MsgPackToken for DomainScopeToken {
-    type Token = DomainScopeToken;
+impl MsgPackToken for DomainScopePayload {
+    type Token = DomainScopePayload;
 
     fn assemble<W: Write>(
         &self,
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip() {
-        let token = DomainScopeToken {
+        let token = DomainScopePayload {
             user_id: Uuid::new_v4().simple().to_string(),
             methods: vec!["password".into()],
             domain_id: Uuid::new_v4().simple().to_string(),
@@ -140,7 +140,7 @@ mod tests {
         token.assemble(&mut buf, &auth_map).unwrap();
         let encoded_buf = buf.clone();
         let decoded =
-            DomainScopeToken::disassemble(&mut encoded_buf.as_slice(), &auth_map).unwrap();
+            DomainScopePayload::disassemble(&mut encoded_buf.as_slice(), &auth_map).unwrap();
         assert_eq!(token, decoded);
     }
 }
