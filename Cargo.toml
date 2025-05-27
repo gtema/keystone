@@ -52,7 +52,7 @@ uuid = { version = "1.17", features = ["v4"] }
 webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["async_tokio"] }
+criterion = { version = "0.6", features = ["async_tokio"] }
 http-body-util = "0.1"
 mockall = { version = "0.13" }
 sea-orm = { version = "1.1", features = ["mock"]}
