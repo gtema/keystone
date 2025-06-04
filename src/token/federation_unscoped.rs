@@ -18,6 +18,7 @@ use rmp::{decode::read_pfix, encode::write_pfix};
 use std::collections::BTreeMap;
 use std::io::Write;
 
+use crate::identity::types::UserResponse;
 use crate::token::{
     error::TokenProviderError,
     fernet::{self, MsgPackToken},
@@ -27,7 +28,7 @@ use crate::token::{
 
 /// Federated unscoped token payload
 #[derive(Builder, Clone, Debug, Default, PartialEq)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct FederationUnscopedPayload {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]
@@ -38,6 +39,9 @@ pub struct FederationUnscopedPayload {
     pub idp_id: String,
     pub protocol_id: String,
     pub group_ids: Vec<String>,
+
+    #[builder(default)]
+    pub user: Option<UserResponse>,
 }
 
 impl FederationUnscopedPayloadBuilder {
@@ -116,6 +120,7 @@ impl MsgPackToken for FederationUnscopedPayload {
             group_ids: group_ids.into_iter().collect(),
             idp_id,
             protocol_id,
+            ..Default::default()
         })
     }
 }
@@ -137,6 +142,7 @@ mod tests {
             group_ids: vec!["g1".into()],
             idp_id: "idp_id".into(),
             protocol_id: "proto".into(),
+            ..Default::default()
         };
         let auth_map = BTreeMap::from([(1, "oidc".into())]);
         let mut buf = vec![];

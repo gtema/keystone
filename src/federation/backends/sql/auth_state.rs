@@ -12,6 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use chrono::Utc;
 use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
@@ -52,7 +53,7 @@ pub async fn create(
         nonce: Set(rec.nonce.clone()),
         redirect_uri: Set(rec.redirect_uri.clone()),
         pkce_verifier: Set(rec.pkce_verifier.clone()),
-        started_at: Set(rec.started_at.naive_utc()),
+        expires_at: Set(rec.expires_at.naive_utc()),
         requested_scope: scope.map(Set).unwrap_or(NotSet).into(),
     };
 
@@ -78,6 +79,17 @@ pub async fn delete<S: AsRef<str>>(
     }
 }
 
+pub async fn delete_expired(
+    _conf: &Config,
+    db: &DatabaseConnection,
+) -> Result<(), FederationDatabaseError> {
+    DbFederatedAuthState::delete_many()
+        .filter(db_federated_auth_state::Column::ExpiresAt.lt(Utc::now()))
+        .exec(db)
+        .await?;
+    Ok(())
+}
+
 impl TryFrom<db_federated_auth_state::Model> for AuthState {
     type Error = FederationDatabaseError;
 
@@ -89,7 +101,7 @@ impl TryFrom<db_federated_auth_state::Model> for AuthState {
         builder.mapping_id(value.mapping_id.clone());
         builder.redirect_uri(value.redirect_uri.clone());
         builder.pkce_verifier(value.pkce_verifier.clone());
-        builder.started_at(value.started_at.and_utc());
+        builder.expires_at(value.expires_at.and_utc());
         if let Some(scope) = value.requested_scope {
             builder.scope(serde_json::from_value::<Scope>(scope)?);
         }

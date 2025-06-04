@@ -114,6 +114,9 @@ pub trait FederationApi: Send + Sync + Clone {
         db: &DatabaseConnection,
         id: &'a str,
     ) -> Result<(), FederationProviderError>;
+
+    /// Cleanup expired resources
+    async fn cleanup(&self, db: &DatabaseConnection) -> Result<(), FederationProviderError>;
 }
 
 #[cfg(test)]
@@ -207,6 +210,12 @@ mock! {
             db: &DatabaseConnection,
             id: &'a str,
         ) -> Result<(), FederationProviderError>;
+
+        async fn cleanup(
+            &self,
+            db: &DatabaseConnection,
+        ) -> Result<(), FederationProviderError>;
+
     }
 
     impl Clone for FederationProvider {
@@ -383,5 +392,11 @@ impl FederationApi for FederationProvider {
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
         self.backend_driver.delete_auth_state(db, id).await
+    }
+
+    /// Cleanup expired resources
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn cleanup(&self, db: &DatabaseConnection) -> Result<(), FederationProviderError> {
+        self.backend_driver.cleanup(db).await
     }
 }

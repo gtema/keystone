@@ -39,6 +39,18 @@ pub enum OidcError {
         source: openidconnect::ClaimsVerificationError,
     },
 
+    #[error(transparent)]
+    OpenIdConnectReqwest {
+        #[from]
+        source: openidconnect::reqwest::Error,
+    },
+
+    #[error(transparent)]
+    OpenIdConnectConfiguration {
+        #[from]
+        source: openidconnect::ConfigurationError,
+    },
+
     #[error("error parsing the url")]
     UrlParse {
         #[from]
@@ -48,10 +60,13 @@ pub enum OidcError {
     #[error("server did not returned an ID token")]
     NoToken,
 
+    #[error("Identity Provider client_id is missing")]
+    ClientIdRequired,
+
     #[error("ID token does not contain user id claim {0}")]
-    UserIdClaimMissing(String),
+    UserIdClaimRequired(String),
     #[error("ID token does not contain user id claim {0}")]
-    UserNameClaimMissing(String),
+    UserNameClaimRequired(String),
     #[error("can not identify resulting domain_id for the user")]
     UserDomainUnbound,
 
@@ -72,6 +87,14 @@ pub enum OidcError {
         #[allow(private_interfaces)]
         source: MappedUserDataBuilderError,
     },
+
+    #[error(transparent)]
+    AuthenticationInfo {
+        #[from]
+        source: crate::auth::AuthenticationError,
+    },
+    #[error("Authentication expired")]
+    AuthStateExpired,
 }
 
 impl OidcError {

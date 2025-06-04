@@ -32,6 +32,8 @@ pub struct Service {
     #[from_ref(skip)]
     pub db: DatabaseConnection,
     pub webauthn: Webauthn,
+
+    pub shutdown: bool,
 }
 
 pub type ServiceState = Arc<Service>;
@@ -62,6 +64,7 @@ impl Service {
             provider,
             db,
             webauthn,
+            shutdown: false,
         })
     }
 

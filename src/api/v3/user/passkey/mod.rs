@@ -18,7 +18,6 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use serde_json::Value;
 use tracing::debug;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -28,6 +27,7 @@ use crate::api::{
     error::{KeystoneApiError, WebauthnError},
     v3::auth::token::types::Token as ApiToken,
 };
+use crate::auth::{AuthenticatedInfo, AuthenticationError, AuthzInfo};
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
 use crate::token::TokenApi;
@@ -223,17 +223,17 @@ async fn login_finish(
             .delete_user_passkey_authentication_state(&state.db, &user_id)
             .await?;
     }
+    let authed_info = AuthenticatedInfo::builder()
+        .user_id(user_id.clone())
+        .methods(vec!["passkey".into()])
+        .build()
+        .map_err(AuthenticationError::from)?;
+    //.map_err(|e| OidcError::from(e))?;
 
-    let token = state.provider.get_token_provider().issue_token(
-        user_id,
-        vec!["passkey".into()],
-        Vec::<String>::from([URL_SAFE
-            .encode(Uuid::new_v4().as_bytes())
-            .trim_end_matches('=')
-            .to_string()]),
-        None,
-        None,
-    )?;
+    let token = state
+        .provider
+        .get_token_provider()
+        .issue_token(authed_info, AuthzInfo::Unscoped)?;
 
     let api_token = ApiToken::from_provider_token(&state, &token).await?;
     Ok((

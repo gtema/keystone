@@ -165,13 +165,14 @@ impl From<Vec<(Service, Vec<ProviderEndpoint>)>> for Catalog {
 /// order to uniquely identify the project by name. A domain scope may be specified by either the
 /// domain’s ID or name with equivalent results.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
 pub enum Scope {
     /// Project scope
-    #[serde(rename = "project")]
     Project(ProjectScope),
     /// Domain scope
-    #[serde(rename = "domain")]
     Domain(Domain),
+    /// System scope
+    System(System),
 }
 
 /// Project scope information
@@ -206,6 +207,15 @@ pub struct Project {
     pub name: String,
     /// project domain
     pub domain: Domain,
+}
+
+/// System scope
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(into))]
+pub struct System {
+    /// system scope
+    #[builder(default)]
+    pub all: Option<bool>,
 }
 
 impl From<resource_provider_types::Domain> for Domain {

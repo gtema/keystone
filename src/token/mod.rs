@@ -13,10 +13,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{Local, TimeDelta};
 #[cfg(test)]
 use mockall::mock;
 use sea_orm::DatabaseConnection;
+use uuid::Uuid;
 
 pub mod application_credential;
 pub mod domain_scoped;
@@ -35,6 +37,7 @@ use crate::assignment::{
     error::AssignmentProviderError,
     types::{Role, RoleAssignmentListParametersBuilder},
 };
+use crate::auth::{AuthenticatedInfo, AuthenticationError, AuthzInfo};
 use crate::config::{Config, TokenProvider as TokenProviderType};
 use crate::provider::Provider;
 use crate::resource::{
@@ -46,6 +49,13 @@ use types::TokenBackend;
 
 pub use application_credential::ApplicationCredentialPayload;
 pub use domain_scoped::{DomainScopePayload, DomainScopePayloadBuilder};
+pub use federation_domain_scoped::{
+    FederationDomainScopePayload, FederationDomainScopePayloadBuilder,
+};
+pub use federation_project_scoped::{
+    FederationProjectScopePayload, FederationProjectScopePayloadBuilder,
+};
+pub use federation_unscoped::{FederationUnscopedPayload, FederationUnscopedPayloadBuilder};
 pub use project_scoped::{ProjectScopePayload, ProjectScopePayloadBuilder};
 pub use types::Token;
 pub use unscoped::{UnscopedPayload, UnscopedPayloadBuilder};
@@ -67,10 +77,183 @@ impl TokenProvider {
             backend_driver: Box::new(backend_driver),
         })
     }
+
+    fn create_unscoped_token(
+        &self,
+        authentication_info: &AuthenticatedInfo,
+    ) -> Result<Token, TokenProviderError> {
+        Ok(Token::Unscoped(
+            UnscopedPayloadBuilder::default()
+                .user_id(authentication_info.user_id.clone())
+                .user(authentication_info.user.clone())
+                .methods(authentication_info.methods.clone().iter())
+                .audit_ids(authentication_info.audit_ids.clone().iter())
+                .expires_at(
+                    Local::now()
+                        .to_utc()
+                        .checked_add_signed(TimeDelta::seconds(self.config.token.expiration as i64))
+                        .ok_or(TokenProviderError::ExpiryCalculation)?,
+                )
+                .build()?,
+        ))
+    }
+
+    fn create_project_scope_token(
+        &self,
+        authentication_info: &AuthenticatedInfo,
+        project: &Project,
+    ) -> Result<Token, TokenProviderError> {
+        Ok(Token::ProjectScope(
+            ProjectScopePayloadBuilder::default()
+                .user_id(authentication_info.user_id.clone())
+                .user(authentication_info.user.clone())
+                .methods(authentication_info.methods.clone().iter())
+                .audit_ids(authentication_info.audit_ids.clone().iter())
+                .expires_at(
+                    Local::now()
+                        .to_utc()
+                        .checked_add_signed(TimeDelta::seconds(self.config.token.expiration as i64))
+                        .ok_or(TokenProviderError::ExpiryCalculation)?,
+                )
+                .project_id(project.id.clone())
+                .project(project.clone())
+                .build()?,
+        ))
+    }
+
+    fn create_domain_scope_token(
+        &self,
+        authentication_info: &AuthenticatedInfo,
+        domain: &Domain,
+    ) -> Result<Token, TokenProviderError> {
+        Ok(Token::DomainScope(
+            DomainScopePayloadBuilder::default()
+                .user_id(authentication_info.user_id.clone())
+                .user(authentication_info.user.clone())
+                .methods(authentication_info.methods.clone().iter())
+                .audit_ids(authentication_info.audit_ids.clone().iter())
+                .expires_at(
+                    Local::now()
+                        .to_utc()
+                        .checked_add_signed(TimeDelta::seconds(self.config.token.expiration as i64))
+                        .ok_or(TokenProviderError::ExpiryCalculation)?,
+                )
+                .domain_id(domain.id.clone())
+                .domain(domain.clone())
+                .build()?,
+        ))
+    }
+
+    fn create_federated_unscoped_token(
+        &self,
+        authentication_info: &AuthenticatedInfo,
+    ) -> Result<Token, TokenProviderError> {
+        if let (Some(idp_id), Some(protocol_id)) = (
+            authentication_info.idp_id.clone(),
+            authentication_info.protocol_id.clone(),
+        ) {
+            Ok(Token::FederationUnscoped(
+                FederationUnscopedPayloadBuilder::default()
+                    .user_id(authentication_info.user_id.clone())
+                    .user(authentication_info.user.clone())
+                    .methods(authentication_info.methods.clone().iter())
+                    .audit_ids(authentication_info.audit_ids.clone().iter())
+                    .expires_at(
+                        Local::now()
+                            .to_utc()
+                            .checked_add_signed(TimeDelta::seconds(
+                                self.config.token.expiration as i64,
+                            ))
+                            .ok_or(TokenProviderError::ExpiryCalculation)?,
+                    )
+                    .idp_id(idp_id)
+                    .protocol_id(protocol_id)
+                    .build()?,
+            ))
+        } else {
+            Err(TokenProviderError::FederatedPayloadMissingData)
+        }
+    }
+
+    fn create_federated_project_scope_token(
+        &self,
+        authentication_info: &AuthenticatedInfo,
+        project: &Project,
+    ) -> Result<Token, TokenProviderError> {
+        if let (Some(idp_id), Some(protocol_id)) = (
+            authentication_info.idp_id.clone(),
+            authentication_info.protocol_id.clone(),
+        ) {
+            Ok(Token::FederationProjectScope(
+                FederationProjectScopePayloadBuilder::default()
+                    .user_id(authentication_info.user_id.clone())
+                    .user(authentication_info.user.clone())
+                    .methods(authentication_info.methods.clone().iter())
+                    .audit_ids(authentication_info.audit_ids.clone().iter())
+                    .expires_at(
+                        Local::now()
+                            .to_utc()
+                            .checked_add_signed(TimeDelta::seconds(
+                                self.config.token.expiration as i64,
+                            ))
+                            .ok_or(TokenProviderError::ExpiryCalculation)?,
+                    )
+                    .idp_id(idp_id)
+                    .protocol_id(protocol_id)
+                    .group_ids(vec![])
+                    .project_id(project.id.clone())
+                    .project(project.clone())
+                    .build()?,
+            ))
+        } else {
+            Err(TokenProviderError::FederatedPayloadMissingData)
+        }
+    }
+
+    fn create_federated_domain_scope_token(
+        &self,
+        authentication_info: &AuthenticatedInfo,
+        domain: &Domain,
+    ) -> Result<Token, TokenProviderError> {
+        if let (Some(idp_id), Some(protocol_id)) = (
+            authentication_info.idp_id.clone(),
+            authentication_info.protocol_id.clone(),
+        ) {
+            Ok(Token::FederationDomainScope(
+                FederationDomainScopePayloadBuilder::default()
+                    .user_id(authentication_info.user_id.clone())
+                    .user(authentication_info.user.clone())
+                    .methods(authentication_info.methods.clone().iter())
+                    .audit_ids(authentication_info.audit_ids.clone().iter())
+                    .expires_at(
+                        Local::now()
+                            .to_utc()
+                            .checked_add_signed(TimeDelta::seconds(
+                                self.config.token.expiration as i64,
+                            ))
+                            .ok_or(TokenProviderError::ExpiryCalculation)?,
+                    )
+                    .idp_id(idp_id)
+                    .protocol_id(protocol_id)
+                    .domain_id(domain.id.clone())
+                    .domain(domain.clone())
+                    .build()?,
+            ))
+        } else {
+            Err(TokenProviderError::FederatedPayloadMissingData)
+        }
+    }
 }
 
 #[async_trait]
 pub trait TokenApi: Send + Sync + Clone {
+    async fn authenticate_by_token<'a>(
+        &self,
+        credential: &'a str,
+        allow_expired: Option<bool>,
+        window_seconds: Option<i64>,
+    ) -> Result<AuthenticatedInfo, TokenProviderError>;
+
     /// Validate the token
     async fn validate_token<'a>(
         &self,
@@ -80,16 +263,11 @@ pub trait TokenApi: Send + Sync + Clone {
     ) -> Result<Token, TokenProviderError>;
 
     /// Issue a token for given parameters
-    fn issue_token<U>(
+    fn issue_token(
         &self,
-        user_id: U,
-        methods: Vec<String>,
-        audit_ids: Vec<String>,
-        project: Option<&Project>,
-        domain: Option<&Domain>,
-    ) -> Result<Token, TokenProviderError>
-    where
-        U: AsRef<str>;
+        authentication_info: AuthenticatedInfo,
+        authz_info: AuthzInfo,
+    ) -> Result<Token, TokenProviderError>;
 
     /// Encode the token into the X-SubjectToken String
     fn encode_token(&self, token: &Token) -> Result<String, TokenProviderError>;
@@ -102,25 +280,37 @@ pub trait TokenApi: Send + Sync + Clone {
         provider: &Provider,
     ) -> Result<(), TokenProviderError>;
 
-    /// Populate Project information in the token that support that information
-    async fn expand_project_information(
+    /// Populate additional information (project, domain, roles, etc) in the token that support
+    /// that information
+    async fn expand_token_information(
         &self,
-        token: &mut Token,
+        token: &Token,
         db: &DatabaseConnection,
         provider: &Provider,
-    ) -> Result<(), TokenProviderError>;
-
-    /// Populate Domain information in the token that support that information
-    async fn expand_domain_information(
-        &self,
-        token: &mut Token,
-        db: &DatabaseConnection,
-        provider: &Provider,
-    ) -> Result<(), TokenProviderError>;
+    ) -> Result<Token, TokenProviderError>;
 }
 
 #[async_trait]
 impl TokenApi for TokenProvider {
+    /// Authenticate by token
+    #[tracing::instrument(level = "info", skip(self, credential))]
+    async fn authenticate_by_token<'a>(
+        &self,
+        credential: &'a str,
+        allow_expired: Option<bool>,
+        window_seconds: Option<i64>,
+    ) -> Result<AuthenticatedInfo, TokenProviderError> {
+        let token = self
+            .validate_token(credential, allow_expired, window_seconds)
+            .await?;
+        Ok(AuthenticatedInfo::builder()
+            .user_id(token.user_id())
+            .methods(token.methods().clone())
+            .audit_ids(token.audit_ids().clone())
+            .build()
+            .map_err(AuthenticationError::from)?)
+    }
+
     /// Validate token
     #[tracing::instrument(level = "info", skip(self, credential))]
     async fn validate_token<'a>(
@@ -142,71 +332,41 @@ impl TokenApi for TokenProvider {
         Ok(token)
     }
 
-    fn issue_token<U>(
+    fn issue_token(
         &self,
-        user_id: U,
-        methods: Vec<String>,
-        audit_ids: Vec<String>,
-        project: Option<&Project>,
-        domain: Option<&Domain>,
-    ) -> Result<Token, TokenProviderError>
-    where
-        U: AsRef<str>,
-    {
-        let token = if let Some(project) = project {
-            Token::ProjectScope(
-                ProjectScopePayloadBuilder::default()
-                    .user_id(user_id.as_ref())
-                    .methods(methods.into_iter())
-                    .audit_ids(audit_ids.into_iter())
-                    .expires_at(
-                        Local::now()
-                            .to_utc()
-                            .checked_add_signed(TimeDelta::seconds(
-                                self.config.token.expiration as i64,
-                            ))
-                            .ok_or(TokenProviderError::ExpiryCalculation)?,
-                    )
-                    .project_id(project.id.clone())
-                    .project(project.clone())
-                    .build()?,
-            )
-        } else if let Some(domain) = domain {
-            Token::DomainScope(
-                DomainScopePayloadBuilder::default()
-                    .user_id(user_id.as_ref())
-                    .methods(methods.into_iter())
-                    .audit_ids(audit_ids.into_iter())
-                    .expires_at(
-                        Local::now()
-                            .to_utc()
-                            .checked_add_signed(TimeDelta::seconds(
-                                self.config.token.expiration as i64,
-                            ))
-                            .ok_or(TokenProviderError::ExpiryCalculation)?,
-                    )
-                    .domain_id(domain.id.clone())
-                    .domain(domain.clone())
-                    .build()?,
-            )
+        authentication_info: AuthenticatedInfo,
+        authz_info: AuthzInfo,
+    ) -> Result<Token, TokenProviderError> {
+        // TODO: Check whether it is allowed to change the scope of the token if AuthenticatedInfo
+        // already contains scope it was issued for.
+        let mut authentication_info = authentication_info;
+        authentication_info.audit_ids.push(
+            URL_SAFE
+                .encode(Uuid::new_v4().as_bytes())
+                .trim_end_matches('=')
+                .to_string(),
+        );
+        if authentication_info.idp_id.is_some() && authentication_info.protocol_id.is_some() {
+            match &authz_info {
+                AuthzInfo::Project(project) => {
+                    self.create_federated_project_scope_token(&authentication_info, project)
+                }
+                AuthzInfo::Domain(domain) => {
+                    self.create_federated_domain_scope_token(&authentication_info, domain)
+                }
+                AuthzInfo::Unscoped => self.create_federated_unscoped_token(&authentication_info),
+            }
         } else {
-            Token::Unscoped(
-                UnscopedPayloadBuilder::default()
-                    .user_id(user_id.as_ref())
-                    .methods(methods.into_iter())
-                    .audit_ids(audit_ids.into_iter())
-                    .expires_at(
-                        Local::now()
-                            .to_utc()
-                            .checked_add_signed(TimeDelta::seconds(
-                                self.config.token.expiration as i64,
-                            ))
-                            .ok_or(TokenProviderError::ExpiryCalculation)?,
-                    )
-                    .build()?,
-            )
-        };
-        Ok(token)
+            match &authz_info {
+                AuthzInfo::Project(project) => {
+                    self.create_project_scope_token(&authentication_info, project)
+                }
+                AuthzInfo::Domain(domain) => {
+                    self.create_domain_scope_token(&authentication_info, domain)
+                }
+                AuthzInfo::Unscoped => self.create_unscoped_token(&authentication_info),
+            }
+        }
     }
 
     /// Validate token
@@ -223,50 +383,58 @@ impl TokenApi for TokenProvider {
     ) -> Result<(), TokenProviderError> {
         match token {
             Token::ProjectScope(data) => {
-                data.roles = provider
-                    .get_assignment_provider()
-                    .list_role_assignments(
-                        db,
-                        provider,
-                        &RoleAssignmentListParametersBuilder::default()
-                            .user_id(&data.user_id)
-                            .project_id(&data.project_id)
-                            .build()
-                            .map_err(AssignmentProviderError::from)?,
-                    )
-                    .await?
-                    .into_iter()
-                    .map(|x| Role {
-                        id: x.role_id.clone(),
-                        name: x.role_name.clone().unwrap_or_default(),
-                        ..Default::default()
-                    })
-                    .collect();
-                if data.roles.is_empty() {
+                data.roles = Some(
+                    provider
+                        .get_assignment_provider()
+                        .list_role_assignments(
+                            db,
+                            provider,
+                            &RoleAssignmentListParametersBuilder::default()
+                                .user_id(&data.user_id)
+                                .project_id(&data.project_id)
+                                .include_names(true)
+                                .effective(true)
+                                .build()
+                                .map_err(AssignmentProviderError::from)?,
+                        )
+                        .await?
+                        .into_iter()
+                        .map(|x| Role {
+                            id: x.role_id.clone(),
+                            name: x.role_name.clone().unwrap_or_default(),
+                            ..Default::default()
+                        })
+                        .collect(),
+                );
+                if data.roles.as_ref().is_none_or(|roles| roles.is_empty()) {
                     return Err(TokenProviderError::ActorHasNoRolesOnTarget);
                 }
             }
             Token::DomainScope(data) => {
-                data.roles = provider
-                    .get_assignment_provider()
-                    .list_role_assignments(
-                        db,
-                        provider,
-                        &RoleAssignmentListParametersBuilder::default()
-                            .user_id(&data.user_id)
-                            .domain_id(&data.domain_id)
-                            .build()
-                            .map_err(AssignmentProviderError::from)?,
-                    )
-                    .await?
-                    .into_iter()
-                    .map(|x| Role {
-                        id: x.role_id.clone(),
-                        name: x.role_name.clone().unwrap_or_default(),
-                        ..Default::default()
-                    })
-                    .collect();
-                if data.roles.is_empty() {
+                data.roles = Some(
+                    provider
+                        .get_assignment_provider()
+                        .list_role_assignments(
+                            db,
+                            provider,
+                            &RoleAssignmentListParametersBuilder::default()
+                                .user_id(&data.user_id)
+                                .domain_id(&data.domain_id)
+                                .include_names(true)
+                                .effective(true)
+                                .build()
+                                .map_err(AssignmentProviderError::from)?,
+                        )
+                        .await?
+                        .into_iter()
+                        .map(|x| Role {
+                            id: x.role_id.clone(),
+                            name: x.role_name.clone().unwrap_or_default(),
+                            ..Default::default()
+                        })
+                        .collect(),
+                );
+                if data.roles.as_ref().is_none_or(|roles| roles.is_empty()) {
                     return Err(TokenProviderError::ActorHasNoRolesOnTarget);
                 }
             }
@@ -279,6 +447,8 @@ impl TokenApi for TokenProvider {
                         &RoleAssignmentListParametersBuilder::default()
                             .user_id(&data.user_id)
                             .project_id(&data.project_id)
+                            .include_names(true)
+                            .effective(true)
                             .build()
                             .map_err(AssignmentProviderError::from)?,
                     )
@@ -300,14 +470,15 @@ impl TokenApi for TokenProvider {
         Ok(())
     }
 
-    async fn expand_project_information(
+    async fn expand_token_information(
         &self,
-        token: &mut Token,
+        token: &Token,
         db: &DatabaseConnection,
         provider: &Provider,
-    ) -> Result<(), TokenProviderError> {
-        match token {
-            Token::ProjectScope(data) => {
+    ) -> Result<Token, TokenProviderError> {
+        let mut new_token = token.clone();
+        match new_token {
+            Token::ProjectScope(ref mut data) => {
                 if data.project.is_none() {
                     let project = provider
                         .get_resource_provider()
@@ -317,7 +488,7 @@ impl TokenApi for TokenProvider {
                     data.project = project;
                 }
             }
-            Token::ApplicationCredential(data) => {
+            Token::ApplicationCredential(ref mut data) => {
                 if data.project.is_none() {
                     let project = provider
                         .get_resource_provider()
@@ -327,28 +498,42 @@ impl TokenApi for TokenProvider {
                     data.project = project;
                 }
             }
+            Token::FederationProjectScope(ref mut data) => {
+                if data.project.is_none() {
+                    let project = provider
+                        .get_resource_provider()
+                        .get_project(db, &data.project_id)
+                        .await?;
+
+                    data.project = project;
+                }
+            }
+            Token::DomainScope(ref mut data) => {
+                if data.domain.is_none() {
+                    let domain = provider
+                        .get_resource_provider()
+                        .get_domain(db, &data.domain_id)
+                        .await?;
+
+                    data.domain = domain;
+                }
+            }
+            Token::FederationDomainScope(ref mut data) => {
+                if data.domain.is_none() {
+                    let domain = provider
+                        .get_resource_provider()
+                        .get_domain(db, &data.domain_id)
+                        .await?;
+
+                    data.domain = domain;
+                }
+            }
+
             _ => {}
         };
-        Ok(())
-    }
-
-    async fn expand_domain_information(
-        &self,
-        token: &mut Token,
-        db: &DatabaseConnection,
-        provider: &Provider,
-    ) -> Result<(), TokenProviderError> {
-        if let Token::DomainScope(data) = token {
-            if data.domain.is_none() {
-                let domain = provider
-                    .get_resource_provider()
-                    .get_domain(db, &data.domain_id)
-                    .await?;
-
-                data.domain = domain;
-            }
-        };
-        Ok(())
+        self.populate_role_assignments(&mut new_token, db, provider)
+            .await?;
+        Ok(new_token)
     }
 }
 
@@ -360,6 +545,13 @@ mock! {
 
     #[async_trait]
     impl TokenApi for TokenProvider {
+        async fn authenticate_by_token<'a>(
+            &self,
+            credential: &'a str,
+            allow_expired: Option<bool>,
+            window_seconds: Option<i64>,
+        ) -> Result<AuthenticatedInfo, TokenProviderError>;
+
         async fn validate_token<'a>(
             &self,
             credential: &'a str,
@@ -368,16 +560,11 @@ mock! {
         ) -> Result<Token, TokenProviderError>;
 
         #[mockall::concretize]
-        fn issue_token<U>(
+        fn issue_token(
             &self,
-            user_id: U,
-            methods: Vec<String>,
-            audit_ids: Vec<String>,
-            project: Option<&Project>,
-            domain: Option<&Domain>,
-        ) -> Result<Token, TokenProviderError>
-        where
-            U: AsRef<str>;
+            authentication_info: AuthenticatedInfo,
+            authz_info: AuthzInfo,
+        ) -> Result<Token, TokenProviderError>;
 
         fn encode_token(&self, token: &Token) -> Result<String, TokenProviderError>;
 
@@ -388,19 +575,12 @@ mock! {
             provider: &Provider,
         ) -> Result<(), TokenProviderError>;
 
-        async fn expand_project_information(
+        async fn expand_token_information(
             &self,
-            token: &mut Token,
+            token: &Token,
             db: &DatabaseConnection,
             provider: &Provider,
-        ) -> Result<(), TokenProviderError>;
-
-        async fn expand_domain_information(
-            &self,
-            token: &mut Token,
-            db: &DatabaseConnection,
-            provider: &Provider,
-        ) -> Result<(), TokenProviderError>;
+        ) -> Result<Token, TokenProviderError>;
 
     }
 
@@ -476,7 +656,7 @@ mod tests {
 
         if let Token::ProjectScope(data) = ptoken {
             assert_eq!(
-                data.roles,
+                data.roles.unwrap(),
                 vec![Role {
                     id: "rid".into(),
                     name: "role_name".into(),
@@ -499,7 +679,7 @@ mod tests {
 
         if let Token::DomainScope(data) = dtoken {
             assert_eq!(
-                data.roles,
+                data.roles.unwrap(),
                 vec![Role {
                     id: "rid".into(),
                     name: "role_name".into(),

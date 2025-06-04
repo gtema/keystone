@@ -23,6 +23,7 @@ use webauthn_rs::prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration};
 use crate::config::Config;
 use crate::identity::IdentityProviderError;
 
+use crate::auth::AuthenticatedInfo;
 pub use crate::identity::types::group::{Group, GroupCreate, GroupListParameters};
 pub use crate::identity::types::user::*;
 //pub use crate::identity::types::user::{
@@ -41,7 +42,7 @@ pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
         &self,
         db: &DatabaseConnection,
         auth: UserPasswordAuthRequest,
-    ) -> Result<UserResponse, IdentityProviderError>;
+    ) -> Result<AuthenticatedInfo, IdentityProviderError>;
 
     /// List Users
     async fn list_users(

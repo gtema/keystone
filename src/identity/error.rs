@@ -38,6 +38,9 @@ pub enum IdentityProviderError {
     #[error("group {0} not found")]
     GroupNotFound(String),
 
+    #[error("The account is disabled for user: {0}")]
+    UserDisabled(String),
+
     /// Identity provider error
     #[error(transparent)]
     IdentityDatabase {
@@ -76,6 +79,12 @@ pub enum IdentityProviderError {
     PasswordHash {
         #[from]
         source: IdentityProviderPasswordHashError,
+    },
+
+    #[error(transparent)]
+    AuthenticationInfo {
+        #[from]
+        source: crate::auth::AuthenticationError,
     },
 
     #[error(transparent)]

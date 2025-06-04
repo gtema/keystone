@@ -319,6 +319,7 @@ pub(super) mod tests {
             methods: vec!["password".into()],
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         });
 
         let mut backend = FernetTokenProvider::default();
@@ -458,6 +459,7 @@ pub(super) mod tests {
 
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         });
 
         let mut backend = FernetTokenProvider::default();
@@ -510,6 +512,7 @@ pub(super) mod tests {
             protocol_id: "proto".into(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         });
 
         let mut backend = FernetTokenProvider::default();
@@ -562,6 +565,7 @@ pub(super) mod tests {
             protocol_id: "proto".into(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         });
 
         let mut backend = FernetTokenProvider::default();

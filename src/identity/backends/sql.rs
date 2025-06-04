@@ -29,6 +29,7 @@ mod user;
 mod user_option;
 
 use super::super::types::*;
+use crate::auth::{AuthenticatedInfo, AuthenticationError};
 use crate::config::Config;
 use crate::db::entity::{
     federated_user as db_federated_user, local_user as db_local_user,
@@ -59,7 +60,7 @@ impl IdentityBackend for SqlBackend {
         &self,
         db: &DatabaseConnection,
         auth: UserPasswordAuthRequest,
-    ) -> Result<UserResponse, IdentityProviderError> {
+    ) -> Result<AuthenticatedInfo, IdentityProviderError> {
         let user_with_passwords = local_user::load_local_user_with_passwords(
             db,
             auth.id,
@@ -79,6 +80,14 @@ impl IdentityBackend for SqlBackend {
                         expected_hash,
                     )? {
                         if let Some(user) = user::get(db, &local_user.user_id).await? {
+                            // TODO: Check user is locked
+                            // TODO: Check password is expired
+                            // TODO: reset failed login attempt
+                            if !user.enabled.is_some_and(|val| val) {
+                                return Err(IdentityProviderError::UserDisabled(
+                                    local_user.user_id,
+                                ));
+                            }
                             let user_builder = common::get_local_user_builder(
                                 &self.config,
                                 &user,
@@ -86,7 +95,13 @@ impl IdentityBackend for SqlBackend {
                                 Some(passwords),
                                 user_opts,
                             );
-                            return Ok(user_builder.build()?);
+                            let user = user_builder.build()?;
+                            return Ok(AuthenticatedInfo::builder()
+                                .user_id(user.id.clone())
+                                .user(user)
+                                .methods(vec!["password".into()])
+                                .build()
+                                .map_err(AuthenticationError::from)?);
                         }
                     } else {
                         return Err(IdentityProviderError::WrongUsernamePassword);

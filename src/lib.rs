@@ -14,6 +14,7 @@
 
 pub mod api;
 pub mod assignment;
+pub mod auth;
 pub mod catalog;
 pub mod config;
 pub mod db;
