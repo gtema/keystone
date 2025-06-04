@@ -18,6 +18,7 @@ use rmp::{decode::read_pfix, encode::write_pfix};
 use std::collections::BTreeMap;
 use std::io::Write;
 
+use crate::identity::types::UserResponse;
 use crate::token::{
     error::TokenProviderError,
     fernet::{self, MsgPackToken},
@@ -26,7 +27,7 @@ use crate::token::{
 };
 
 #[derive(Builder, Clone, Debug, Default, PartialEq)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct UnscopedPayload {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]
@@ -34,6 +35,9 @@ pub struct UnscopedPayload {
     #[builder(default, setter(name = _audit_ids))]
     pub audit_ids: Vec<String>,
     pub expires_at: DateTime<Utc>,
+
+    #[builder(default)]
+    pub user: Option<UserResponse>,
 }
 
 impl UnscopedPayloadBuilder {
@@ -102,6 +106,7 @@ impl MsgPackToken for UnscopedPayload {
             methods,
             expires_at,
             audit_ids,
+            ..Default::default()
         })
     }
 }
@@ -120,6 +125,7 @@ mod tests {
             methods: vec!["password".into()],
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
         };
         let auth_map = BTreeMap::from([(1, "password".into())]);
         let mut buf = vec![];

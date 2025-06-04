@@ -12,7 +12,7 @@ pub struct Model {
     pub nonce: String,
     pub redirect_uri: String,
     pub pkce_verifier: String,
-    pub started_at: DateTime,
+    pub expires_at: DateTime,
     pub requested_scope: Option<Json>,
 }
 

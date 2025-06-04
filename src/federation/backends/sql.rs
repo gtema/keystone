@@ -172,6 +172,14 @@ impl FederationBackend for SqlBackend {
             .await
             .map_err(FederationProviderError::database)
     }
+
+    /// Cleanup expired resources
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn cleanup(&self, db: &DatabaseConnection) -> Result<(), FederationProviderError> {
+        auth_state::delete_expired(&self.config, db)
+            .await
+            .map_err(FederationProviderError::database)
+    }
 }
 
 #[cfg(test)]

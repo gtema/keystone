@@ -20,14 +20,16 @@ use sea_orm::Database;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
-use tokio::{net::TcpListener, signal};
+use std::time::Duration;
+use tokio::{net::TcpListener, signal, spawn, time};
+use tokio_util::sync::CancellationToken;
 use tower::ServiceBuilder;
 use tower_http::{
     LatencyUnit, ServiceBuilderExt,
     request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
-use tracing::{Level, info_span};
+use tracing::{Level, error, info, info_span, trace};
 use tracing_subscriber::{filter::LevelFilter, prelude::*};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
@@ -36,6 +38,7 @@ use uuid::Uuid;
 
 use openstack_keystone::api;
 use openstack_keystone::config::Config;
+use openstack_keystone::federation::FederationApi;
 use openstack_keystone::keystone::{Service, ServiceState};
 use openstack_keystone::plugin_manager::PluginManager;
 use openstack_keystone::provider::Provider;
@@ -83,6 +86,9 @@ async fn main() -> Result<(), Report> {
     // build the tracing registry
     tracing_subscriber::registry().with(log_layer).init();
 
+    let token = CancellationToken::new();
+    let cloned_token = token.clone();
+
     let cfg = Config::new(args.config.into())?;
     let db_url = cfg.database.get_connection();
     let mut opt = ConnectOptions::new(db_url.to_owned());
@@ -99,6 +105,8 @@ async fn main() -> Result<(), Report> {
     let provider = Provider::new(cfg.clone(), plugin_manager)?;
 
     let shared_state = Arc::new(Service::new(cfg, conn, provider).unwrap());
+
+    spawn(cleanup(cloned_token, shared_state.clone()));
 
     let (router, api) = OpenApiRouter::with_openapi(api::ApiDoc::openapi())
         .merge(api::openapi_router())
@@ -154,9 +162,33 @@ async fn main() -> Result<(), Report> {
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, 8080));
     let listener = TcpListener::bind(&address).await?;
-    Ok(axum::serve(listener, app.into_make_service())
+    axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(shutdown_signal(shared_state))
-        .await?)
+        .await?;
+
+    token.cancel();
+    Ok(())
+}
+
+/// Priodic cleanup job
+async fn cleanup(cancel: CancellationToken, state: ServiceState) {
+    let mut interval = time::interval(Duration::from_secs(60));
+    interval.tick().await;
+    info!("Start the periodic cleanup thread");
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                trace!("cleanup job tick");
+                if let Err(e) = state.provider.get_federation_provider().cleanup(&state.db).await {
+                    error!("Error during cleanup job: {}", e);
+                }
+            },
+            _ = cancel.cancelled() => {
+                info!("Cancellation requested. Stopping cleanup task.");
+                break; // Exit the loop
+            }
+        }
+    }
 }
 
 async fn shutdown_signal(state: ServiceState) {

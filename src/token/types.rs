@@ -15,7 +15,10 @@
 use chrono::{DateTime, Utc};
 use dyn_clone::DynClone;
 
+use crate::assignment::types::Role;
 use crate::config::Config;
+use crate::identity::types::UserResponse;
+use crate::resource::types::{Domain, Project};
 use crate::token::TokenProviderError;
 use crate::token::application_credential::ApplicationCredentialPayload;
 use crate::token::domain_scoped::DomainScopePayload;
@@ -46,6 +49,18 @@ impl Token {
             Token::FederationProjectScope(x) => &x.user_id,
             Token::FederationDomainScope(x) => &x.user_id,
             Token::ApplicationCredential(x) => &x.user_id,
+        }
+    }
+
+    pub fn user(&self) -> &Option<UserResponse> {
+        match self {
+            Token::Unscoped(x) => &x.user,
+            Token::ProjectScope(x) => &x.user,
+            Token::DomainScope(x) => &x.user,
+            Token::FederationUnscoped(x) => &x.user,
+            Token::FederationProjectScope(x) => &x.user,
+            Token::FederationDomainScope(x) => &x.user,
+            Token::ApplicationCredential(x) => &x.user,
         }
     }
 
@@ -82,6 +97,32 @@ impl Token {
             Token::FederationProjectScope(x) => &x.audit_ids,
             Token::FederationDomainScope(x) => &x.audit_ids,
             Token::ApplicationCredential(x) => &x.audit_ids,
+        }
+    }
+
+    pub fn project(&self) -> Option<&Project> {
+        match self {
+            Token::ProjectScope(x) => x.project.as_ref(),
+            Token::FederationProjectScope(x) => x.project.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub fn domain(&self) -> Option<&Domain> {
+        match self {
+            Token::DomainScope(x) => x.domain.as_ref(),
+            Token::FederationDomainScope(x) => x.domain.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub fn roles(&self) -> Option<&Vec<Role>> {
+        match self {
+            Token::DomainScope(x) => x.roles.as_ref(),
+            Token::ProjectScope(x) => x.roles.as_ref(),
+            Token::FederationProjectScope(x) => x.roles.as_ref(),
+            Token::FederationDomainScope(x) => x.roles.as_ref(),
+            _ => None,
         }
     }
 }

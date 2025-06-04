@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 use std::io::Write;
 
 use crate::assignment::types::Role;
+use crate::identity::types::UserResponse;
 use crate::resource::types::Project;
 use crate::token::{
     error::TokenProviderError,
@@ -28,7 +29,7 @@ use crate::token::{
 };
 
 #[derive(Builder, Clone, Debug, Default, PartialEq)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct ProjectScopePayload {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]
@@ -39,7 +40,9 @@ pub struct ProjectScopePayload {
     pub project_id: String,
 
     #[builder(default)]
-    pub roles: Vec<Role>,
+    pub user: Option<UserResponse>,
+    #[builder(default)]
+    pub roles: Option<Vec<Role>>,
     #[builder(default)]
     pub project: Option<Project>,
 }

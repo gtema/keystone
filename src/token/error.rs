@@ -117,10 +117,37 @@ pub enum TokenProviderError {
     },
 
     #[error(transparent)]
+    FederationUnscopedBuilder {
+        /// The source of the error.
+        #[from]
+        source: crate::token::federation_unscoped::FederationUnscopedPayloadBuilderError,
+    },
+
+    #[error(transparent)]
+    FederationProjectScopeBuilder {
+        /// The source of the error.
+        #[from]
+        source: crate::token::federation_project_scoped::FederationProjectScopePayloadBuilderError,
+    },
+
+    #[error(transparent)]
+    FederationDomainScopeBuilder {
+        /// The source of the error.
+        #[from]
+        source: crate::token::federation_domain_scoped::FederationDomainScopePayloadBuilderError,
+    },
+
+    #[error(transparent)]
     AssignmentProvider {
         /// The source of the error.
         #[from]
         source: crate::assignment::error::AssignmentProviderError,
+    },
+
+    #[error(transparent)]
+    AuthenticationInfo {
+        #[from]
+        source: crate::auth::AuthenticationError,
     },
 
     #[error(transparent)]
@@ -132,4 +159,7 @@ pub enum TokenProviderError {
 
     #[error("actor has no roles on scope")]
     ActorHasNoRolesOnTarget,
+
+    #[error("federated payload must contain idp_id and protocol_id")]
+    FederatedPayloadMissingData,
 }

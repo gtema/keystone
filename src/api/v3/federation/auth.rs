@@ -15,10 +15,9 @@
 use axum::{
     Json, debug_handler,
     extract::{Path, State},
-    http::{StatusCode, header::LOCATION},
     response::IntoResponse,
 };
-use chrono::Local;
+use chrono::{Local, TimeDelta};
 use std::collections::HashSet;
 use tracing::debug;
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -29,120 +28,121 @@ use openidconnect::{
     ClientId, ClientSecret, CsrfToken, IssuerUrl, Nonce, PkceCodeChallenge, RedirectUrl, Scope,
 };
 
-use crate::api::types::Scope as ApiScope;
+use crate::api::error::KeystoneApiError;
 use crate::api::v3::federation::error::OidcError;
 use crate::api::v3::federation::types::*;
-use crate::api::{
-    common::{find_project_from_scope, get_domain},
-    error::KeystoneApiError,
-};
 use crate::federation::FederationApi;
-use crate::federation::types::{
-    AuthState, MappingListParameters as ProviderMappingListParameters, Scope as ProviderScope,
-};
+use crate::federation::types::{AuthState, MappingListParameters as ProviderMappingListParameters};
 use crate::keystone::ServiceState;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
-    OpenApiRouter::new().routes(routes!(post, get))
+    OpenApiRouter::new().routes(routes!(post))
 }
 
-/// Authenticate using identity provider
-#[utoipa::path(
-    get,
-    path = "/identity_providers/{idp_id}/auth",
-    description = "Authenticate using identity provider",
-    responses(
-        (status = CREATED, description = "identity provider object", body = IdentityProviderAuthResponse),
-    ),
-    tag="identity_providers"
-)]
-#[tracing::instrument(name = "api::identity_provider_auth", level = "debug", skip(state))]
-#[debug_handler]
-pub async fn get(
-    State(state): State<ServiceState>,
-    Path(idp_id): Path<String>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    let idp = state
-        .provider
-        .get_federation_provider()
-        .get_identity_provider(&state.db, &idp_id)
-        .await
-        .map(|x| {
-            x.ok_or_else(|| KeystoneApiError::NotFound {
-                resource: "identity provider".into(),
-                identifier: idp_id,
-            })
-        })??;
-
-    if let Some(discovery_url) = &idp.oidc_discovery_url {
-        let http_client = reqwest::ClientBuilder::new()
-            // Following redirects opens the client up to SSRF vulnerabilities.
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .expect("Client should build");
-
-        let provider_metadata = CoreProviderMetadata::discover_async(
-            IssuerUrl::new(discovery_url.to_string()).map_err(OidcError::from)?,
-            &http_client,
-        )
-        .await
-        .map_err(|err| OidcError::discovery(&err))?;
-        let client = CoreClient::from_provider_metadata(
-            provider_metadata,
-            ClientId::new(idp.oidc_client_id.expect("client_id is mandatory")),
-            idp.oidc_client_secret.map(ClientSecret::new),
-        )
-        // Set the URL the user will be redirected to after the authorization process.
-        .set_redirect_uri(
-            RedirectUrl::new("http://localhost:8080/v3/federation/auth/callback".to_string())
-                .map_err(OidcError::from)?,
-        );
-
-        let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
-
-        // Generate the full authorization URL.
-        let (auth_url, csrf_token, nonce) = client
-            .authorize_url(
-                CoreAuthenticationFlow::AuthorizationCode,
-                CsrfToken::new_random,
-                Nonce::new_random,
-            )
-            // Set the desired scopes.
-            .add_scope(Scope::new("openid".to_string()))
-            // Set the PKCE code challenge.
-            .set_pkce_challenge(pkce_challenge)
-            .url();
-
-        state
-            .provider
-            .get_federation_provider()
-            .create_auth_state(
-                &state.db,
-                AuthState {
-                    state: csrf_token.secret().clone(),
-                    nonce: nonce.secret().clone(),
-                    idp_id: idp.id.clone(),
-                    mapping_id: String::from("kc"),
-                    redirect_uri: String::new(),
-                    pkce_verifier: pkce_verifier.into_secret(),
-                    started_at: Local::now().into(),
-                    scope: None,
-                },
-            )
-            .await?;
-
-        debug!(
-            "url: {:?}, csrf: {:?}, nonce: {:?}",
-            auth_url,
-            csrf_token.secret(),
-            nonce.secret()
-        );
-        return Ok((StatusCode::FOUND, [(LOCATION, &auth_url.to_string())]).into_response());
-        //return Ok(Redirect::with_status_code(StatusCode::FOUND, &auth_url.to_string()).into_response());
-    }
-
-    Ok((StatusCode::CREATED).into_response())
-}
+// /// Authenticate using identity provider
+// #[utoipa::path(
+//     get,
+//     path = "/identity_providers/{idp_id}/auth",
+//     description = "Authenticate using identity provider",
+//     responses(
+//         (status = CREATED, description = "identity provider object", body = IdentityProviderAuthResponse),
+//     ),
+//     tag="identity_providers"
+// )]
+// #[tracing::instrument(name = "api::identity_provider_auth", level = "debug", skip(state))]
+// #[debug_handler]
+// pub async fn get(
+//     State(state): State<ServiceState>,
+//     Path(idp_id): Path<String>,
+// ) -> Result<impl IntoResponse, KeystoneApiError> {
+//     state
+//         .config
+//         .auth
+//         .methods
+//         .iter()
+//         .find(|m| *m == "openid")
+//         .ok_or(KeystoneApiError::AuthMethodNotSupported)?;
+//
+//     let idp = state
+//         .provider
+//         .get_federation_provider()
+//         .get_identity_provider(&state.db, &idp_id)
+//         .await
+//         .map(|x| {
+//             x.ok_or_else(|| KeystoneApiError::NotFound {
+//                 resource: "identity provider".into(),
+//                 identifier: idp_id,
+//             })
+//         })??;
+//
+//     if let Some(discovery_url) = &idp.oidc_discovery_url {
+//         let http_client = reqwest::ClientBuilder::new()
+//             // Following redirects opens the client up to SSRF vulnerabilities.
+//             .redirect(reqwest::redirect::Policy::none())
+//             .build()
+//             .map_err(OidcError::from)?;
+//
+//         let provider_metadata = CoreProviderMetadata::discover_async(
+//             IssuerUrl::new(discovery_url.to_string()).map_err(OidcError::from)?,
+//             &http_client,
+//         )
+//         .await
+//         .map_err(|err| OidcError::discovery(&err))?;
+//         let client = CoreClient::from_provider_metadata(
+//             provider_metadata,
+//             ClientId::new(idp.oidc_client_id.ok_or(OidcError::ClientIdRequired)?),
+//             idp.oidc_client_secret.map(ClientSecret::new),
+//         )
+//         // Set the URL the user will be redirected to after the authorization process.
+//         .set_redirect_uri(
+//             RedirectUrl::new("http://localhost:8080/v3/federation/auth/callback".to_string())
+//                 .map_err(OidcError::from)?,
+//         );
+//
+//         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
+//
+//         // Generate the full authorization URL.
+//         let (auth_url, csrf_token, nonce) = client
+//             .authorize_url(
+//                 CoreAuthenticationFlow::AuthorizationCode,
+//                 CsrfToken::new_random,
+//                 Nonce::new_random,
+//             )
+//             // Set the desired scopes.
+//             .add_scope(Scope::new("openid".to_string()))
+//             // Set the PKCE code challenge.
+//             .set_pkce_challenge(pkce_challenge)
+//             .url();
+//
+//         state
+//             .provider
+//             .get_federation_provider()
+//             .create_auth_state(
+//                 &state.db,
+//                 AuthState {
+//                     state: csrf_token.secret().clone(),
+//                     nonce: nonce.secret().clone(),
+//                     idp_id: idp.id.clone(),
+//                     mapping_id: String::from("kc"),
+//                     redirect_uri: String::new(),
+//                     pkce_verifier: pkce_verifier.into_secret(),
+//                     expires_at: Local::now().into(),
+//                     scope: None,
+//                 },
+//             )
+//             .await?;
+//
+//         debug!(
+//             "url: {:?}, csrf: {:?}, nonce: {:?}",
+//             auth_url,
+//             csrf_token.secret(),
+//             nonce.secret()
+//         );
+//         return Ok((StatusCode::FOUND, [(LOCATION, &auth_url.to_string())]).into_response());
+//     }
+//
+//     Ok((StatusCode::CREATED).into_response())
+// }
 
 /// Authenticate using identity provider
 #[utoipa::path(
@@ -161,6 +161,14 @@ pub async fn post(
     Path(idp_id): Path<String>,
     Json(req): Json<IdentityProviderAuthRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    state
+        .config
+        .auth
+        .methods
+        .iter()
+        .find(|m| *m == "openid")
+        .ok_or(KeystoneApiError::AuthMethodNotSupported)?;
+
     let idp = state
         .provider
         .get_federation_provider()
@@ -213,7 +221,7 @@ pub async fn post(
             // Following redirects opens the client up to SSRF vulnerabilities.
             .redirect(reqwest::redirect::Policy::none())
             .build()
-            .expect("Client should build");
+            .map_err(OidcError::from)?;
 
         let provider_metadata = CoreProviderMetadata::discover_async(
             IssuerUrl::new(discovery_url.to_string()).map_err(OidcError::from)?,
@@ -223,7 +231,7 @@ pub async fn post(
         .map_err(|err| OidcError::discovery(&err))?;
         CoreClient::from_provider_metadata(
             provider_metadata,
-            ClientId::new(idp.oidc_client_id.expect("client_id is mandatory")),
+            ClientId::new(idp.oidc_client_id.ok_or(OidcError::ClientIdRequired)?),
             idp.oidc_client_secret.map(ClientSecret::new),
         )
         // Set the URL the user will be redirected to after the authorization process.
@@ -254,17 +262,6 @@ pub async fn post(
         .set_pkce_challenge(pkce_challenge)
         .url();
 
-    let scope: Option<ProviderScope> = match req.scope {
-        Some(ApiScope::Project(scope)) => find_project_from_scope(&state, &scope)
-            .await?
-            .map(|x| ProviderScope::Project(x.id.clone())),
-        Some(ApiScope::Domain(scope)) => get_domain(&state, scope.id.as_ref(), scope.name.as_ref())
-            .await
-            .map(|x| ProviderScope::Domain(x.id.clone()))
-            .ok(),
-        _ => None,
-    };
-
     state
         .provider
         .get_federation_provider()
@@ -277,8 +274,9 @@ pub async fn post(
                 mapping_id: mapping.id.clone(),
                 redirect_uri: req.redirect_uri.clone(),
                 pkce_verifier: pkce_verifier.into_secret(),
-                started_at: Local::now().into(),
-                scope,
+                expires_at: (Local::now() + TimeDelta::seconds(180)).into(),
+                // TODO: Make this configurable
+                scope: req.scope.map(Into::into),
             },
         )
         .await?;

@@ -19,6 +19,7 @@ use std::collections::BTreeMap;
 use std::io::Write;
 
 use crate::assignment::types::Role;
+use crate::identity::types::UserResponse;
 use crate::resource::types::Project;
 use crate::token::{
     error::TokenProviderError,
@@ -28,6 +29,7 @@ use crate::token::{
 };
 
 #[derive(Builder, Clone, Debug, Default, PartialEq)]
+#[builder(setter(into))]
 pub struct ApplicationCredentialPayload {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]
@@ -38,6 +40,8 @@ pub struct ApplicationCredentialPayload {
     pub project_id: String,
     pub application_credential_id: String,
 
+    #[builder(default)]
+    pub user: Option<UserResponse>,
     #[builder(default)]
     pub roles: Vec<Role>,
     #[builder(default)]

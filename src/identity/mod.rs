@@ -24,6 +24,7 @@ pub mod error;
 pub mod password_hashing;
 pub(crate) mod types;
 
+use crate::auth::AuthenticatedInfo;
 use crate::config::Config;
 use crate::identity::backends::sql::SqlBackend;
 use crate::identity::error::IdentityProviderError;
@@ -47,7 +48,7 @@ pub trait IdentityApi: Send + Sync + Clone {
         db: &DatabaseConnection,
         provider: &Provider,
         auth: UserPasswordAuthRequest,
-    ) -> Result<UserResponse, IdentityProviderError>;
+    ) -> Result<AuthenticatedInfo, IdentityProviderError>;
 
     async fn list_users(
         &self,
@@ -178,7 +179,7 @@ mock! {
             db: &DatabaseConnection,
             provider: &Provider,
             auth: UserPasswordAuthRequest,
-        ) -> Result<UserResponse, IdentityProviderError>;
+        ) -> Result<AuthenticatedInfo, IdentityProviderError>;
 
         async fn list_users(
             &self,
@@ -332,7 +333,7 @@ impl IdentityApi for IdentityProvider {
         db: &DatabaseConnection,
         provider: &Provider,
         auth: UserPasswordAuthRequest,
-    ) -> Result<UserResponse, IdentityProviderError> {
+    ) -> Result<AuthenticatedInfo, IdentityProviderError> {
         let mut auth = auth;
         if auth.id.is_none() {
             if auth.name.is_none() {

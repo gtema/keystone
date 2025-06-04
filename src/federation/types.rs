@@ -124,6 +124,9 @@ pub trait FederationBackend: DynClone + Send + Sync + std::fmt::Debug {
         db: &DatabaseConnection,
         id: &'a str,
     ) -> Result<(), FederationProviderError>;
+
+    /// Cleanup expired resources
+    async fn cleanup(&self, db: &DatabaseConnection) -> Result<(), FederationProviderError>;
 }
 
 dyn_clone::clone_trait_object!(FederationBackend);

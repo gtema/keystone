@@ -23,8 +23,8 @@ use thiserror::Error;
 use tracing::error;
 
 use crate::api::v3::federation::error::OidcError;
-
 use crate::assignment::error::AssignmentProviderError;
+use crate::auth::AuthenticationError;
 use crate::catalog::error::CatalogProviderError;
 use crate::federation::error::FederationProviderError;
 use crate::identity::error::IdentityProviderError;
@@ -42,6 +42,9 @@ pub enum KeystoneApiError {
         resource: String,
         identifier: String,
     },
+
+    #[error("Attempted to authenticate with an unsupported method.")]
+    AuthMethodNotSupported,
 
     #[error("The request you have made requires authentication.")]
     Unauthorized,
@@ -71,6 +74,12 @@ pub enum KeystoneApiError {
     AssignmentError {
         #[from]
         source: AssignmentProviderError,
+    },
+
+    #[error(transparent)]
+    AuthenticationInfo {
+        //#[from]
+        source: crate::auth::AuthenticationError,
     },
 
     #[error(transparent)]
@@ -163,10 +172,36 @@ impl IntoResponse for KeystoneApiError {
                 Json(json!({"error": {"code": StatusCode::UNAUTHORIZED.as_u16(), "message": self.to_string()}})),
                 ).into_response()
             }
-            KeystoneApiError::InternalError(_) | KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..} | KeystoneApiError::Federation {..} | KeystoneApiError::Oidc{..} | KeystoneApiError::Other(..) => {
+            KeystoneApiError::AuthenticationInfo{ .. } => {
+                (StatusCode::UNAUTHORIZED,
+                Json(json!({"error": {"code": StatusCode::UNAUTHORIZED.as_u16(), "message": self.to_string()}})),
+                ).into_response()
+            }
+            KeystoneApiError::Forbidden => {
+                (StatusCode::FORBIDDEN,
+                Json(json!({"error": {"code": StatusCode::FORBIDDEN.as_u16(), "message": self.to_string()}})),
+                ).into_response()
+            }
+            KeystoneApiError::InternalError(_) | KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..}  | KeystoneApiError::Federation{..} | KeystoneApiError::Other(..) => {
                 (StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
               ).into_response()
+            }
+            KeystoneApiError::Oidc{ source: ref err } => {
+                match err {
+                    OidcError::OpenIdConnectReqwest{..} | OidcError::OpenIdConnectConfiguration{..} => {
+(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
+        ).into_response()
+                    }
+                    _ => {
+(
+                StatusCode::BAD_REQUEST,
+                Json(json!({"error": {"code": StatusCode::BAD_REQUEST.as_u16(), "message": self.to_string()}})),
+        ).into_response()
+                    }
+                }
             }
             _ =>  {
             // KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} | KeystoneApiError::WebAuthN{..} | KeystoneApiError::Uuid {..} | KeystoneApiError::Serde {..} | KeystoneApiError::DomainIdOrName | KeystoneApiError::ProjectIdOrName | KeystoneApiError::ProjectDomain =>
@@ -279,5 +314,16 @@ impl IntoResponse for WebauthnError {
 
         // its often easiest to implement `IntoResponse` by calling other implementations
         (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+    }
+}
+
+impl From<AuthenticationError> for KeystoneApiError {
+    fn from(value: AuthenticationError) -> Self {
+        match value {
+            AuthenticationError::AuthenticatedInfoBuilder { source } => {
+                KeystoneApiError::InternalError(source.to_string())
+            }
+            other => KeystoneApiError::AuthenticationInfo { source: other },
+        }
     }
 }

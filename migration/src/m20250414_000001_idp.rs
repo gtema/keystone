@@ -130,7 +130,7 @@ impl MigrationTrait for Migration {
                     .col(string_len(FederatedAuthState::Nonce, 64))
                     .col(string_len(FederatedAuthState::RedirectUri, 256))
                     .col(string_len(FederatedAuthState::PkceVerifier, 64))
-                    .col(date_time(FederatedAuthState::StartedAt))
+                    .col(date_time(FederatedAuthState::ExpiresAt))
                     .col(json_null(FederatedAuthState::RequestedScope))
                     .foreign_key(
                         ForeignKey::create()
@@ -234,7 +234,7 @@ enum FederatedAuthState {
     Nonce,
     RedirectUri,
     PkceVerifier,
-    StartedAt,
+    ExpiresAt,
     RequestedScope,
 }
 

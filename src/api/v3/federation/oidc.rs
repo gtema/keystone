@@ -13,13 +13,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{Json, debug_handler, extract::State, http::StatusCode, response::IntoResponse};
-use base64::{Engine as _, engine::general_purpose::URL_SAFE};
+use chrono::Utc;
 use eyre::WrapErr;
 use serde_json::Value;
 use tracing::debug;
 use url::Url;
 use utoipa_axum::{router::OpenApiRouter, routes};
-use uuid::Uuid;
 
 use openidconnect::core::{CoreGenderClaim, CoreProviderMetadata};
 use openidconnect::reqwest;
@@ -28,28 +27,54 @@ use openidconnect::{
     RedirectUrl, TokenResponse,
 };
 
+use crate::api::common::{find_project_from_scope, get_domain};
 use crate::api::v3::auth::token::types::{
     Token as ApiResponseToken, TokenResponse as KeystoneTokenResponse,
 };
 use crate::api::v3::federation::error::OidcError;
 use crate::api::v3::federation::types::*;
 use crate::api::{Catalog, error::KeystoneApiError};
+use crate::auth::{AuthenticatedInfo, AuthenticationError, AuthzInfo};
 use crate::catalog::CatalogApi;
 use crate::federation::FederationApi;
-use crate::federation::types::Scope as ProviderScope;
 use crate::federation::types::{
-    identity_provider::IdentityProvider as ProviderIdentityProvider,
+    Scope as ProviderScope, identity_provider::IdentityProvider as ProviderIdentityProvider,
     mapping::Mapping as ProviderMapping,
 };
 use crate::identity::IdentityApi;
 use crate::identity::error::IdentityProviderError;
 use crate::identity::types::{FederationBuilder, FederationProtocol, UserCreateBuilder};
 use crate::keystone::ServiceState;
-use crate::resource::ResourceApi;
 use crate::token::TokenApi;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new().routes(routes!(callback))
+}
+
+async fn get_authz_info(
+    state: &ServiceState,
+    scope: Option<&ProviderScope>,
+) -> Result<AuthzInfo, KeystoneApiError> {
+    let authz_info = match scope {
+        Some(ProviderScope::Project(scope)) => {
+            if let Some(project) = find_project_from_scope(state, &scope.into()).await? {
+                AuthzInfo::Project(project)
+            } else {
+                return Err(KeystoneApiError::Unauthorized);
+            }
+        }
+        Some(ProviderScope::Domain(scope)) => {
+            if let Ok(domain) = get_domain(state, scope.id.as_ref(), scope.name.as_ref()).await {
+                AuthzInfo::Domain(domain)
+            } else {
+                return Err(KeystoneApiError::Unauthorized);
+            }
+        }
+        Some(ProviderScope::System(_scope)) => todo!(),
+        None => AuthzInfo::Unscoped,
+    };
+    authz_info.validate()?;
+    Ok(authz_info)
 }
 
 /// Authenticate callback
@@ -86,6 +111,10 @@ pub async fn callback(
             identifier: query.state.clone(),
         })?;
 
+    if auth_state.expires_at < Utc::now() {
+        return Err(OidcError::AuthStateExpired)?;
+    }
+
     let idp = state
         .provider
         .get_federation_provider()
@@ -110,12 +139,11 @@ pub async fn callback(
             })
         })??;
 
-    debug!("Got code {:?}, state: {:?}", query.code, auth_state);
     let http_client = reqwest::ClientBuilder::new()
         // Following redirects opens the client up to SSRF vulnerabilities.
         .redirect(reqwest::redirect::Policy::none())
         .build()
-        .expect("Client should build");
+        .map_err(OidcError::from)?;
 
     let client = if let Some(discovery_url) = &idp.oidc_discovery_url {
         let provider_metadata = CoreProviderMetadata::discover_async(
@@ -126,7 +154,11 @@ pub async fn callback(
         .map_err(|err| OidcError::discovery(&err))?;
         OidcClient::from_provider_metadata(
             provider_metadata,
-            ClientId::new(idp.oidc_client_id.clone().expect("client_id is mandatory")),
+            ClientId::new(
+                idp.oidc_client_id
+                    .clone()
+                    .ok_or(OidcError::ClientIdRequired)?,
+            ),
             idp.oidc_client_secret.clone().map(ClientSecret::new),
         )
         .set_redirect_uri(RedirectUrl::new(auth_state.redirect_uri).map_err(OidcError::from)?)
@@ -138,7 +170,7 @@ pub async fn callback(
 
     let token_response = client
         .exchange_code(AuthorizationCode::new(query.code))
-        .expect("valid code")
+        .map_err(OidcError::from)?
         // Set the PKCE code verifier.
         .set_pkce_verifier(PkceCodeVerifier::new(auth_state.pkce_verifier))
         .request_async(&http_client)
@@ -185,7 +217,7 @@ pub async fn callback(
     } else {
         // New user
         let mut federated_user: FederationBuilder = FederationBuilder::default();
-        federated_user.idp_id(idp.id);
+        federated_user.idp_id(idp.id.clone());
         federated_user.unique_id(mapped_user_data.unique_id.clone());
         federated_user.protocols(vec![FederationProtocol {
             protocol_id: "oidc".into(),
@@ -209,78 +241,33 @@ pub async fn callback(
             )
             .await?
     };
+    let authed_info = AuthenticatedInfo::builder()
+        .user_id(user.id.clone())
+        .user(user.clone())
+        .methods(vec!["oidc".into()])
+        .idp_id(idp.id.clone())
+        .protocol_id("oidc".to_string())
+        .build()
+        .map_err(AuthenticationError::from)?;
+
     // TODO: Persist group memberships
 
-    let (project, domain) = match &auth_state.scope {
-        Some(ProviderScope::Project(pid)) => (
-            Some(
-                state
-                    .provider
-                    .get_resource_provider()
-                    .get_project(&state.db, pid.as_ref())
-                    .await?
-                    .ok_or_else(|| KeystoneApiError::NotFound {
-                        resource: "project".into(),
-                        identifier: pid.clone(),
-                    })?,
-            ),
-            None,
-        ),
-        Some(ProviderScope::Domain(did)) => (
-            None,
-            Some(
-                state
-                    .provider
-                    .get_resource_provider()
-                    .get_domain(&state.db, did.as_ref())
-                    .await?
-                    .ok_or_else(|| KeystoneApiError::NotFound {
-                        resource: "domain".into(),
-                        identifier: did.clone(),
-                    })?,
-            ),
-        ),
-        _ => (None, None),
-    };
-    let mut token = state.provider.get_token_provider().issue_token(
-        user.id.clone(),
-        Vec::from(["oidc".into()]),
-        Vec::<String>::from([URL_SAFE
-            .encode(Uuid::new_v4().as_bytes())
-            .trim_end_matches('=')
-            .to_string()]),
-        project.as_ref(),
-        domain.as_ref(),
-    )?;
+    let authz_info = get_authz_info(&state, auth_state.scope.as_ref()).await?;
 
-    state
+    let mut token = state
         .provider
         .get_token_provider()
-        .populate_role_assignments(&mut token, &state.db, &state.provider)
+        .issue_token(authed_info, authz_info)?;
+
+    token = state
+        .provider
+        .get_token_provider()
+        .expand_token_information(&token, &state.db, &state.provider)
         .await
         .map_err(|_| KeystoneApiError::Forbidden)?;
 
-    state
-        .provider
-        .get_token_provider()
-        .expand_project_information(&mut token, &state.db, &state.provider)
-        .await?;
-
-    state
-        .provider
-        .get_token_provider()
-        .expand_domain_information(&mut token, &state.db, &state.provider)
-        .await?;
-
     let mut api_token = KeystoneTokenResponse {
-        token: ApiResponseToken::from_user_auth(
-            &state,
-            &token,
-            &user,
-            project.as_ref(),
-            domain.as_ref(),
-        )
-        .await?,
+        token: ApiResponseToken::from_provider_token(&state, &token).await?,
     };
     let catalog: Catalog = state
         .provider
@@ -357,6 +344,7 @@ fn validate_bound_claims(
     Ok(())
 }
 
+/// Map the user data using the referred mapping
 fn map_user_data(
     idp: &ProviderIdentityProvider,
     mapping: &ProviderMapping,
@@ -367,14 +355,14 @@ fn map_user_data(
         claims_as_json
             .get(&mapping.user_id_claim)
             .and_then(|x| x.as_str())
-            .ok_or_else(|| OidcError::UserIdClaimMissing(mapping.user_id_claim.clone()))?,
+            .ok_or_else(|| OidcError::UserIdClaimRequired(mapping.user_id_claim.clone()))?,
     );
 
     builder.user_name(
         claims_as_json
             .get(&mapping.user_name_claim)
             .and_then(|x| x.as_str())
-            .ok_or_else(|| OidcError::UserNameClaimMissing(mapping.user_name_claim.clone()))?,
+            .ok_or_else(|| OidcError::UserNameClaimRequired(mapping.user_name_claim.clone()))?,
     );
 
     builder.domain_id(
