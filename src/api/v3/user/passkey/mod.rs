@@ -225,10 +225,23 @@ async fn login_finish(
     }
     let authed_info = AuthenticatedInfo::builder()
         .user_id(user_id.clone())
+        .user(
+            state
+                .provider
+                .get_identity_provider()
+                .get_user(&state.db, &user_id)
+                .await
+                .map(|x| {
+                    x.ok_or_else(|| KeystoneApiError::NotFound {
+                        resource: "user".into(),
+                        identifier: user_id,
+                    })
+                })??,
+        )
         .methods(vec!["passkey".into()])
         .build()
         .map_err(AuthenticationError::from)?;
-    //.map_err(|e| OidcError::from(e))?;
+    authed_info.validate()?;
 
     let token = state
         .provider

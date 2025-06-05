@@ -30,7 +30,6 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .routes(routes!(list, create))
         .routes(routes!(show, update, remove))
-    //.routes(routes!(auth::auth))
 }
 
 /// List identity providers
@@ -48,7 +47,8 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
 #[tracing::instrument(
     name = "api::identity_provider_list",
     level = "debug",
-    skip(state, _user_auth)
+    skip(state, _user_auth),
+    err(Debug)
 )]
 async fn list(
     Auth(_user_auth): Auth,
@@ -79,7 +79,12 @@ async fn list(
     ),
     tag="identity_providers"
 )]
-#[tracing::instrument(name = "api::identity_provider_get", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::identity_provider_get",
+    level = "debug",
+    skip(state),
+    err(Debug)
+)]
 async fn show(
     Auth(user_auth): Auth,
     Path(idp_id): Path<String>,
@@ -108,7 +113,12 @@ async fn show(
     ),
     tag="identity_providers"
 )]
-#[tracing::instrument(name = "api::identity_provider_create", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::identity_provider_create",
+    level = "debug",
+    skip(state),
+    err(Debug)
+)]
 #[debug_handler]
 async fn create(
     Auth(user_auth): Auth,
@@ -136,7 +146,12 @@ async fn create(
     ),
     tag="identity_providers"
 )]
-#[tracing::instrument(name = "api::identity_provider_update", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::identity_provider_update",
+    level = "debug",
+    skip(state),
+    err(Debug)
+)]
 async fn update(
     Auth(user_auth): Auth,
     Path(idp_id): Path<String>,
@@ -164,7 +179,12 @@ async fn update(
     ),
     tag="identity_providers"
 )]
-#[tracing::instrument(name = "api::identity_provider_delete", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::identity_provider_delete",
+    level = "debug",
+    skip(state),
+    err(Debug)
+)]
 async fn remove(
     Auth(user_auth): Auth,
     Path(id): Path<String>,

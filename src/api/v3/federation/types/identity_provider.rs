@@ -25,6 +25,7 @@ use utoipa::{IntoParams, ToSchema};
 use crate::api::error::KeystoneApiError;
 use crate::federation::types;
 
+/// Identity provider data
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct IdentityProvider {
@@ -68,58 +69,72 @@ pub struct IdentityProvider {
     pub provider_config: Option<Value>,
 }
 
+/// Identity provider response
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct IdentityProviderResponse {
     /// IDP object
     pub identity_provider: IdentityProvider,
 }
 
+/// Identity provider data
 #[derive(Builder, Clone, Default, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct IdentityProviderCreate {
+    /// Identity provider name.
     pub name: String,
 
+    /// Identity provider domain.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub domain_id: Option<String>,
 
+    /// OIDC/OAuth2 discovery url
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub oidc_discovery_url: Option<String>,
 
+    /// OIDC/OAuth2 Client id
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub oidc_client_id: Option<String>,
 
+    /// OIDC/OAuth2 Client secret
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub oidc_client_secret: Option<String>,
 
+    /// OIDC response more
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub oidc_response_mode: Option<String>,
 
+    /// OIDC response types
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub oidc_response_types: Option<Vec<String>>,
 
+    /// JWT validation public keys
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub jwt_validation_pubkeys: Option<Vec<String>>,
 
+    /// Bound issuer
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub bound_issuer: Option<String>,
 
+    /// Default mapping name that should be used by default
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub default_mapping_name: Option<String>,
 
+    /// Additional special provider specific configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub provider_config: Option<Value>,
 }
 
+/// Identity provider data
 #[derive(Builder, Clone, Default, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct IdentityProviderUpdate {
@@ -154,6 +169,7 @@ pub struct IdentityProviderUpdate {
     pub provider_config: Option<Option<Value>>,
 }
 
+/// Identity provider create request
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct IdentityProviderCreateRequest {
@@ -161,6 +177,7 @@ pub struct IdentityProviderCreateRequest {
     pub identity_provider: IdentityProviderCreate,
 }
 
+/// Identity provider update request
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct IdentityProviderUpdateRequest {
@@ -240,7 +257,7 @@ impl From<IdentityProviderBuilderError> for KeystoneApiError {
     }
 }
 
-/// Identity Providers
+/// List of Identity Providers
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct IdentityProviderList {
     /// Collection of identity provider objects
@@ -253,7 +270,7 @@ impl IntoResponse for IdentityProviderList {
     }
 }
 
-/// List identity provider query parameters
+/// Query parameters for listing federated identity providers
 #[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
 pub struct IdentityProviderListParameters {
     /// Filters the response by IDP name.

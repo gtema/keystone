@@ -20,6 +20,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Request for initializing the federated authentication
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct IdentityProviderAuthRequest {
     /// Redirect URI to include in the auth request
@@ -32,14 +33,19 @@ pub struct IdentityProviderAuthRequest {
     pub scope: Option<crate::api::types::Scope>,
 }
 
+/// Authentication initialization response
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct IdentityProviderAuthResponse {
+    /// Url the client must open in the browser to continue the authentication
     pub auth_url: String,
 }
 
+/// Authentication callback request the user is sending to complete the authentication request
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct AuthCallbackParameters {
+    /// Authentication state.
     pub state: String,
+    /// Authorization code.
     pub code: String,
 }
 

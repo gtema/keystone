@@ -11,7 +11,12 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
-
+//! Federation management
+//!
+//! - IDP
+//! - Mapping
+//! - Auth initialization
+//! - Auth callback
 use utoipa_axum::router::OpenApiRouter;
 
 use crate::keystone::ServiceState;
