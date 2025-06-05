@@ -80,14 +80,8 @@ impl IdentityBackend for SqlBackend {
                         expected_hash,
                     )? {
                         if let Some(user) = user::get(db, &local_user.user_id).await? {
-                            // TODO: Check user is locked
                             // TODO: Check password is expired
                             // TODO: reset failed login attempt
-                            if !user.enabled.is_some_and(|val| val) {
-                                return Err(IdentityProviderError::UserDisabled(
-                                    local_user.user_id,
-                                ));
-                            }
                             let user_builder = common::get_local_user_builder(
                                 &self.config,
                                 &user,

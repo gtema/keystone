@@ -44,7 +44,12 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     ),
     tag="mappings"
 )]
-#[tracing::instrument(name = "api::mapping_list", level = "debug", skip(state, _user_auth))]
+#[tracing::instrument(
+    name = "api::mapping_list",
+    level = "debug",
+    skip(state, _user_auth),
+    err(Debug)
+)]
 async fn list(
     Auth(_user_auth): Auth,
     Query(query): Query<MappingListParameters>,
@@ -74,7 +79,13 @@ async fn list(
     ),
     tag="mappings"
 )]
-#[tracing::instrument(name = "api::mapping_get", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::mapping_get",
+    level = "debug",
+    skip(state),
+    err(Debug),
+    err(Debug)
+)]
 async fn show(
     Auth(user_auth): Auth,
     Path(idp_id): Path<String>,
@@ -131,7 +142,7 @@ async fn create(
     ),
     tag="mappings"
 )]
-#[tracing::instrument(name = "api::mapping_update", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::mapping_update", level = "debug", skip(state), err(Debug))]
 async fn update(
     Auth(user_auth): Auth,
     Path(idp_id): Path<String>,
@@ -159,7 +170,7 @@ async fn update(
     ),
     tag="mappings"
 )]
-#[tracing::instrument(name = "api::mapping_delete", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::mapping_delete", level = "debug", skip(state), err(Debug))]
 async fn remove(
     Auth(user_auth): Auth,
     Path(id): Path<String>,

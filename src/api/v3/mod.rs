@@ -12,6 +12,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//! v3 API
+
 use axum::{
     extract::{OriginalUri, Request},
     http::{HeaderMap, header},
@@ -42,7 +44,7 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
         .routes(routes!(version))
 }
 
-/// Version
+/// Version discovery endpoint
 #[utoipa::path(
     get,
     path = "/",

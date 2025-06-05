@@ -51,6 +51,15 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new().routes(routes!(callback))
 }
 
+/// Extract AuthZ information from the saved scope
+///
+/// # Arguments
+/// * `state`: The service state
+/// * `scope`: The scope to extract the AuthZ information from
+///
+/// # Returns
+/// * `AuthzInfo`: The AuthZ information
+/// * `KeystoneApiError`: An error if the scope is not valid
 async fn get_authz_info(
     state: &ServiceState,
     scope: Option<&ProviderScope>,
@@ -94,7 +103,8 @@ async fn get_authz_info(
 #[tracing::instrument(
     name = "api::identity_provider_auth_callback",
     level = "debug",
-    skip(state)
+    skip(state),
+    err(Debug)
 )]
 #[debug_handler]
 pub async fn callback(
@@ -166,8 +176,7 @@ pub async fn callback(
         return Err(OidcError::ClientWithoutDiscoveryNotSupported)?;
     };
 
-    // Set the URL the user will be redirected to after the authorization process.
-
+    // Finish authorization request by exchanging the authorization code for the token.
     let token_response = client
         .exchange_code(AuthorizationCode::new(query.code))
         .map_err(OidcError::from)?
@@ -177,14 +186,11 @@ pub async fn callback(
         .await
         .map_err(|err| OidcError::request_token(&err))?;
 
-    debug!("Response is {:?}", token_response);
-
     //// Extract the ID token claims after verifying its authenticity and nonce.
     let id_token = token_response.id_token().ok_or(OidcError::NoToken)?;
     let claims = id_token
         .claims(&client.id_token_verifier(), &Nonce::new(auth_state.nonce))
         .map_err(OidcError::from)?;
-    debug!("id_token: {:?}, claims: {:?}", id_token, claims,);
     if let Some(bound_issuer) = &idp.bound_issuer {
         if Url::parse(bound_issuer)
             .map_err(OidcError::from)
@@ -199,7 +205,6 @@ pub async fn callback(
     }
 
     let claims_as_json = serde_json::to_value(claims)?;
-    debug!("Json: {:?}", claims_as_json);
 
     validate_bound_claims(&mapping, claims, &claims_as_json)?;
     let mapped_user_data = map_user_data(&idp, &mapping, &claims_as_json)?;
@@ -249,6 +254,7 @@ pub async fn callback(
         .protocol_id("oidc".to_string())
         .build()
         .map_err(AuthenticationError::from)?;
+    authed_info.validate()?;
 
     // TODO: Persist group memberships
 
@@ -289,6 +295,17 @@ pub async fn callback(
         .into_response())
 }
 
+/// Validate bound claims in the token
+///
+/// # Arguments
+///
+/// * `mapping` - The mapping to validate against
+/// * `claims` - The claims to validate
+/// * `claims_as_json` - The claims as json to validate
+///
+/// # Returns
+///
+/// * `Result<(), OidcError>`
 fn validate_bound_claims(
     mapping: &ProviderMapping,
     claims: &IdTokenClaims<AllOtherClaims, CoreGenderClaim>,
@@ -345,6 +362,14 @@ fn validate_bound_claims(
 }
 
 /// Map the user data using the referred mapping
+///
+/// # Arguments
+/// * `idp` - The identity provider
+/// * `mapping` - The mapping to use
+/// * `claims_as_json` - The claims as json
+///
+/// # Returns
+/// The mapped user data
 fn map_user_data(
     idp: &ProviderIdentityProvider,
     mapping: &ProviderMapping,

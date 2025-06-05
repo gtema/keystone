@@ -67,13 +67,28 @@ async fn authenticate_request(
             }
         } else if method == "token" {
             if let Some(token) = &req.auth.identity.token {
-                authenticated_info = Some(
+                let mut authz = state
+                    .provider
+                    .get_token_provider()
+                    .authenticate_by_token(&token.id, Some(false), None)
+                    .await?;
+                // Resolve the user
+                authz.user = Some(
                     state
                         .provider
-                        .get_token_provider()
-                        .authenticate_by_token(&token.id, Some(false), None)
-                        .await?,
+                        .get_identity_provider()
+                        .get_user(&state.db, &authz.user_id)
+                        .await
+                        .map(|x| {
+                            x.ok_or_else(|| KeystoneApiError::NotFound {
+                                resource: "user".into(),
+                                identifier: authz.user_id.clone(),
+                            })
+                        })??,
                 );
+                authenticated_info = Some(authz);
+
+                {}
             }
         }
     }
@@ -85,6 +100,17 @@ async fn authenticate_request(
         })
 }
 
+/// Build the AuthZ information from the request
+///
+/// # Arguments
+///
+/// * `state` - The service state
+/// * `req` - The Request
+///
+/// # Result
+///
+/// * `Ok(AuthzInfo)` - The AuthZ information
+/// * `Err(KeystoneApiError)` - The error
 async fn get_authz_info(
     state: &ServiceState,
     req: &AuthRequest,
@@ -278,6 +304,7 @@ mod tests {
             .user(UserResponse {
                 id: "uid".to_string(),
                 domain_id: "udid".into(),
+                enabled: true,
                 ..Default::default()
             })
             .build()
@@ -342,9 +369,22 @@ mod tests {
                 },
             )
             .returning(|_, _, _| Ok(AuthenticatedInfo::builder().user_id("uid").build().unwrap()));
+        let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_get_user()
+            .withf(|_, id: &'_ str| id == "uid")
+            .returning(|_, id: &'_ str| {
+                Ok(Some(UserResponse {
+                    id: id.to_string(),
+                    domain_id: "user_domain_id".into(),
+                    enabled: true,
+                    ..Default::default()
+                }))
+            });
 
         let provider = Provider::mocked_builder()
             .config(config.clone())
+            .identity(identity_mock)
             .token(token_mock)
             .build()
             .unwrap();
@@ -353,7 +393,16 @@ mod tests {
             Arc::new(Service::new(config, DatabaseConnection::Disconnected, provider).unwrap());
 
         assert_eq!(
-            AuthenticatedInfo::builder().user_id("uid").build().unwrap(),
+            AuthenticatedInfo::builder()
+                .user_id("uid")
+                .user(UserResponse {
+                    id: "uid".to_string(),
+                    domain_id: "user_domain_id".into(),
+                    enabled: true,
+                    ..Default::default()
+                })
+                .build()
+                .unwrap(),
             authenticate_request(
                 &state,
                 &AuthRequest {
@@ -707,6 +756,7 @@ mod tests {
                     .user(UserResponse {
                         id: "uid".to_string(),
                         domain_id: "udid".into(),
+                        enabled: true,
                         ..Default::default()
                     })
                     .build()
@@ -838,6 +888,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_post_project_disabled() {
         let config = Config::default();
         let mut identity_mock = MockIdentityProvider::default();
@@ -849,6 +900,7 @@ mod tests {
                     .user(UserResponse {
                         id: "uid".to_string(),
                         domain_id: "udid".into(),
+                        enabled: true,
                         ..Default::default()
                     })
                     .build()

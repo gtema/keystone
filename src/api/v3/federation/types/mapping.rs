@@ -25,6 +25,7 @@ use utoipa::{IntoParams, ToSchema};
 use crate::api::error::KeystoneApiError;
 use crate::federation::types;
 
+/// OIDC/JWT mapping data
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct Mapping {
@@ -92,6 +93,7 @@ pub struct MappingResponse {
     pub mapping: Mapping,
 }
 
+/// OIDC/JWT mapping data
 #[derive(Builder, Clone, Default, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct MappingCreate {
@@ -150,6 +152,7 @@ pub struct MappingCreate {
     pub token_project_id: Option<String>,
 }
 
+/// OIDC/JWT mapping data
 #[derive(Builder, Clone, Default, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(into))]
 pub struct MappingUpdate {
@@ -215,6 +218,7 @@ pub struct MappingUpdate {
     pub token_project_id: Option<Option<String>>,
 }
 
+/// OIDC/JWT mapping create request
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct MappingCreateRequest {
@@ -222,6 +226,7 @@ pub struct MappingCreateRequest {
     pub mapping: MappingCreate,
 }
 
+/// OIDC/JWT mapping update request
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct MappingUpdateRequest {
@@ -314,7 +319,7 @@ impl From<MappingBuilderError> for KeystoneApiError {
     }
 }
 
-/// Identity Providers
+/// List of OIDC/JWT mappings
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct MappingList {
     /// Collection of identity provider objects
@@ -327,7 +332,7 @@ impl IntoResponse for MappingList {
     }
 }
 
-/// List identity provider query parameters
+/// Query parameters for listing OIDC/JWT mappings
 #[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
 pub struct MappingListParameters {
     /// Filters the response by IDP name.

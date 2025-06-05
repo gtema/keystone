@@ -13,20 +13,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use thiserror::Error;
-use tracing::error;
+use tracing::{Level, error, instrument};
 
+use crate::api::error::KeystoneApiError;
 use crate::api::v3::federation::types::*;
 
 #[derive(Error, Debug)]
 pub enum OidcError {
-    #[error("discovery error")]
+    #[error("discovery error: {msg}")]
     Discovery { msg: String },
 
-    #[error("Client without discovery is not supported")]
+    #[error("client without discovery is not supported")]
     ClientWithoutDiscoveryNotSupported,
 
     #[error(
-        "Federated authentication requires mapping being specified in the payload or default set on the identity provider"
+        "federated authentication requires mapping being specified in the payload or default set on the identity provider"
     )]
     MappingRequired,
 
@@ -51,7 +52,7 @@ pub enum OidcError {
         source: openidconnect::ConfigurationError,
     },
 
-    #[error("error parsing the url")]
+    #[error(transparent)]
     UrlParse {
         #[from]
         source: url::ParseError,
@@ -60,11 +61,12 @@ pub enum OidcError {
     #[error("server did not returned an ID token")]
     NoToken,
 
-    #[error("Identity Provider client_id is missing")]
+    #[error("identity Provider client_id is missing")]
     ClientIdRequired,
 
     #[error("ID token does not contain user id claim {0}")]
     UserIdClaimRequired(String),
+
     #[error("ID token does not contain user id claim {0}")]
     UserNameClaimRequired(String),
     #[error("can not identify resulting domain_id for the user")]
@@ -88,11 +90,6 @@ pub enum OidcError {
         source: MappedUserDataBuilderError,
     },
 
-    #[error(transparent)]
-    AuthenticationInfo {
-        #[from]
-        source: crate::auth::AuthenticationError,
-    },
     #[error("Authentication expired")]
     AuthStateExpired,
 }
@@ -108,39 +105,68 @@ impl OidcError {
             msg: fail.to_string(),
         }
     }
-    //    pub fn url(fail: url::ParseError) -> Self {
-    //        Self::RequestToken {
-    //            msg: fail.to_string(),
-    //        }
-    //    }
-
-    //    pub fn claim_verification<T: std::error::Error>(fail: &T) -> Self {
-    //        Self::ClaimVerification{msg: fail.to_string()}
-    //    }
 }
 
-//impl
-//    From<
-//        openidconnect::DiscoveryError<
-//            openidconnect::HttpClientError<openidconnect::reqwest::Error>,
-//        >,
-//    > for OidcError
-//{
-//    fn from(
-//        source: openidconnect::DiscoveryError<
-//            openidconnect::HttpClientError<openidconnect::reqwest::Error>,
-//        >,
-//    ) -> Self {
-//        Self::OidcDiscovery {
-//            msg: source.to_string(),
-//        }
-//    }
-//}
-
-//impl OidcError {
-//    fn discovery(source: RE) -> Self {
-//        Self::OidcDiscovery {
-//            source: source.to_string(),
-//        }
-//    }
-//}
+/// Convert OIDC error into the [HTTP](KeystoneApiError) with the expected message
+impl From<OidcError> for KeystoneApiError {
+    #[instrument(level = Level::ERROR)]
+    fn from(value: OidcError) -> Self {
+        error!("Federation error: {:#?}", value);
+        match value {
+            e @ OidcError::Discovery { .. } => {
+                KeystoneApiError::InternalError(e.to_string())
+            }
+            e @ OidcError::ClientWithoutDiscoveryNotSupported => {
+                KeystoneApiError::InternalError(e.to_string())
+            }
+            OidcError::MappingRequired => {
+                KeystoneApiError::BadRequest("Federated authentication requires mapping being specified in the payload or default set on the identity provider.".to_string())
+            }
+            OidcError::RequestToken { msg } => {
+                KeystoneApiError::BadRequest(format!("Error exchanging authorization code for the authorization token: {msg}"))
+            }
+            OidcError::ClaimVerification { source } => {
+                KeystoneApiError::BadRequest(format!("Error in claims verification: {}", source))
+            }
+            OidcError::OpenIdConnectReqwest { source } => {
+                KeystoneApiError::InternalError(format!("Error in OpenIDConnect logic: {}", source))
+            }
+            OidcError::OpenIdConnectConfiguration { source } => {
+                KeystoneApiError::InternalError(format!("Error in OpenIDConnect logic: {}", source))
+            }
+            OidcError::UrlParse { source } => {
+                KeystoneApiError::BadRequest(format!("Error in OpenIDConnect logic: {}", source))
+            }
+            e @ OidcError::NoToken => {
+                KeystoneApiError::InternalError(format!("Error in OpenIDConnect logic: {}", e))
+            }
+            OidcError::ClientIdRequired => {
+                KeystoneApiError::BadRequest("Identity Provider mut set `client_id`.".to_string())
+            }
+            OidcError::UserIdClaimRequired(source) => {
+                KeystoneApiError::BadRequest(format!("OIDC ID token does not contain user id claim: {source}"))
+            }
+            OidcError::UserNameClaimRequired(source) => {
+                KeystoneApiError::BadRequest(format!("OIDC ID token does not contain user name claim: {source}"))
+            }
+            OidcError::UserDomainUnbound => {
+                KeystoneApiError::BadRequest("Cannot identify domain_id of the user.".to_string())
+            }
+            OidcError::BoundSubjectMismatch{ expected, found } => {
+                KeystoneApiError::BadRequest(format!("OIDC Bound subject mismatches: {expected} != {found}"))
+            }
+            OidcError::BoundAudiencesMismatch{ expected, found } => {
+                KeystoneApiError::BadRequest(format!("OIDC Bound audiences mismatches: {expected} != {found}"))
+            }
+            OidcError::BoundClaimsMismatch{ claim, expected, found } => {
+                KeystoneApiError::BadRequest(format!("OIDC Bound claim {claim} mismatch: {expected} != {found}"))
+            }
+            e @ OidcError::MappedUserDataBuilder { .. } => {
+                KeystoneApiError::InternalError(e.to_string())
+            }
+            OidcError::AuthStateExpired => {
+                KeystoneApiError::BadRequest("Authentication has expired. Please start again.".to_string())
+            }
+        }
+    }
+}

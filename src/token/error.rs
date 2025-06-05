@@ -162,4 +162,7 @@ pub enum TokenProviderError {
 
     #[error("federated payload must contain idp_id and protocol_id")]
     FederatedPayloadMissingData,
+
+    #[error("user cannot be found: {0}")]
+    UserNotFound(String),
 }

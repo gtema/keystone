@@ -22,7 +22,6 @@ use serde_json::json;
 use thiserror::Error;
 use tracing::error;
 
-use crate::api::v3::federation::error::OidcError;
 use crate::assignment::error::AssignmentProviderError;
 use crate::auth::AuthenticationError;
 use crate::catalog::error::CatalogProviderError;
@@ -45,6 +44,9 @@ pub enum KeystoneApiError {
 
     #[error("Attempted to authenticate with an unsupported method.")]
     AuthMethodNotSupported,
+
+    #[error("{0}.")]
+    BadRequest(String),
 
     #[error("The request you have made requires authentication.")]
     Unauthorized,
@@ -76,12 +78,11 @@ pub enum KeystoneApiError {
         source: AssignmentProviderError,
     },
 
-    #[error(transparent)]
-    AuthenticationInfo {
-        //#[from]
-        source: crate::auth::AuthenticationError,
-    },
-
+    //    #[error(transparent)]
+    //    AuthenticationInfo {
+    //        //#[from]
+    //        source: crate::auth::AuthenticationError,
+    //    },
     #[error(transparent)]
     CatalogError {
         #[from]
@@ -94,12 +95,11 @@ pub enum KeystoneApiError {
         source: FederationProviderError,
     },
 
-    #[error(transparent)]
-    Oidc {
-        #[from]
-        source: OidcError,
-    },
-
+    //    #[error(transparent)]
+    //    Oidc {
+    //        #[from]
+    //        source: OidcError,
+    //    },
     #[error(transparent)]
     IdentityError {
         #[from]
@@ -148,6 +148,9 @@ pub enum KeystoneApiError {
     #[error(transparent)]
     JsonExtractorRejection(#[from] JsonRejection),
 
+    #[error("The account is disabled for user: {0}")]
+    UserDisabled(String),
+
     /// Others.
     #[error(transparent)]
     Other(#[from] eyre::Report),
@@ -156,60 +159,34 @@ pub enum KeystoneApiError {
 impl IntoResponse for KeystoneApiError {
     fn into_response(self) -> Response {
         error!("Error happened during request processing: {:#?}", self);
-        //tracing::debug!("stacktrace: {}", self.backtrace());
-        match self {
-            KeystoneApiError::Conflict(_) => (
-                StatusCode::CONFLICT,
-                Json(json!({"error": {"code": StatusCode::CONFLICT.as_u16(), "message": self.to_string()}})),
-        ).into_response(),
-            KeystoneApiError::NotFound{..} => (
-                StatusCode::NOT_FOUND,
-                Json(json!({"error": {"code": StatusCode::NOT_FOUND.as_u16(), "message": self.to_string()}})),
-            )
-                .into_response(),
-            KeystoneApiError::Unauthorized => {
-                (StatusCode::UNAUTHORIZED,
-                Json(json!({"error": {"code": StatusCode::UNAUTHORIZED.as_u16(), "message": self.to_string()}})),
-                ).into_response()
-            }
-            KeystoneApiError::AuthenticationInfo{ .. } => {
-                (StatusCode::UNAUTHORIZED,
-                Json(json!({"error": {"code": StatusCode::UNAUTHORIZED.as_u16(), "message": self.to_string()}})),
-                ).into_response()
-            }
-            KeystoneApiError::Forbidden => {
-                (StatusCode::FORBIDDEN,
-                Json(json!({"error": {"code": StatusCode::FORBIDDEN.as_u16(), "message": self.to_string()}})),
-                ).into_response()
-            }
-            KeystoneApiError::InternalError(_) | KeystoneApiError::IdentityError { .. } | KeystoneApiError::ResourceError { .. } | KeystoneApiError::AssignmentError { .. } | KeystoneApiError::TokenError{..}  | KeystoneApiError::Federation{..} | KeystoneApiError::Other(..) => {
-                (StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
-              ).into_response()
-            }
-            KeystoneApiError::Oidc{ source: ref err } => {
-                match err {
-                    OidcError::OpenIdConnectReqwest{..} | OidcError::OpenIdConnectConfiguration{..} => {
-(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": {"code": StatusCode::INTERNAL_SERVER_ERROR.as_u16(), "message": self.to_string()}})),
-        ).into_response()
-                    }
-                    _ => {
-(
-                StatusCode::BAD_REQUEST,
-                Json(json!({"error": {"code": StatusCode::BAD_REQUEST.as_u16(), "message": self.to_string()}})),
-        ).into_response()
-                    }
-                }
-            }
-            _ =>  {
+
+        let status_code = match self {
+            KeystoneApiError::Conflict(_) => StatusCode::CONFLICT,
+            KeystoneApiError::NotFound { .. } => StatusCode::NOT_FOUND,
+            KeystoneApiError::BadRequest(..) => StatusCode::BAD_REQUEST,
+            KeystoneApiError::UserDisabled(..) => StatusCode::UNAUTHORIZED,
+            KeystoneApiError::Unauthorized => StatusCode::UNAUTHORIZED,
+            //            KeystoneApiError::AuthenticationInfo { .. } => StatusCode::UNAUTHORIZED,
+            KeystoneApiError::Forbidden => StatusCode::FORBIDDEN,
+            KeystoneApiError::InternalError(_)
+            | KeystoneApiError::IdentityError { .. }
+            | KeystoneApiError::ResourceError { .. }
+            | KeystoneApiError::AssignmentError { .. }
+            | KeystoneApiError::TokenError { .. }
+            | KeystoneApiError::Federation { .. }
+            | KeystoneApiError::Other(..) => StatusCode::INTERNAL_SERVER_ERROR,
+            _ =>
             // KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} | KeystoneApiError::WebAuthN{..} | KeystoneApiError::Uuid {..} | KeystoneApiError::Serde {..} | KeystoneApiError::DomainIdOrName | KeystoneApiError::ProjectIdOrName | KeystoneApiError::ProjectDomain =>
-                (StatusCode::BAD_REQUEST,
-                Json(json!({"error": {"code": StatusCode::BAD_REQUEST.as_u16(), "message": self.to_string()}})),
-              ).into_response()
+            {
+                StatusCode::BAD_REQUEST
             }
-        }
+        };
+
+        (
+            status_code,
+            Json(json!({"error": {"code": status_code.as_u16(), "message": self.to_string()}})),
+        )
+            .into_response()
     }
 }
 
@@ -323,7 +300,8 @@ impl From<AuthenticationError> for KeystoneApiError {
             AuthenticationError::AuthenticatedInfoBuilder { source } => {
                 KeystoneApiError::InternalError(source.to_string())
             }
-            other => KeystoneApiError::AuthenticationInfo { source: other },
+            AuthenticationError::UserDisabled(data) => KeystoneApiError::UserDisabled(data),
+            AuthenticationError::Unauthorized => KeystoneApiError::Unauthorized,
         }
     }
 }

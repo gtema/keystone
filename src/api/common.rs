@@ -21,6 +21,15 @@ use crate::resource::{
     types::{Domain, Project},
 };
 
+/// Get the domain by ID or Name
+///
+/// # Arguments
+/// * `state` - The service state
+/// * `id` - The domain ID
+/// * `name` - The domain name
+///
+/// # Returns
+/// * `Result<Domain, KeystoneApiError>` - The domain object
 pub async fn get_domain<I: AsRef<str>, N: AsRef<str>>(
     state: &ServiceState,
     id: Option<I>,
@@ -51,6 +60,14 @@ pub async fn get_domain<I: AsRef<str>, N: AsRef<str>>(
     }
 }
 
+/// Find the project referred in the scope.
+///
+/// # Arguments
+/// * `state` - The service state.
+/// * `scope` - The scope to find the project.
+///
+/// # Returns
+/// The resolved project.
 pub async fn find_project_from_scope(
     state: &ServiceState,
     scope: &ProjectScope,
