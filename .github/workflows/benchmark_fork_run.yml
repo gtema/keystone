@@ -1,4 +1,4 @@
-name: Run Benchmarks
+name: "Run Benchmarks"
 
 on:
   pull_request:
@@ -6,6 +6,7 @@ on:
 
 jobs:
   benchmark_fork_pr_branch:
+    if: "github.event.pull_request.head.repo.full_name != github.repository"
     name: Run Fork PR Benchmarks
     runs-on: ubuntu-latest
     steps:

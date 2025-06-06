@@ -4,16 +4,17 @@ permissions:
   contents: read
 
 on:
-  push:
-    branches: "main"
+  pull_request:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  bench_main:
+  bench_pr_branch:
+    # DO NOT REMOVE: For handling Fork PRs see Pull Requests from Forks
+    if: "github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'"
     permissions:
-      checks: write
+      pull-requests: write
     strategy:
       matrix:
         include:
@@ -45,13 +46,12 @@ jobs:
           bencher run \
           --project keystone \
           --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch main \
+          --branch "$GITHUB_HEAD_REF" \
+          --start-point "$GITHUB_BASE_REF" \
+          --start-point-hash '${{ github.event.pull_request.base.sha }}' \
+          --start-point-clone-thresholds \
+          --start-point-reset \
           --testbed ${{ matrix.os }} \
-          --threshold-measure latency \
-          --threshold-test t_test \
-          --threshold-max-sample-size 64 \
-          --threshold-upper-boundary 0.99 \
-          --thresholds-reset \
           --github-actions '${{ secrets.GITHUB_TOKEN }}' \
           --adapter rust_criterion \
           cargo bench
