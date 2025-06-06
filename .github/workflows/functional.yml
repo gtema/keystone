@@ -84,8 +84,8 @@ jobs:
                 username: admin
                 password: password
                 project_name: admin
-                user_domain_name: default
-                project_domain_name: default
+                user_domain_id: default
+                project_domain_id: default
               interface: public
 
             admin-rust:
@@ -94,8 +94,8 @@ jobs:
                 username: admin
                 password: password
                 project_name: admin
-                user_domain_name: default
-                project_domain_name: default
+                user_domain_id: default
+                project_domain_id: default
               interface: internal
           EOF
 
@@ -104,6 +104,15 @@ jobs:
           OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
         run: |
           uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
+
+      - name: Setup service catalog
+        env:
+          OS_CLOUD: admin
+        run: |
+          osc api identity regions -m post --body '{"region": {"id": "dev"}}'
+          SERVICE_ID=$(osc identity service create --type identity --name keystone -o json | jq -r '.id')
+          osc identity endpoint create --service-id ${SERVICE_ID} --url "http://localhost:5001" --interface "public" --region "dev"
+          osc identity endpoint create --service-id ${SERVICE_ID} --url "http://localhost:8080" --interface "internal" --region "dev"
 
       - name: Build and install Rust keystone
         run: cargo install --path .
