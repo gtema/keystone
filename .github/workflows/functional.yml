@@ -102,8 +102,7 @@ jobs:
       - name: Run python keystone
         env:
           OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
-        run: |
-          uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
+        run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
 
       - name: Setup service catalog
         env:
@@ -118,26 +117,34 @@ jobs:
         run: cargo install --path .
 
       - name: Run rust keystone
-        run: |
-          keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
+        run: keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
 
-      - name: Test python keystone
-        run: |
-          curl http://localhost:5001/v3
+      - name: Test python keystone availability
+        run: curl http://localhost:5001/v3
 
-      - name: Test rust keystone
+      - name: Test rust keystone availability
+        run: curl http://localhost:8080/v3
+
+      - name: Basic test using token validation
         run: |
-          curl http://localhost:8080/v3
+          TOKEN1=$(osc --os-cloud admin auth login)
+          TOKEN2=$(osc --os-cloud admin-rust auth login)
+
+          echo "Use rust Keystone token against both Keystones"
+          curl http://localhost:8080/v3/auth/tokens -H "X-Auth-Token: ${TOKEN1}" -H "X-Subject-Token: ${TOKEN1}" | jq
+          curl http://localhost:5001/v3/auth/tokens -H "X-Auth-Token: ${TOKEN1}" -H "X-Subject-Token: ${TOKEN1}" | jq
+
+          echo "Use python Keystone token against both Keystones"
+          curl http://localhost:8080/v3/auth/tokens -H "X-Auth-Token: ${TOKEN2}" -H "X-Subject-Token: ${TOKEN2}" | jq
+          curl http://localhost:5001/v3/auth/tokens -H "X-Auth-Token: ${TOKEN2}" -H "X-Subject-Token: ${TOKEN2}" | jq
 
       - name: Run interop tests
         run: cargo test --test interop
 
       - name: Dump python keystone log
         if: failure()
-        run: |
-          cat python.log
+        run: cat python.log
 
       - name: Dump rust keystone log
         if: failure()
-        run: |
-          cat rust.log
+        run: cat rust.log
