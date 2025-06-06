@@ -12,8 +12,7 @@ on:
       - 'src/'
 
 jobs:
-  test:
-    name: interop
+  interop:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -71,7 +70,7 @@ jobs:
           mkdir -p etc/fernet
           keystone-manage --config-file etc/keystone.conf db_sync
           keystone-manage --config-file etc/keystone.conf fernet_setup
-          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password
+          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:5001 --bootstrap-internal-url http://localhost:8080 --bootstrap-region-id dev
 
       - name: Prepare clouds.yaml
         run: |
@@ -103,15 +102,6 @@ jobs:
         env:
           OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
         run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
-
-      - name: Setup service catalog
-        env:
-          OS_CLOUD: admin
-        run: |
-          osc api identity regions -m post --body '{"region": {"id": "dev"}}'
-          SERVICE_ID=$(osc identity service create --type identity --name keystone -o json | jq -r '.id')
-          osc identity endpoint create --service-id ${SERVICE_ID} --url "http://localhost:5001" --interface "public" --region "dev"
-          osc identity endpoint create --service-id ${SERVICE_ID} --url "http://localhost:8080" --interface "internal" --region "dev"
 
       - name: Build and install Rust keystone
         run: cargo install --path .
@@ -148,3 +138,107 @@ jobs:
       - name: Dump rust keystone log
         if: failure()
         run: cat rust.log
+
+  federation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: keystone
+          POSTGRES_PASSWORD: '1234'
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      keycloak:
+        image: ghcr.io/gtema/keystone/keycloak-ci-service:26.2
+        env:
+          KC_BOOTSTRAP_ADMIN_USERNAME: admin
+          KC_BOOTSTRAP_ADMIN_PASSWORD: password
+        ports:
+          - 8082:8080
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Enable cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cargo
+          key: ${{ runner.os }}-integration
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@888c2e1ea69ab0d4330cbf0af1ecc7b68f368cc1 # stable
+        with:
+          toolchain: stable
+
+      - name: Install sea-orm-cli
+        run: cargo install sea-orm-cli@1.1.0
+
+      - name: Install necessary python packages
+        run: pip install keystone uwsgi psycopg2
+
+      - name: Install osc
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/gtema/openstack/releases/latest/download/openstack_cli-installer.sh | sh
+
+      - name: Prepare keystone config file
+        run: |
+          mkdir -p etc
+          echo "[database]" >> etc/keystone.conf
+          echo "connection = postgresql://keystone:1234@127.0.0.1:5432/keystone" >> etc/keystone.conf
+          echo "[fernet_receipts]" >> etc/keystone.conf
+          echo "key_repository = $(pwd)/etc/fernet" >> etc/keystone.conf
+          echo "[fernet_tokens]" >> etc/keystone.conf
+          echo "key_repository = $(pwd)/etc/fernet" >> etc/keystone.conf
+          cat etc/keystone.conf
+
+      - name: Init keystone
+        env:
+          OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
+        run: |
+          mkdir -p etc/fernet
+          keystone-manage --config-file etc/keystone.conf db_sync
+          keystone-manage --config-file etc/keystone.conf fernet_setup
+          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:8080
+
+      - name: Apply DB changes
+        env:
+          DATABASE_URL: postgresql://keystone:1234@127.0.0.1:5432/keystone
+        run: sea-orm-cli migrate up
+
+      - name: Create client in keycloak
+        env:
+          KEYCLOAK_URL: "http://localhost:8082"
+          REALM_NAME: "master"
+          ADMIN_USERNAME: "admin"
+          ADMIN_PASSWORD: "password"
+          TOKEN_ENDPOINT: "http://localhost:8082/realms/master/protocol/openid-connect/token"
+          CLIENT_ID: "keystone"
+          CLIENT_SECRET: "keystone-secret"
+        run: |
+          # Get the access token
+          ACCESS_TOKEN=$(curl -s -X POST \
+            -d "client_id=admin-cli" \
+            -d "username=${ADMIN_USERNAME}" \
+            -d "password=${ADMIN_PASSWORD}" \
+            -d "grant_type=password" \
+            "${KEYCLOAK_URL}/realms/${REALM_NAME}/protocol/openid-connect/token" | jq -r '.access_token') # Using 'jq -r .access_token' to parse the JSON and get the raw token
+
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "Failed to obtain access token. Check your Keycloak URL, credentials, and realm."
+            exit 1
+          fi
+
+          # Create the client
+          curl "${KEYCLOAK_URL}/admin/realms/${REALM_NAME}/clients" -H "Authorization: Bearer ${ACCESS_TOKEN}" -X POST -H "Content-Type: application/json" -d '{"clientId":"{CLIENT_ID}", "secret": "${CLIENT_SECRET}", "redirectUris": ["http://localhost:8050/*"], "enabled":true}' -f
+
+          # Check clients
+          curl "${KEYCLOAK_URL}/admin/realms/${REALM_NAME}/clients" -H "Authorization: Bearer ${ACCESS_TOKEN}" -v
