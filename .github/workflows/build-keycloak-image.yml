@@ -1,0 +1,33 @@
+name: Build and Push Keycloak Service Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/Dockerfile.keycloak' # Trigger build only when Dockerfile changes
+  workflow_dispatch: # Allows manual trigger
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub (or GHCR)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: gtema
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Keycloak image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: tools/keycloak.Dockerfile
+          push: true
+          tags: |
+            ghcr.io/gtema/keycloak-ci-service:latest@26.2
+            ghcr.io/gtema/keycloak-ci-service:${{ github.sha }}
