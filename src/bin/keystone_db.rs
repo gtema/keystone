@@ -12,21 +12,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod api;
-pub mod assignment;
-pub mod auth;
-pub mod catalog;
-pub mod config;
-pub mod db;
-pub mod db_migration;
-pub mod error;
-pub mod federation;
-pub mod identity;
-pub mod keystone;
-pub mod plugin_manager;
-pub mod provider;
-pub mod resource;
-pub mod token;
+use sea_orm_migration::prelude::*;
 
-#[cfg(test)]
-mod tests;
+use openstack_keystone::db_migration;
+
+#[async_std::main]
+async fn main() {
+    cli::run_cli(db_migration::Migrator).await;
+}

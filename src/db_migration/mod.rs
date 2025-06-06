@@ -12,21 +12,19 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod api;
-pub mod assignment;
-pub mod auth;
-pub mod catalog;
-pub mod config;
-pub mod db;
-pub mod db_migration;
-pub mod error;
-pub mod federation;
-pub mod identity;
-pub mod keystone;
-pub mod plugin_manager;
-pub mod provider;
-pub mod resource;
-pub mod token;
+pub use sea_orm_migration::prelude::*;
 
-#[cfg(test)]
-mod tests;
+mod m20250301_000001_passkey;
+mod m20250414_000001_idp;
+
+pub struct Migrator;
+
+#[async_trait::async_trait]
+impl MigratorTrait for Migrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        vec![
+            Box::new(m20250301_000001_passkey::Migration),
+            Box::new(m20250414_000001_idp::Migration),
+        ]
+    }
+}
