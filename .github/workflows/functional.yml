@@ -1,0 +1,134 @@
+---
+name: Functional and interoperability testing
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/functional.yml'
+      - 'tests/'
+      - 'src/'
+
+jobs:
+  test:
+    name: interop
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: keystone
+          POSTGRES_PASSWORD: '1234'
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Enable cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cargo
+          key: ${{ runner.os }}-integration
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@888c2e1ea69ab0d4330cbf0af1ecc7b68f368cc1 # stable
+        with:
+          toolchain: stable
+
+      - name: Install necessary python packages
+        run: pip install keystone uwsgi psycopg2
+
+      - name: Install osc
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/gtema/openstack/releases/latest/download/openstack_cli-installer.sh | sh
+
+      - name: Prepare keystone config file
+        run: |
+          mkdir -p etc
+          echo "[database]" >> etc/keystone.conf
+          echo "connection = postgresql://keystone:1234@127.0.0.1:5432/keystone" >> etc/keystone.conf
+          echo "[fernet_receipts]" >> etc/keystone.conf
+          echo "key_repository = $(pwd)/etc/fernet" >> etc/keystone.conf
+          echo "[fernet_tokens]" >> etc/keystone.conf
+          echo "key_repository = $(pwd)/etc/fernet" >> etc/keystone.conf
+          cat etc/keystone.conf
+
+      - name: Init keystone
+        env:
+          OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
+        run: |
+          mkdir -p etc/fernet
+          keystone-manage --config-file etc/keystone.conf db_sync
+          keystone-manage --config-file etc/keystone.conf fernet_setup
+          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password
+
+      - name: Prepare clouds.yaml
+        run: |
+          mkdir -p ~/.config/openstack
+          cat <<EOF > ~/.config/openstack/clouds.yaml
+          clouds:
+            admin:
+              auth:
+                auth_url: http://localhost:5001
+                username: admin
+                password: password
+                project_name: admin
+                user_domain_name: default
+                project_domain_name: default
+              interface: public
+
+            admin-rust:
+              auth:
+                auth_url: http://localhost:8080
+                username: admin
+                password: password
+                project_name: admin
+                user_domain_name: default
+                project_domain_name: default
+              interface: internal
+          EOF
+
+      - name: Run python keystone
+        env:
+          OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
+        run: |
+          uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
+
+      - name: Build and install Rust keystone
+        run: cargo install --path .
+
+      - name: Run rust keystone
+        run: |
+          keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
+
+      - name: Test python keystone
+        run: |
+          curl http://localhost:5001/v3
+
+      - name: Test rust keystone
+        run: |
+          curl http://localhost:8080/v3
+
+      - name: Run interop tests
+        run: cargo test --test interop
+
+      - name: Dump python keystone log
+        if: failure()
+        run: |
+          cat python.log
+
+      - name: Dump rust keystone log
+        if: failure()
+        run: |
+          cat rust.log

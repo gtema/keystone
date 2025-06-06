@@ -40,7 +40,7 @@ serde_bytes = { version = "0.11" }
 serde_json = { version = "1.0" }
 thiserror = { version = "2.0" }
 tokio = { version = "1.45", features = ["fs", "macros", "signal", "rt-multi-thread"] }
-tokio-util = "0.7.15"
+tokio-util = { version = "0.7" }
 tower = { version = "0.5" }
 tower-http = { version = "0.6", features = ["compression-full", "request-id", "sensitive-headers", "trace", "util"] }
 tracing = { version = "0.1" }
@@ -65,3 +65,8 @@ opt-level = 3
 strip = true
 debug = false
 lto = true
+
+[[test]]
+name = "interop"
+path = "tests/interop/main.rs"
+test = false
