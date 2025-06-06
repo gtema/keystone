@@ -168,6 +168,7 @@ impl TokenProvider {
                     )
                     .idp_id(idp_id)
                     .protocol_id(protocol_id)
+                    .group_ids(vec![])
                     .build()?,
             ))
         } else {

@@ -10,11 +10,48 @@ on:
       - '.github/workflows/functional.yml'
       - 'tests/'
       - 'src/'
+env:
+  DATABASE_URL: postgresql://keystone:1234@127.0.0.1:5432/keystone
+  KEYSTONE_URL: http://localhost:8080
+  OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
 
 jobs:
-  test:
-    name: interop
+  build:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Enable cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cargo
+          key: ${{ runner.os }}-integration
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@888c2e1ea69ab0d4330cbf0af1ecc7b68f368cc1 # stable
+        with:
+          toolchain: stable
+
+      - name: Build Keystone
+        run: cargo build
+
+      - name: Upload built binaries
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: keystone
+          path: |
+            target/debug/keystone
+            target/debug/keystone-db
+
+  interop:
+    runs-on: ubuntu-latest
+    needs:
+      - build
     services:
       postgres:
         image: postgres:17
@@ -28,7 +65,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Enable cache
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
             ~/.cache/pip
@@ -38,7 +75,7 @@ jobs:
       - name: Rust Cache
         uses: swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
 
@@ -46,6 +83,14 @@ jobs:
         uses: dtolnay/rust-toolchain@888c2e1ea69ab0d4330cbf0af1ecc7b68f368cc1 # stable
         with:
           toolchain: stable
+
+      - name: Fetch pre-built keystone
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: keystone
+
+      - name: Fix keystone permissions
+        run: chmod u+x keystone keystone-db
 
       - name: Install necessary python packages
         run: pip install keystone uwsgi psycopg2
@@ -56,22 +101,24 @@ jobs:
       - name: Prepare keystone config file
         run: |
           mkdir -p etc
-          echo "[database]" >> etc/keystone.conf
-          echo "connection = postgresql://keystone:1234@127.0.0.1:5432/keystone" >> etc/keystone.conf
-          echo "[fernet_receipts]" >> etc/keystone.conf
-          echo "key_repository = $(pwd)/etc/fernet" >> etc/keystone.conf
-          echo "[fernet_tokens]" >> etc/keystone.conf
-          echo "key_repository = $(pwd)/etc/fernet" >> etc/keystone.conf
+          cat <<EOF > etc/keystone.conf
+          [auth]
+          methods = password,token,openid,application_credential
+          [database]
+          connection = postgresql://keystone:1234@127.0.0.1:5432/keystone
+          [fernet_receipts]
+          key_repository = $(pwd)/etc/fernet
+          [fernet_tokens]
+          key_repository = $(pwd)/etc/fernet
+          EOF
           cat etc/keystone.conf
 
       - name: Init keystone
-        env:
-          OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
         run: |
           mkdir -p etc/fernet
           keystone-manage --config-file etc/keystone.conf db_sync
           keystone-manage --config-file etc/keystone.conf fernet_setup
-          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password
+          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:5001 --bootstrap-internal-url http://localhost:8080 --bootstrap-region-id dev
 
       - name: Prepare clouds.yaml
         run: |
@@ -99,25 +146,13 @@ jobs:
               interface: internal
           EOF
 
-      - name: Run python keystone
-        env:
-          OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
+      - name: Start python keystone
         run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
 
-      - name: Setup service catalog
-        env:
-          OS_CLOUD: admin
-        run: |
-          osc api identity regions -m post --body '{"region": {"id": "dev"}}'
-          SERVICE_ID=$(osc identity service create --type identity --name keystone -o json | jq -r '.id')
-          osc identity endpoint create --service-id ${SERVICE_ID} --url "http://localhost:5001" --interface "public" --region "dev"
-          osc identity endpoint create --service-id ${SERVICE_ID} --url "http://localhost:8080" --interface "internal" --region "dev"
+      - name: Start rust keystone
+        run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
 
-      - name: Build and install Rust keystone
-        run: cargo install --path .
-
-      - name: Run rust keystone
-        run: keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
+      - run: sleep 1
 
       - name: Test python keystone availability
         run: curl http://localhost:5001/v3
@@ -148,3 +183,114 @@ jobs:
       - name: Dump rust keystone log
         if: failure()
         run: cat rust.log
+
+  federation:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    env:
+      KEYCLOAK_URL: http://localhost:8082
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: keystone
+          POSTGRES_PASSWORD: '1234'
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      keycloak:
+        image: ghcr.io/gtema/keystone/keycloak-ci-service:26.2
+        env:
+          KC_BOOTSTRAP_ADMIN_USERNAME: admin
+          KC_BOOTSTRAP_ADMIN_PASSWORD: password
+        ports:
+          - 8082:8080
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Enable cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cargo
+          key: ${{ runner.os }}-integration
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Fetch pre-built keystone
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: keystone
+
+      - name: Fix keystone permissions
+        run: chmod u+x keystone keystone-db
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@888c2e1ea69ab0d4330cbf0af1ecc7b68f368cc1 # stable
+        with:
+          toolchain: stable
+
+      - name: Install browser
+        # This is crucial for Selenium to interact with a browser
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y firefox
+
+      - name: Install necessary python packages
+        run: pip install keystone uwsgi psycopg2
+
+      - name: Prepare keystone config file
+        run: |
+          mkdir -p etc
+          cat <<EOF > etc/keystone.conf
+          [auth]
+          methods = password,token,openid,application_credential
+          [database]
+          connection = postgresql://keystone:1234@127.0.0.1:5432/keystone
+          [fernet_receipts]
+          key_repository = $(pwd)/etc/fernet
+          [fernet_tokens]
+          key_repository = $(pwd)/etc/fernet
+          EOF
+          cat etc/keystone.conf
+
+      - name: Init keystone
+        run: |
+          mkdir -p etc/fernet
+          keystone-manage --config-file etc/keystone.conf db_sync
+          keystone-manage --config-file etc/keystone.conf fernet_setup
+          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:8080
+
+      - name: Apply Rust keystone DB changes
+        run: ./keystone-db up
+
+      - name: Start python keystone
+        run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
+
+      - name: Start rust keystone
+        run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
+
+      - name: Start geckodriver for selenium
+        run: /snap/bin/geckodriver --port=4444 > seleniumdriver.log 2>&1 &
+
+      - name: Run keycloak tests
+        env:
+          KEYCLOAK_USER: admin
+          KEYCLOAK_PASSWORD: password
+          BROWSERDRIVER_PORT: 4444
+        run: cargo test --test keycloak
+
+      - name: Dump rust keystone log
+        if: failure()
+        run: cat rust.log
+
+      - name: Dump seleniumdriver log
+        if: failure()
+        run: cat seleniumdriver.log

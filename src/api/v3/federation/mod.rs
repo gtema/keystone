@@ -26,7 +26,7 @@ pub mod error;
 pub mod identity_provider;
 pub mod mapping;
 pub mod oidc;
-mod types;
+pub mod types;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()

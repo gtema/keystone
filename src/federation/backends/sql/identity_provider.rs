@@ -19,6 +19,7 @@ use sea_orm::query::*;
 use crate::config::Config;
 use crate::db::entity::{
     federated_identity_provider as db_federated_identity_provider,
+    federation_protocol as db_old_federation_protocol,
     identity_provider as db_old_identity_provider,
     prelude::FederatedIdentityProvider as DbFederatedIdentityProvider,
 };
@@ -116,12 +117,23 @@ pub async fn create(
 
     let db_entry: db_federated_identity_provider::Model = entry.insert(db).await?;
 
-    let _old_idp = db_old_identity_provider::ActiveModel {
+    // For compatibility reasons add entry for the IDP old-style as well as the protocol to keep
+    // constraints working
+    db_old_identity_provider::ActiveModel {
         id: Set(idp.id.clone()),
         enabled: Set(false),
         description: Set(Some(idp.name.clone())),
         domain_id: Set(idp.domain_id.clone().unwrap_or("<<null>>".into())),
         authorization_ttl: NotSet,
+    }
+    .insert(db)
+    .await?;
+
+    db_old_federation_protocol::ActiveModel {
+        id: Set("oidc".into()),
+        idp_id: Set(idp.id.clone()),
+        mapping_id: Set("<<null>>".into()),
+        remote_id_attribute: NotSet,
     }
     .insert(db)
     .await?;
@@ -245,7 +257,7 @@ mod tests {
     use serde_json::json;
 
     use crate::config::Config;
-    use crate::db::entity::{federated_identity_provider, identity_provider};
+    use crate::db::entity::{federated_identity_provider, federation_protocol, identity_provider};
 
     use super::*;
 
@@ -265,6 +277,15 @@ mod tests {
             description: Some("name".into()),
             domain_id: "did".into(),
             authorization_ttl: None,
+        }
+    }
+
+    fn get_old_proto_mock<S: AsRef<str>>(id: S) -> federation_protocol::Model {
+        federation_protocol::Model {
+            id: "oidc".into(),
+            idp_id: id.as_ref().into(),
+            mapping_id: "<<null>>".into(),
+            remote_id_attribute: None,
         }
     }
 
@@ -353,6 +374,7 @@ mod tests {
         let db = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([vec![get_idp_mock("1")]])
             .append_query_results([vec![get_old_idp_mock("1")]])
+            .append_query_results([vec![get_old_proto_mock("1")]])
             .into_connection();
         let config = Config::default();
 
@@ -401,6 +423,11 @@ mod tests {
                     DatabaseBackend::Postgres,
                     r#"INSERT INTO "identity_provider" ("id", "enabled", "description", "domain_id") VALUES ($1, $2, $3, $4) RETURNING "id", "enabled", "description", "domain_id", "authorization_ttl""#,
                     ["1".into(), false.into(), "idp".into(), "foo_domain".into(),]
+                ),
+                Transaction::from_sql_and_values(
+                    DatabaseBackend::Postgres,
+                    r#"INSERT INTO "federation_protocol" ("id", "idp_id", "mapping_id") VALUES ($1, $2, $3) RETURNING "id", "idp_id", "mapping_id", "remote_id_attribute""#,
+                    ["oidc".into(), "1".into(), "<<null>>".into()]
                 ),
             ]
         );
