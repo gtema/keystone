@@ -26,7 +26,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: tools/keycloak.Dockerfile
+          file: tools/Dockerfile.keycloak
           push: true
           tags: |
             ghcr.io/gtema/keycloak-ci-service:26.2
