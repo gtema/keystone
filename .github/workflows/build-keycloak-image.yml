@@ -29,5 +29,5 @@ jobs:
           file: tools/keycloak.Dockerfile
           push: true
           tags: |
-            ghcr.io/gtema/keycloak-ci-service:latest@26.2
+            ghcr.io/gtema/keycloak-ci-service:26.2
             ghcr.io/gtema/keycloak-ci-service:${{ github.sha }}
