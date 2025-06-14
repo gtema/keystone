@@ -2432,6 +2432,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "tokio",
+ "tokio-util",
  "tower",
  "tower-http",
  "tracing",
