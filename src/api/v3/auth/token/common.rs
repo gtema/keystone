@@ -30,7 +30,6 @@ impl Token {
         state: &ServiceState,
         token: &ProviderToken,
     ) -> Result<Token, KeystoneApiError> {
-        println!("Token is {:?}", token);
         let mut response = TokenBuilder::default();
         let mut project: Option<Project> = token.project().cloned();
         let mut domain: Option<Domain> = token.domain().cloned();
