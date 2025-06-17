@@ -17,11 +17,11 @@ repos:
         exclude: '^zuul.d/.*$'
       - id: check-json
   - repo: https://github.com/crate-ci/typos
-    rev: v1.29.3
+    rev: v1.33.1
     hooks:
       - id: typos
   - repo: https://github.com/crate-ci/committed
-    rev: v1.0.20
+    rev: v1.1.7
     hooks:
       - id: committed
   - repo: local
@@ -36,6 +36,6 @@ repos:
         minimum_pre_commit_version: 2.21.0
         require_serial: true
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.16.3
+    rev: v8.27.2
     hooks:
       - id: gitleaks
