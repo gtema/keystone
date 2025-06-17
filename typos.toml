@@ -1,5 +1,5 @@
 [files]
-extend-exclude = ["loadtest"]
+extend-exclude = ["loadtest", "doc/**/mermaid.*js", "doc/html/**/*"]
 ignore-hidden = true
 ignore-files = true
 ignore-dot = true
@@ -51,3 +51,5 @@ extend-ignore-re = []
 [type.lock.extend-identifiers]
 
 [type.lock.extend-words]
+
+[type.js]

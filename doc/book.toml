@@ -1,0 +1,24 @@
+[book]
+authors = ["Artem Goncharov"]
+language = "en"
+src = "src"
+title = "OpenStack Keystone"
+
+[rust]
+edition = "2024"
+
+[build]
+build-dir = "html"
+create-missing = false
+
+[output.html.fold]
+enable = true
+level = 2
+
+[preprocessor]
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]

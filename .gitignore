@@ -1,3 +1,5 @@
 **/target
 # Ignore rust files in the root folder
 *.rs
+
+doc/html
