@@ -4489,9 +4489,9 @@ checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
 
 [[package]]
 name = "thirtyfour"
-version = "0.35.0"
+version = "0.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44d1dd5271076f9cf5cb6a673497d1476cda2633e6cf2523edd00ac16218d651"
+checksum = "68c8e648f56941f8e2de8b8df9f9469a892d678600282bce4a88b37005019343"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -4509,7 +4509,7 @@ dependencies = [
  "serde_repr",
  "stringmatch",
  "thirtyfour-macros",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "url",
