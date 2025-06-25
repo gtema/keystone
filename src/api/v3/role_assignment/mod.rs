@@ -92,6 +92,7 @@ mod tests {
     use crate::config::Config;
 
     use crate::keystone::{Service, ServiceState};
+    use crate::policy::MockPolicyFactory;
     use crate::provider::Provider;
 
     use crate::token::{MockTokenProvider, Token, UnscopedPayload};
@@ -104,6 +105,14 @@ mod tests {
                 ..Default::default()
             }))
         });
+        token_mock
+            .expect_expand_token_information()
+            .returning(|_, _, _| {
+                Ok(Token::Unscoped(UnscopedPayload {
+                    user_id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
 
         let provider = Provider::mocked_builder()
             .assignment(assignment_mock)
@@ -116,6 +125,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
+                MockPolicyFactory::new(),
             )
             .unwrap(),
         )

@@ -283,6 +283,7 @@ mod tests {
         types::{UserPasswordAuthRequest, UserResponse},
     };
     use crate::keystone::Service;
+    use crate::policy::MockPolicyFactory;
     use crate::provider::Provider;
     use crate::resource::{
         MockResourceProvider,
@@ -326,8 +327,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let state =
-            Arc::new(Service::new(config, DatabaseConnection::Disconnected, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                config,
+                DatabaseConnection::Disconnected,
+                provider,
+                MockPolicyFactory::new(),
+            )
+            .unwrap(),
+        );
 
         assert_eq!(
             auth_info,
@@ -389,8 +397,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let state =
-            Arc::new(Service::new(config, DatabaseConnection::Disconnected, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                config,
+                DatabaseConnection::Disconnected,
+                provider,
+                MockPolicyFactory::new(),
+            )
+            .unwrap(),
+        );
 
         assert_eq!(
             AuthenticatedInfo::builder()
@@ -432,8 +447,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let state =
-            Arc::new(Service::new(config, DatabaseConnection::Disconnected, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                config,
+                DatabaseConnection::Disconnected,
+                provider,
+                MockPolicyFactory::new(),
+            )
+            .unwrap(),
+        );
 
         let rsp = authenticate_request(
             &state,
@@ -512,6 +534,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
+                MockPolicyFactory::new(),
             )
             .unwrap(),
         );
@@ -624,6 +647,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
+                MockPolicyFactory::new(),
             )
             .unwrap(),
         );
@@ -661,8 +685,17 @@ mod tests {
                 }))
             });
         token_mock
+            .expect_expand_token_information()
+            .withf(|token: &ProviderToken, &_, &_| token.user_id() == "bar")
+            .returning(|_, _, _| {
+                Ok(ProviderToken::Unscoped(UnscopedPayload {
+                    user_id: "foo".into(),
+                    ..Default::default()
+                }))
+            });
+        token_mock
             .expect_validate_token()
-            .withf(|token: &'_ str, _, _| token == "bar")
+            .withf(|token: &'_ str, _, _| token == "baz")
             .returning(|_, _, _| Err(TokenProviderError::Expired));
 
         let provider = Provider::mocked_builder()
@@ -675,6 +708,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
+                MockPolicyFactory::new(),
             )
             .unwrap(),
         );
@@ -689,7 +723,7 @@ mod tests {
                 Request::builder()
                     .uri("/")
                     .header("x-auth-token", "foo")
-                    .header("x-subject-token", "bar")
+                    .header("x-subject-token", "baz")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -831,8 +865,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let state =
-            Arc::new(Service::new(config, DatabaseConnection::Disconnected, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                config,
+                DatabaseConnection::Disconnected,
+                provider,
+                MockPolicyFactory::new(),
+            )
+            .unwrap(),
+        );
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -927,8 +968,15 @@ mod tests {
             .build()
             .unwrap();
 
-        let state =
-            Arc::new(Service::new(config, DatabaseConnection::Disconnected, provider).unwrap());
+        let state = Arc::new(
+            Service::new(
+                config,
+                DatabaseConnection::Disconnected,
+                provider,
+                MockPolicyFactory::new(),
+            )
+            .unwrap(),
+        );
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())

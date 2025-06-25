@@ -14,10 +14,11 @@
 
 use axum::{
     extract::{FromRef, FromRequestParts},
-    http::{StatusCode, request::Parts},
+    http::request::Parts,
 };
 use std::sync::Arc;
 
+use crate::api::KeystoneApiError;
 use crate::keystone::ServiceState;
 use crate::token::{Token, TokenApi};
 
@@ -29,7 +30,7 @@ where
     ServiceState: FromRef<S>,
     S: Send + Sync,
 {
-    type Rejection = (StatusCode, &'static str);
+    type Rejection = KeystoneApiError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let auth_header = parts
@@ -40,18 +41,25 @@ where
         let auth_header = if let Some(auth_header) = auth_header {
             auth_header
         } else {
-            return Err((StatusCode::UNAUTHORIZED, "not authorized"));
+            return Err(KeystoneApiError::Unauthorized)?;
         };
 
         let state = Arc::from_ref(state);
 
-        Ok(Self(
-            state
-                .provider
-                .get_token_provider()
-                .validate_token(auth_header, Some(false), None)
-                .await
-                .map_err(|_| (StatusCode::UNAUTHORIZED, "not authorized"))?,
-        ))
+        let token = state
+            .provider
+            .get_token_provider()
+            .validate_token(auth_header, Some(false), None)
+            .await
+            .map_err(|_| KeystoneApiError::Unauthorized)?;
+
+        // Expand the information (user, project, roles, etc) about the user when a token is valid
+        let token = state
+            .provider
+            .get_token_provider()
+            .expand_token_information(&token, &state.db, &state.provider)
+            .await?;
+
+        Ok(Self(token))
     }
 }

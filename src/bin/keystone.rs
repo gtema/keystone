@@ -30,7 +30,7 @@ use tower_http::{
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::{Level, error, info, info_span, trace};
-use tracing_subscriber::{filter::LevelFilter, prelude::*};
+use tracing_subscriber::{filter::*, prelude::*};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
@@ -41,6 +41,7 @@ use openstack_keystone::config::Config;
 use openstack_keystone::federation::FederationApi;
 use openstack_keystone::keystone::{Service, ServiceState};
 use openstack_keystone::plugin_manager::PluginManager;
+use openstack_keystone::policy::PolicyFactory;
 use openstack_keystone::provider::Provider;
 
 /// Simple program to greet a person
@@ -74,14 +75,21 @@ impl MakeRequestId for OpenStackRequestId {
 async fn main() -> Result<(), Report> {
     let args = Args::parse();
 
-    let log_layer = tracing_subscriber::fmt::layer()
-        .with_writer(io::stderr)
-        .with_filter(match args.verbose {
+    let filter = Targets::new()
+        .with_default(match args.verbose {
             0 => LevelFilter::WARN,
             1 => LevelFilter::INFO,
             2 => LevelFilter::DEBUG,
             _ => LevelFilter::TRACE,
-        });
+        })
+        .with_target("cranelift_codegen", Level::INFO)
+        .with_target("wasmtime_codegen", Level::INFO)
+        .with_target("wasmtime_cranelift", Level::INFO)
+        .with_target("wasmtime::runtime", Level::INFO);
+
+    let log_layer = tracing_subscriber::fmt::layer()
+        .with_writer(io::stderr)
+        .with_filter(filter);
 
     // build the tracing registry
     tracing_subscriber::registry().with(log_layer).init();
@@ -104,7 +112,10 @@ async fn main() -> Result<(), Report> {
 
     let provider = Provider::new(cfg.clone(), plugin_manager)?;
 
-    let shared_state = Arc::new(Service::new(cfg, conn, provider).unwrap());
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("policy.wasm");
+    let policy = PolicyFactory::from_wasm(&path).await?;
+
+    let shared_state = Arc::new(Service::new(cfg, conn, provider, policy)?);
 
     spawn(cleanup(cloned_token, shared_state.clone()));
 
