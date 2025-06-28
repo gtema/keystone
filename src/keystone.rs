@@ -12,14 +12,20 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::extract::FromRef;
+use axum::extract::{FromRef, FromRequestParts};
+use mockall_double::double;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tracing::info;
 use webauthn_rs::{Webauthn, WebauthnBuilder, prelude::Url};
 
+use crate::api::error::KeystoneApiError;
 use crate::config::Config;
 use crate::error::KeystoneError;
+#[double]
+use crate::policy::Policy;
+#[double]
+use crate::policy::PolicyFactory;
 use crate::provider::Provider;
 
 // Placing ServiceState behind Arc is necessary to address DatabaseConnection not implementing
@@ -27,12 +33,21 @@ use crate::provider::Provider;
 //#[derive(Clone)]
 #[derive(FromRef)]
 pub struct Service {
+    /// Config file
     pub config: Config,
+    /// Service/resource Provider
     pub provider: Provider,
+    /// Database connection
     #[from_ref(skip)]
     pub db: DatabaseConnection,
+
+    /// Policy factory
+    pub policy_factory: Arc<PolicyFactory>,
+
+    /// WebAuthN provider
     pub webauthn: Webauthn,
 
+    /// Shutdown flag
     pub shutdown: bool,
 }
 
@@ -43,6 +58,7 @@ impl Service {
         cfg: Config,
         db: DatabaseConnection,
         provider: Provider,
+        policy_factory: PolicyFactory,
     ) -> Result<Self, KeystoneError> {
         // Effective domain name.
         let rp_id = "localhost";
@@ -63,6 +79,7 @@ impl Service {
             config: cfg.clone(),
             provider,
             db,
+            policy_factory: Arc::new(policy_factory),
             webauthn,
             shutdown: false,
         })
@@ -71,5 +88,17 @@ impl Service {
     pub async fn terminate(&self) -> Result<(), KeystoneError> {
         info!("Terminating Keystone");
         Ok(())
+    }
+}
+
+impl FromRequestParts<ServiceState> for Policy {
+    type Rejection = KeystoneApiError;
+
+    async fn from_request_parts(
+        _parts: &mut axum::http::request::Parts,
+        state: &ServiceState,
+    ) -> Result<Self, Self::Rejection> {
+        let policy = state.policy_factory.instantiate().await?;
+        Ok(policy)
     }
 }

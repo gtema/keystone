@@ -128,6 +128,7 @@ mod tests {
     use crate::config::Config;
 
     use crate::keystone::Service;
+    use crate::policy::MockPolicyFactory;
     use crate::provider::Provider;
     use crate::resource::{MockResourceProvider, types::Domain};
 
@@ -164,6 +165,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
+                MockPolicyFactory::new(),
             )
             .unwrap(),
         );

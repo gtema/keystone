@@ -18,6 +18,7 @@ use crate::assignment::error::*;
 use crate::catalog::error::*;
 use crate::federation::error::*;
 use crate::identity::error::*;
+use crate::policy::*;
 use crate::resource::error::*;
 use crate::token::TokenProviderError;
 
@@ -45,6 +46,18 @@ pub enum KeystoneError {
     IdentityError {
         #[from]
         source: IdentityProviderError,
+    },
+
+    #[error(transparent)]
+    IO {
+        #[from]
+        source: std::io::Error,
+    },
+
+    #[error(transparent)]
+    Policy {
+        #[from]
+        source: PolicyError,
     },
 
     #[error(transparent)]

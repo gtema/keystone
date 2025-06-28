@@ -52,6 +52,10 @@ pub struct Config {
     #[serde(default)]
     pub identity: IdentitySection,
 
+    /// API policy enforcement
+    #[serde(default)]
+    pub api_policy: PolicySection,
+
     /// Resource provider related configuration
     #[serde(default)]
     pub resource: ResourceSection,
@@ -110,6 +114,13 @@ impl DatabaseSection {
         }
         self.connection.clone()
     }
+}
+
+/// The configuration options for the API policy enforcement.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct PolicySection {
+    /// Whether the policy enforcement should be enforced or not.
+    pub enable: bool,
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
@@ -197,6 +208,7 @@ impl Config {
         let mut builder = config::Config::builder();
 
         builder = builder
+            .set_default("api_policy.enable", "true")?
             .set_default("identity.max_password_length", "4096")?
             .set_default("fernet_tokens.key_repository", "/etc/keystone/fernet-keys/")?
             .set_default("fernet_tokens.max_active_keys", "3")?

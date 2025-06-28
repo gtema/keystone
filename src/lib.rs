@@ -24,6 +24,7 @@ pub mod federation;
 pub mod identity;
 pub mod keystone;
 pub mod plugin_manager;
+pub mod policy;
 pub mod provider;
 pub mod resource;
 pub mod token;

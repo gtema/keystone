@@ -27,6 +27,7 @@ use crate::auth::AuthenticationError;
 use crate::catalog::error::CatalogProviderError;
 use crate::federation::error::FederationProviderError;
 use crate::identity::error::IdentityProviderError;
+use crate::policy::PolicyError;
 use crate::resource::error::ResourceProviderError;
 use crate::token::error::TokenProviderError;
 
@@ -104,6 +105,12 @@ pub enum KeystoneApiError {
     IdentityError {
         #[from]
         source: IdentityProviderError,
+    },
+
+    #[error(transparent)]
+    Policy {
+        #[from]
+        source: PolicyError,
     },
 
     #[error(transparent)]

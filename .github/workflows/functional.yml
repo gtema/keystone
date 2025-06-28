@@ -15,10 +15,15 @@ env:
   KEYSTONE_URL: http://localhost:8080
   OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Enable cache
@@ -40,13 +45,29 @@ jobs:
       - name: Build Keystone
         run: cargo build
 
+      - name: Move artifacts to the root
+        run: mv target/debug/keystone* ./
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
+
+      - name: Setup OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: latest
+
+      - name: Build policies
+        run: just build-policy
+
       - name: Upload built binaries
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: keystone
           path: |
-            target/debug/keystone
-            target/debug/keystone-db
+            keystone
+            keystone-db
+            policy.wasm
 
   interop:
     runs-on: ubuntu-latest
@@ -84,7 +105,7 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Fetch pre-built keystone
+      - name: Fetch pre-built artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: keystone
@@ -224,7 +245,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Fetch pre-built keystone
+      - name: Fetch pre-built artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: keystone

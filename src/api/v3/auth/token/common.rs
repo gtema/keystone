@@ -186,6 +186,7 @@ mod tests {
     use crate::config::Config;
     use crate::identity::{MockIdentityProvider, types::UserResponse};
     use crate::keystone::Service;
+    use crate::policy::MockPolicyFactory;
     use crate::provider::Provider;
     use crate::resource::{
         MockResourceProvider,
@@ -230,6 +231,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
+                MockPolicyFactory::new(),
             )
             .unwrap(),
         );
@@ -283,6 +285,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
+                MockPolicyFactory::new(),
             )
             .unwrap(),
         );
@@ -364,6 +367,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
+                MockPolicyFactory::new(),
             )
             .unwrap(),
         );

@@ -18,6 +18,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use mockall_double::double;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
@@ -25,6 +26,8 @@ use crate::api::error::KeystoneApiError;
 use crate::api::v3::federation::types::*;
 use crate::federation::FederationApi;
 use crate::keystone::ServiceState;
+#[double]
+use crate::policy::Policy;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
@@ -47,14 +50,22 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
 #[tracing::instrument(
     name = "api::identity_provider_list",
     level = "debug",
-    skip(state, _user_auth),
+    skip(state, _user_auth, policy),
     err(Debug)
 )]
 async fn list(
     Auth(_user_auth): Auth,
+    mut policy: Policy,
     Query(query): Query<IdentityProviderListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce(
+            "identity/identity_provider_list",
+            &_user_auth,
+            serde_json::to_value(&query)?,
+        )
+        .await?;
     let identity_providers: Vec<IdentityProvider> = state
         .provider
         .get_federation_provider()
@@ -218,6 +229,7 @@ mod tests {
         MockFederationProvider, error::FederationProviderError, types as provider_types,
     };
     use crate::keystone::{Service, ServiceState};
+    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyEvaluationResult};
     use crate::provider::Provider;
     use crate::token::{MockTokenProvider, Token, UnscopedPayload};
 
@@ -229,6 +241,14 @@ mod tests {
                 ..Default::default()
             }))
         });
+        token_mock
+            .expect_expand_token_information()
+            .returning(|_, _, _| {
+                Ok(Token::Unscoped(UnscopedPayload {
+                    user_id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
 
         let provider = Provider::mocked_builder()
             .federation(federation_mock)
@@ -236,11 +256,20 @@ mod tests {
             .build()
             .unwrap();
 
+        let mut policy_factory_mock = MockPolicyFactory::default();
+        policy_factory_mock.expect_instantiate().returning(|| {
+            let mut policy_mock = MockPolicy::default();
+            policy_mock
+                .expect_enforce()
+                .returning(|_, _, _| Ok(PolicyEvaluationResult::allowed()));
+            Ok(policy_mock)
+        });
         Arc::new(
             Service::new(
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
+                policy_factory_mock,
             )
             .unwrap(),
         )
@@ -263,7 +292,6 @@ mod tests {
                     ..Default::default()
                 }])
             });
-
         let state = get_mocked_state(federation_mock);
 
         let mut api = openapi_router()
