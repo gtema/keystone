@@ -66,7 +66,7 @@ impl MakeRequestId for OpenStackRequestId {
         let req_id = Uuid::new_v4().simple().to_string();
 
         Some(RequestId::new(
-            http::HeaderValue::from_str(format!("req-{}", req_id).as_str()).unwrap(),
+            http::HeaderValue::from_str(format!("req-{req_id}").as_str()).unwrap(),
         ))
     }
 }

@@ -17,7 +17,10 @@ use axum::{
     http::{HeaderMap, header},
     response::IntoResponse,
 };
-use utoipa::OpenApi;
+use utoipa::{
+    Modify, OpenApi,
+    openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
+};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::error::KeystoneApiError;
@@ -32,8 +35,28 @@ pub mod v3;
 use crate::api::types::*;
 
 #[derive(OpenApi)]
-#[openapi(info(version = "3.14.0"))]
+#[openapi(
+    info(version = "3.14.0"),
+    modifiers(&SecurityAddon),
+    tags(
+        (name="identity_providers", description=v3::federation::identity_provider::DESCRIPTION),
+        (name="mappings", description=v3::federation::mapping::DESCRIPTION)
+    )
+)]
 pub struct ApiDoc;
+
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        if let Some(components) = openapi.components.as_mut() {
+            components.add_security_scheme(
+                "x-auth",
+                SecurityScheme::ApiKey(ApiKey::Header(ApiKeyValue::new("x-auth-token"))),
+            )
+        }
+    }
+}
 
 pub fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
@@ -59,7 +82,7 @@ async fn version(headers: HeaderMap) -> Result<impl IntoResponse, KeystoneApiErr
 
     let link = Link {
         rel: "self".into(),
-        href: format!("http://{}/v3", host),
+        href: format!("http://{host}/v3"),
     };
     let version = Version {
         id: "v3.14".into(),

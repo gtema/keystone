@@ -260,9 +260,9 @@ mod tests {
     async fn test_load_keys() {
         let tmp_dir = tempdir().unwrap();
         for i in 0..5 {
-            let file_path = tmp_dir.path().join(format!("{}", i));
+            let file_path = tmp_dir.path().join(format!("{i}"));
             let mut tmp_file = File::create(file_path).unwrap();
-            write!(tmp_file, "{}", i).unwrap();
+            write!(tmp_file, "{i}").unwrap();
         }
         // write dummy file to check it is ignored
         let file_path = tmp_dir.path().join("dummy");

@@ -72,7 +72,7 @@ pub(crate) fn get_mocked_state(identity_mock: MockIdentityProvider) -> ServiceSt
         let mut policy_mock = MockPolicy::default();
         policy_mock
             .expect_enforce()
-            .returning(|_, _, _| Ok(PolicyEvaluationResult::allowed()));
+            .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
         Ok(policy_mock)
     });
 

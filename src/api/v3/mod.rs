@@ -59,7 +59,7 @@ async fn version(
     OriginalUri(uri): OriginalUri,
     req: Request,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    println!("Request: {:?}, uri: {:?}", req, uri);
+    println!("Request: {req:?}, uri: {uri:?}");
     let host = headers
         .get(header::HOST)
         .and_then(|header| header.to_str().ok())
