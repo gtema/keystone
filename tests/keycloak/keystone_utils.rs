@@ -30,7 +30,7 @@ use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
-use openstack_keystone::api::v3::federation::types::*;
+use openstack_keystone::api::v4::federation::types::*;
 
 pub async fn auth() -> String {
     let keystone_url = env::var("KEYSTONE_URL").expect("KEYSTONE_URL is set");
@@ -78,7 +78,7 @@ pub async fn setup_kecloak_idp<T: AsRef<str>, K: AsRef<str>, S: AsRef<str>>(
     let client = Client::new();
 
     let idp: IdentityProviderResponse = client
-        .post(format!("{}/v3/federation/identity_providers", keystone_url))
+        .post(format!("{}/v4/federation/identity_providers", keystone_url))
         .header("x-auth-token", token.as_ref())
         .json(&json!({
             "identity_provider": {
@@ -96,7 +96,7 @@ pub async fn setup_kecloak_idp<T: AsRef<str>, K: AsRef<str>, S: AsRef<str>>(
 
     let mapping: MappingResponse = client
         .post(format!(
-            "{}/v3/federation/mappings",
+            "{}/v4/federation/mappings",
             keystone_url,
         ))
         .header("x-auth-token", token.as_ref())
@@ -105,7 +105,7 @@ pub async fn setup_kecloak_idp<T: AsRef<str>, K: AsRef<str>, S: AsRef<str>>(
                 "id": "kc",
                 "name": "keycloak",
                 "idp_id": idp.identity_provider.id.clone(),
-                "allowed_redirect_uris": ["http://localhost:8080/v3/identity_providers/kc/callback"],
+                "allowed_redirect_uris": ["http://localhost:8080/v4/identity_providers/kc/callback"],
                 "user_id_claim": "sub",
                 "user_name_claim": "preferred_username",
                 "domain_id_claim": "domain_id"

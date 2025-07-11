@@ -69,12 +69,23 @@ pub enum VersionStatus {
     #[default]
     #[serde(rename = "stable")]
     Stable,
+    #[serde(rename = "experimental")]
+    Experimental,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct Link {
     pub rel: String,
     pub href: String,
+}
+
+impl Link {
+    pub fn new(href: String) -> Self {
+        Self {
+            rel: "self".into(),
+            href,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]

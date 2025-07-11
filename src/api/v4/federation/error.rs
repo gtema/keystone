@@ -16,7 +16,7 @@ use thiserror::Error;
 use tracing::{Level, error, instrument};
 
 use crate::api::error::KeystoneApiError;
-use crate::api::v3::federation::types::*;
+use crate::api::v4::federation::types::*;
 
 #[derive(Error, Debug)]
 pub enum OidcError {

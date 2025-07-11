@@ -12,140 +12,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{
-    Json, debug_handler,
-    extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
-};
-use utoipa_axum::{router::OpenApiRouter, routes};
+use utoipa_axum::router::OpenApiRouter;
 
-use crate::api::auth::Auth;
-use crate::api::error::KeystoneApiError;
-use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
-use types::{Group, GroupCreateRequest, GroupList, GroupListParameters, GroupResponse};
 
-pub mod types;
+use crate::api::v3::group::openapi_router as v3_openapi_router;
 
-pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
-    OpenApiRouter::new()
-        .routes(routes!(list, create))
-        .routes(routes!(show, remove))
-}
-
-/// List groups
-#[utoipa::path(
-    get,
-    path = "/",
-    params(GroupListParameters),
-    description = "List groups",
-    responses(
-        (status = OK, description = "List of groups", body = GroupList),
-        (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
-    ),
-    tag="groups"
-)]
-#[tracing::instrument(name = "api::group_list", level = "debug", skip(state))]
-async fn list(
-    Auth(user_auth): Auth,
-    Query(query): Query<GroupListParameters>,
-    State(state): State<ServiceState>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    let groups: Vec<Group> = state
-        .provider
-        .get_identity_provider()
-        .list_groups(&state.db, &query.into())
-        .await
-        .map_err(KeystoneApiError::identity)?
-        .into_iter()
-        .map(Into::into)
-        .collect();
-    Ok(GroupList { groups })
-}
-
-/// Get single group
-#[utoipa::path(
-    get,
-    path = "/{group_id}",
-    description = "Get group by ID",
-    params(),
-    responses(
-        (status = OK, description = "Group object", body = GroupResponse),
-        (status = 404, description = "Group not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
-    ),
-    tag="groups"
-)]
-#[tracing::instrument(name = "api::group_get", level = "debug", skip(state))]
-async fn show(
-    Auth(user_auth): Auth,
-    Path(group_id): Path<String>,
-    State(state): State<ServiceState>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
-        .provider
-        .get_identity_provider()
-        .get_group(&state.db, &group_id)
-        .await
-        .map(|x| {
-            x.ok_or_else(|| KeystoneApiError::NotFound {
-                resource: "group".into(),
-                identifier: group_id,
-            })
-        })?
-}
-
-/// Create group
-#[utoipa::path(
-    post,
-    path = "/",
-    description = "Create new Group",
-    responses(
-        (status = CREATED, description = "Group object", body = GroupResponse),
-    ),
-    tag="groups"
-)]
-#[tracing::instrument(name = "api::create_group", level = "debug", skip(state))]
-#[debug_handler]
-async fn create(
-    Auth(user_auth): Auth,
-    State(state): State<ServiceState>,
-    Json(req): Json<GroupCreateRequest>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    let res = state
-        .provider
-        .get_identity_provider()
-        .create_group(&state.db, req.into())
-        .await
-        .map_err(KeystoneApiError::identity)?;
-    Ok((StatusCode::CREATED, res).into_response())
-}
-
-/// Delete group
-#[utoipa::path(
-    delete,
-    path = "/{group_id}",
-    description = "Delete group by ID",
-    params(),
-    responses(
-        (status = 204, description = "Deleted"),
-        (status = 404, description = "group not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
-    ),
-    tag="groups"
-)]
-#[tracing::instrument(name = "api::group_delete", level = "debug", skip(state))]
-async fn remove(
-    Auth(user_auth): Auth,
-    Path(group_id): Path<String>,
-    State(state): State<ServiceState>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
-        .provider
-        .get_identity_provider()
-        .delete_group(&state.db, &group_id)
-        .await
-        .map_err(KeystoneApiError::identity)?;
-    Ok((StatusCode::NO_CONTENT).into_response())
+pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
+    v3_openapi_router()
 }
 
 #[cfg(test)]

@@ -31,16 +31,17 @@ pub(crate) mod common;
 pub mod error;
 pub mod types;
 pub mod v3;
+pub mod v4;
 
 use crate::api::types::*;
 
 #[derive(OpenApi)]
 #[openapi(
-    info(version = "3.14.0"),
+    info(version = "4.0.1"),
     modifiers(&SecurityAddon),
     tags(
-        (name="identity_providers", description=v3::federation::identity_provider::DESCRIPTION),
-        (name="mappings", description=v3::federation::mapping::DESCRIPTION)
+        (name="identity_providers", description=v4::federation::identity_provider::DESCRIPTION),
+        (name="mappings", description=v4::federation::mapping::DESCRIPTION)
     )
 )]
 pub struct ApiDoc;
@@ -61,6 +62,7 @@ impl Modify for SecurityAddon {
 pub fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .nest("/v3", v3::openapi_router())
+        .nest("/v4", v4::openapi_router())
         .routes(routes!(version))
 }
 
@@ -80,20 +82,24 @@ async fn version(headers: HeaderMap) -> Result<impl IntoResponse, KeystoneApiErr
         .and_then(|header| header.to_str().ok())
         .unwrap_or("localhost");
 
-    let link = Link {
-        rel: "self".into(),
-        href: format!("http://{host}/v3"),
-    };
-    let version = Version {
-        id: "v3.14".into(),
-        status: VersionStatus::Stable,
-        links: Some(vec![link]),
-        media_types: Some(vec![MediaType::default()]),
-        ..Default::default()
-    };
     let res = Versions {
         versions: Values {
-            values: vec![version],
+            values: vec![
+                Version {
+                    id: "v3.14".into(),
+                    status: VersionStatus::Stable,
+                    links: Some(vec![Link::new(format!("http://{host}/v3"))]),
+                    media_types: Some(vec![MediaType::default()]),
+                    ..Default::default()
+                },
+                Version {
+                    id: "v4.0".into(),
+                    status: VersionStatus::Experimental,
+                    links: Some(vec![Link::new(format!("http://{host}/v4"))]),
+                    media_types: Some(vec![MediaType::default()]),
+                    ..Default::default()
+                },
+            ],
         },
     };
     Ok(res)

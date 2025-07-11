@@ -22,7 +22,7 @@ use axum::{
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::types::Scope;
-use crate::api::v3::auth::token::types::{
+use crate::api::v4::auth::token::types::{
     AuthRequest, CreateTokenParameters, Token as ApiResponseToken, TokenResponse,
     ValidateTokenParameters,
 };
@@ -159,8 +159,6 @@ async fn post(
     let authed_info = authenticate_request(&state, &req).await?;
     let authz_info = get_authz_info(&state, &req).await?;
 
-    println!("Authz info is {:?}", authz_info);
-
     let mut token = state
         .provider
         .get_token_provider()
@@ -273,7 +271,7 @@ mod tests {
     use tracing_test::traced_test;
 
     use super::openapi_router;
-    use crate::api::v3::auth::token::types::*;
+    use crate::api::v4::auth::token::types::*;
     use crate::assignment::MockAssignmentProvider;
     use crate::auth::AuthenticatedInfo;
     use crate::catalog::MockCatalogProvider;

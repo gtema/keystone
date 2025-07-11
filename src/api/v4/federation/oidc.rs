@@ -28,11 +28,11 @@ use openidconnect::{
 };
 
 use crate::api::common::{find_project_from_scope, get_domain};
-use crate::api::v3::auth::token::types::{
+use crate::api::v4::auth::token::types::{
     Token as ApiResponseToken, TokenResponse as KeystoneTokenResponse,
 };
-use crate::api::v3::federation::error::OidcError;
-use crate::api::v3::federation::types::*;
+use crate::api::v4::federation::error::OidcError;
+use crate::api::v4::federation::types::*;
 use crate::api::{Catalog, error::KeystoneApiError};
 use crate::auth::{AuthenticatedInfo, AuthenticationError, AuthzInfo};
 use crate::catalog::CatalogApi;

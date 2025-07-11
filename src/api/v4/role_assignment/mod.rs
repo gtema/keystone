@@ -12,58 +12,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{
-    extract::{Query, State},
-    response::IntoResponse,
-};
-use utoipa_axum::{router::OpenApiRouter, routes};
+use utoipa_axum::router::OpenApiRouter;
 
-use crate::api::auth::Auth;
-use crate::api::error::KeystoneApiError;
-use crate::assignment::AssignmentApi;
+use crate::api::v3::role_assignment::openapi_router as v3_openapi_router;
 use crate::keystone::ServiceState;
-use types::{Assignment, AssignmentList, RoleAssignmentListParameters};
-
-pub mod types;
 
 pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
-    OpenApiRouter::new().routes(routes!(list))
-}
-
-/// List role assignments
-#[utoipa::path(
-    get,
-    path = "/",
-    params(RoleAssignmentListParameters),
-    description = "List roles",
-    responses(
-        (status = OK, description = "List of role assignments", body = AssignmentList),
-        (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
-    ),
-    tag="roles"
-)]
-#[tracing::instrument(
-    name = "api::role_assignment_list",
-    level = "debug",
-    skip(state, _user_auth)
-)]
-async fn list(
-    Auth(_user_auth): Auth,
-    Query(query): Query<RoleAssignmentListParameters>,
-    State(state): State<ServiceState>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    let assignments: Result<Vec<Assignment>, _> = state
-        .provider
-        .get_assignment_provider()
-        .list_role_assignments(&state.db, &state.provider, &query.try_into()?)
-        .await
-        .map_err(KeystoneApiError::assignment)?
-        .into_iter()
-        .map(TryInto::try_into)
-        .collect();
-    Ok(AssignmentList {
-        role_assignments: assignments?,
-    })
+    v3_openapi_router()
 }
 
 #[cfg(test)]
