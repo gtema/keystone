@@ -175,6 +175,7 @@ impl IntoResponse for KeystoneApiError {
             KeystoneApiError::Unauthorized => StatusCode::UNAUTHORIZED,
             //            KeystoneApiError::AuthenticationInfo { .. } => StatusCode::UNAUTHORIZED,
             KeystoneApiError::Forbidden => StatusCode::FORBIDDEN,
+            KeystoneApiError::Policy { .. } => StatusCode::FORBIDDEN,
             KeystoneApiError::InternalError(_)
             | KeystoneApiError::IdentityError { .. }
             | KeystoneApiError::ResourceError { .. }

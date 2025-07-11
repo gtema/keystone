@@ -126,19 +126,19 @@ impl From<OidcError> for KeystoneApiError {
                 KeystoneApiError::BadRequest(format!("Error exchanging authorization code for the authorization token: {msg}"))
             }
             OidcError::ClaimVerification { source } => {
-                KeystoneApiError::BadRequest(format!("Error in claims verification: {}", source))
+                KeystoneApiError::BadRequest(format!("Error in claims verification: {source}"))
             }
             OidcError::OpenIdConnectReqwest { source } => {
-                KeystoneApiError::InternalError(format!("Error in OpenIDConnect logic: {}", source))
+                KeystoneApiError::InternalError(format!("Error in OpenIDConnect logic: {source}"))
             }
             OidcError::OpenIdConnectConfiguration { source } => {
-                KeystoneApiError::InternalError(format!("Error in OpenIDConnect logic: {}", source))
+                KeystoneApiError::InternalError(format!("Error in OpenIDConnect logic: {source}"))
             }
             OidcError::UrlParse { source } => {
-                KeystoneApiError::BadRequest(format!("Error in OpenIDConnect logic: {}", source))
+                KeystoneApiError::BadRequest(format!("Error in OpenIDConnect logic: {source}"))
             }
             e @ OidcError::NoToken => {
-                KeystoneApiError::InternalError(format!("Error in OpenIDConnect logic: {}", e))
+                KeystoneApiError::InternalError(format!("Error in OpenIDConnect logic: {e}"))
             }
             OidcError::ClientIdRequired => {
                 KeystoneApiError::BadRequest("Identity Provider mut set `client_id`.".to_string())

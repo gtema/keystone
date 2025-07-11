@@ -8,8 +8,9 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - '.github/workflows/functional.yml'
-      - 'tests/'
-      - 'src/'
+      - 'tests/**'
+      - 'src/**'
+      - 'policy/**'
 env:
   DATABASE_URL: postgresql://keystone:1234@127.0.0.1:5432/keystone
   KEYSTONE_URL: http://localhost:8080

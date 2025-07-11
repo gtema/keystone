@@ -25,12 +25,19 @@ use std::path::Path;
 use thiserror::Error;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
-use tracing::debug;
+use tracing::{debug, trace};
 
 use crate::token::Token;
 
 #[derive(Debug, Error)]
 pub enum PolicyError {
+    #[error("{}", .0.violations.as_ref().map(
+        |v| v.iter().cloned().map(|x| x.msg)
+        .reduce(|acc, s| format!("{acc}, {s}"))
+        .unwrap_or_default()
+    ).unwrap_or("The request you made requires authentication.".into()))]
+    Forbidden(PolicyEvaluationResult),
+
     #[error("module compilation task crashed")]
     Compilation(#[from] eyre::Report),
 
@@ -124,6 +131,7 @@ mock! {
             policy_name: &str,
             credentials: &Token,
             target: Value,
+            current: Option<Value>
         ) -> Result<PolicyEvaluationResult, PolicyError>;
     }
 }
@@ -184,17 +192,26 @@ impl Policy {
         policy_name: P,
         credentials: &Token,
         target: Value,
+        update: Option<Value>,
     ) -> Result<PolicyEvaluationResult, PolicyError> {
         let input = json!({
             "credentials": Credentials::from(credentials),
-            "target": target
+            "target": target,
+            "update": update,
         });
 
         if let (Some(store), Some(instance)) = (&mut self.store, &self.instance) {
+            trace!(
+                "enforcing policy {} with target {target}",
+                policy_name.as_ref()
+            );
             let [res]: [OpaResponse; 1] = instance
                 .evaluate(store, policy_name.as_ref(), &input)
                 .await?;
             debug!("Res is {:?}", res);
+            if !res.result.allow() {
+                return Err(PolicyError::Forbidden(res.result));
+            }
 
             Ok(res.result)
         } else {
@@ -208,7 +225,7 @@ impl Policy {
 }
 
 /// A single violation of a policy.
-#[derive(Deserialize, Debug, JsonSchema)]
+#[derive(Clone, Deserialize, Debug, JsonSchema)]
 pub struct Violation {
     pub msg: String,
     pub field: Option<String>,
@@ -221,7 +238,7 @@ pub struct OpaResponse {
 }
 
 /// The result of a policy evaluation.
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug)]
 pub struct PolicyEvaluationResult {
     pub allow: bool,
     #[serde(rename = "violation")]
@@ -264,6 +281,14 @@ impl PolicyEvaluationResult {
     pub fn allowed() -> Self {
         Self {
             allow: true,
+            violations: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn forbidden() -> Self {
+        Self {
+            allow: false,
             violations: None,
         }
     }

@@ -12,6 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//! Identity providers API
 use axum::{
     Json, debug_handler,
     extract::{Path, Query, State},
@@ -19,6 +20,7 @@ use axum::{
     response::IntoResponse,
 };
 use mockall_double::double;
+use serde_json::to_value;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
@@ -29,32 +31,50 @@ use crate::keystone::ServiceState;
 #[double]
 use crate::policy::Policy;
 
+pub(crate) static DESCRIPTION: &str = r#"Identity providers API.
+
+Identity provider resource allows to federate users from an external Identity Provider (i.e.
+Keycloak, Azure AD, etc.).
+
+Using the Identity provider requires creation of the mapping, which describes how to map attributes
+of the remote Idp to local users.
+
+Identity provider with an empty domain_id are considered globals and every domain may use it with
+appropriate mapping.
+"#;
+
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .routes(routes!(list, create))
         .routes(routes!(show, update, remove))
 }
 
-/// List identity providers
+/// List identity providers.
+///
+/// List identity providers. Without any filters only global identity providers are returned.
+/// With the `domain_id` identity providers owned by the specified identity provider are returned.
+///
+/// It is expected that only global or owned identity providers can be returned, while an admin
+/// user is able to list all providers.
 #[utoipa::path(
     get,
     path = "/",
     params(IdentityProviderListParameters),
-    description = "List Identity Providers",
     responses(
         (status = OK, description = "List of identity providers", body = IdentityProviderList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="identity_providers"
 )]
 #[tracing::instrument(
     name = "api::identity_provider_list",
     level = "debug",
-    skip(state, _user_auth, policy),
+    skip(state, user_auth, policy),
     err(Debug)
 )]
 async fn list(
-    Auth(_user_auth): Auth,
+    Auth(user_auth): Auth,
     mut policy: Policy,
     Query(query): Query<IdentityProviderListParameters>,
     State(state): State<ServiceState>,
@@ -62,10 +82,12 @@ async fn list(
     policy
         .enforce(
             "identity/identity_provider_list",
-            &_user_auth,
-            serde_json::to_value(&query)?,
+            &user_auth,
+            to_value(&query)?,
+            None,
         )
         .await?;
+
     let identity_providers: Vec<IdentityProvider> = state
         .provider
         .get_federation_provider()
@@ -78,30 +100,32 @@ async fn list(
     Ok(IdentityProviderList { identity_providers })
 }
 
-/// Get single identity provider
+/// Get single identity provider.
+///
+/// Shows details of the existing identity provider.
 #[utoipa::path(
     get,
     path = "/{idp_id}",
-    description = "Get IDP by ID",
-    params(),
     responses(
         (status = OK, description = "IDP object", body = IdentityProviderResponse),
         (status = 404, description = "IDP not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="identity_providers"
 )]
 #[tracing::instrument(
     name = "api::identity_provider_get",
     level = "debug",
-    skip(state),
+    skip(state, user_auth, policy),
     err(Debug)
 )]
 async fn show(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(idp_id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
+    let current = state
         .provider
         .get_federation_provider()
         .get_identity_provider(&state.db, &idp_id)
@@ -111,31 +135,55 @@ async fn show(
                 resource: "identity provider".into(),
                 identifier: idp_id,
             })
-        })?
+        })??;
+
+    policy
+        .enforce(
+            "identity/identity_provider_show",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            None,
+        )
+        .await?;
+    Ok(current)
 }
 
-/// Create identity provider
+/// Create the identity provider.
+///
+/// Create the identity provider with the specified properties.
+///
+/// It is expected that only admin user is able to create global identity providers.
 #[utoipa::path(
     post,
     path = "/",
-    description = "Create new identity provider",
     responses(
         (status = CREATED, description = "identity provider object", body = IdentityProviderResponse),
     ),
+    security(("x-auth" = [])),
     tag="identity_providers"
 )]
 #[tracing::instrument(
     name = "api::identity_provider_create",
     level = "debug",
-    skip(state),
+    skip(state, user_auth, policy),
     err(Debug)
 )]
 #[debug_handler]
 async fn create(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     State(state): State<ServiceState>,
     Json(req): Json<IdentityProviderCreateRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce(
+            "identity/identity_provider_create",
+            &user_auth,
+            serde_json::to_value(&req.identity_provider)?,
+            None,
+        )
+        .await?;
+
     let res = state
         .provider
         .get_federation_provider()
@@ -145,30 +193,49 @@ async fn create(
     Ok((StatusCode::CREATED, res).into_response())
 }
 
-/// Update single identity provider
+/// Update single identity provider.
+///
+/// Updates the existing identity provider.
 #[utoipa::path(
     put,
     path = "/{idp_id}",
-    description = "Update Identity Provider",
     params(),
     responses(
         (status = OK, description = "IDP object", body = IdentityProviderResponse),
         (status = 404, description = "IDP not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="identity_providers"
 )]
 #[tracing::instrument(
     name = "api::identity_provider_update",
     level = "debug",
-    skip(state),
+    skip(state, user_auth, policy),
     err(Debug)
 )]
 async fn update(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(idp_id): Path<String>,
     State(state): State<ServiceState>,
     Json(req): Json<IdentityProviderUpdateRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    // Fetch the current resource to pass current object into the policy evaluation
+    let current = state
+        .provider
+        .get_federation_provider()
+        .get_identity_provider(&state.db, &idp_id)
+        .await?;
+
+    policy
+        .enforce(
+            "identity/identity_provider_update",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            Some(serde_json::to_value(&req.identity_provider)?),
+        )
+        .await?;
+
     let res = state
         .provider
         .get_federation_provider()
@@ -178,35 +245,64 @@ async fn update(
     Ok(res.into_response())
 }
 
-/// Delete Identity provider
+/// Delete Identity provider.
+///
+/// Deletes the existing identity provider.
+///
+/// It is expected that only admin user is allowed to delete the global identity provider
 #[utoipa::path(
     delete,
     path = "/{idp_id}",
-    description = "Delete identity provider by ID",
     params(),
     responses(
         (status = 204, description = "Deleted"),
         (status = 404, description = "identity provider not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="identity_providers"
 )]
 #[tracing::instrument(
     name = "api::identity_provider_delete",
     level = "debug",
-    skip(state),
+    skip(state, user_auth, policy),
     err(Debug)
 )]
 async fn remove(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
+    let current = state
         .provider
         .get_federation_provider()
-        .delete_identity_provider(&state.db, &id)
-        .await
-        .map_err(KeystoneApiError::federation)?;
+        .get_identity_provider(&state.db, &id)
+        .await?;
+
+    policy
+        .enforce(
+            "identity/identity_provider_delete",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            None,
+        )
+        .await?;
+
+    // TODO: decide what to do with the users provisioned using this IDP, mappings, ...
+
+    if current.is_some() {
+        state
+            .provider
+            .get_federation_provider()
+            .delete_identity_provider(&state.db, &id)
+            .await
+            .map_err(KeystoneApiError::federation)?;
+    } else {
+        return Err(KeystoneApiError::NotFound {
+            resource: "identity_provider".to_string(),
+            identifier: id.clone(),
+        });
+    }
     Ok((StatusCode::NO_CONTENT).into_response())
 }
 
@@ -218,10 +314,10 @@ mod tests {
     };
     use http_body_util::BodyExt; // for `collect`
     use sea_orm::DatabaseConnection;
-
     use std::sync::Arc;
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
+    use tracing_test::traced_test;
 
     use super::*;
     use crate::config::Config;
@@ -229,11 +325,14 @@ mod tests {
         MockFederationProvider, error::FederationProviderError, types as provider_types,
     };
     use crate::keystone::{Service, ServiceState};
-    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyEvaluationResult};
+    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyError, PolicyEvaluationResult};
     use crate::provider::Provider;
     use crate::token::{MockTokenProvider, Token, UnscopedPayload};
 
-    fn get_mocked_state(federation_mock: MockFederationProvider) -> ServiceState {
+    fn get_mocked_state(
+        federation_mock: MockFederationProvider,
+        policy_allowed: bool,
+    ) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
         token_mock.expect_validate_token().returning(|_, _, _| {
             Ok(Token::Unscoped(UnscopedPayload {
@@ -257,13 +356,23 @@ mod tests {
             .unwrap();
 
         let mut policy_factory_mock = MockPolicyFactory::default();
-        policy_factory_mock.expect_instantiate().returning(|| {
-            let mut policy_mock = MockPolicy::default();
-            policy_mock
-                .expect_enforce()
-                .returning(|_, _, _| Ok(PolicyEvaluationResult::allowed()));
-            Ok(policy_mock)
-        });
+        if policy_allowed {
+            policy_factory_mock.expect_instantiate().returning(|| {
+                let mut policy_mock = MockPolicy::default();
+                policy_mock
+                    .expect_enforce()
+                    .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+                Ok(policy_mock)
+            });
+        } else {
+            policy_factory_mock.expect_instantiate().returning(|| {
+                let mut policy_mock = MockPolicy::default();
+                policy_mock.expect_enforce().returning(|_, _, _, _| {
+                    Err(PolicyError::Forbidden(PolicyEvaluationResult::forbidden()))
+                });
+                Ok(policy_mock)
+            });
+        }
         Arc::new(
             Service::new(
                 Config::default(),
@@ -276,6 +385,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_list() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
@@ -292,7 +402,7 @@ mod tests {
                     ..Default::default()
                 }])
             });
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -333,6 +443,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_list_qp() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
@@ -354,7 +465,7 @@ mod tests {
                 }])
             });
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -379,6 +490,46 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
+    async fn test_list_forbidden() {
+        let mut federation_mock = MockFederationProvider::default();
+        federation_mock
+            .expect_list_identity_providers()
+            .withf(
+                |_: &DatabaseConnection, _: &provider_types::IdentityProviderListParameters| true,
+            )
+            .returning(|_, _| {
+                Ok(vec![provider_types::IdentityProvider {
+                    id: "id".into(),
+                    name: "name".into(),
+                    domain_id: Some("did".into()),
+                    default_mapping_name: Some("dummy".into()),
+                    ..Default::default()
+                }])
+            });
+        let state = get_mocked_state(federation_mock, false);
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
+
+        let response = api
+            .as_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    #[traced_test]
     async fn test_get() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
@@ -399,7 +550,7 @@ mod tests {
                 }))
             });
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -454,6 +605,45 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
+    async fn test_get_forbidden() {
+        let mut federation_mock = MockFederationProvider::default();
+        federation_mock
+            .expect_get_identity_provider()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .returning(|_, _| {
+                Ok(Some(provider_types::IdentityProvider {
+                    id: "bar".into(),
+                    name: "name".into(),
+                    domain_id: Some("did".into()),
+                    default_mapping_name: Some("dummy".into()),
+                    ..Default::default()
+                }))
+            });
+
+        let state = get_mocked_state(federation_mock, false);
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state.clone());
+
+        let response = api
+            .as_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/bar")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    #[traced_test]
     async fn test_create() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
@@ -470,7 +660,7 @@ mod tests {
                 })
             });
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -510,8 +700,20 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_update() {
         let mut federation_mock = MockFederationProvider::default();
+        federation_mock
+            .expect_get_identity_provider()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "1")
+            .returning(|_, _| {
+                Ok(Some(provider_types::IdentityProvider {
+                    id: "bar".into(),
+                    name: "name".into(),
+                    domain_id: Some("did".into()),
+                    ..Default::default()
+                }))
+            });
         federation_mock
             .expect_update_identity_provider()
             .withf(
@@ -530,7 +732,7 @@ mod tests {
                 })
             });
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -565,8 +767,24 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_delete() {
         let mut federation_mock = MockFederationProvider::default();
+        federation_mock
+            .expect_get_identity_provider()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .returning(|_, _| Ok(None));
+        federation_mock
+            .expect_get_identity_provider()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .returning(|_, _| {
+                Ok(Some(provider_types::IdentityProvider {
+                    id: "bar".into(),
+                    name: "name".into(),
+                    domain_id: Some("did".into()),
+                    ..Default::default()
+                }))
+            });
         federation_mock
             .expect_delete_identity_provider()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
@@ -581,7 +799,7 @@ mod tests {
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| Ok(()));
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())

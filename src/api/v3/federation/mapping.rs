@@ -12,12 +12,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//! Federation mappings API
 use axum::{
     Json, debug_handler,
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
+use mockall_double::double;
+use serde_json::to_value;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
@@ -25,6 +28,17 @@ use crate::api::error::KeystoneApiError;
 use crate::api::v3::federation::types::*;
 use crate::federation::FederationApi;
 use crate::keystone::ServiceState;
+#[double]
+use crate::policy::Policy;
+
+pub(crate) static DESCRIPTION: &str = r#"Federation mappings API.
+
+Mappings define how the user attributes on the remote IDP are mapped to the local user.
+
+Mappings with an empty domain_id are considered globals and every domain may use it. Such mappings
+require the `domain_id_claim` attribute to be set to identify the domain_id for the respective
+user.
+"#;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
@@ -32,29 +46,41 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
         .routes(routes!(show, update, remove))
 }
 
-/// List mappings
+/// List federation mappings.
+///
+/// List available federation mappings.
+///
+/// Without `domain_id` specified global mappings are returned.
+///
+/// It is expected that listing mappings belonging to the other domain is only allowed to the admin
+/// user.
 #[utoipa::path(
     get,
     path = "/",
     params(MappingListParameters),
-    description = "List federation mappings",
     responses(
         (status = OK, description = "List of mappings", body = MappingList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="mappings"
 )]
 #[tracing::instrument(
     name = "api::mapping_list",
     level = "debug",
-    skip(state, _user_auth),
+    skip(state, user_auth, policy),
     err(Debug)
 )]
 async fn list(
-    Auth(_user_auth): Auth,
+    Auth(user_auth): Auth,
+    mut policy: Policy,
     Query(query): Query<MappingListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce("identity/mapping_list", &user_auth, to_value(&query)?, None)
+        .await?;
+
     let mappings: Vec<Mapping> = state
         .provider
         .get_federation_provider()
@@ -72,36 +98,47 @@ async fn list(
     get,
     path = "/{idp_id}",
     description = "Get mapping by ID",
-    params(),
     responses(
         (status = OK, description = "mapping object", body = MappingResponse),
         (status = 404, description = "mapping not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="mappings"
 )]
 #[tracing::instrument(
     name = "api::mapping_get",
     level = "debug",
-    skip(state),
+    skip(state, user_auth, policy),
     err(Debug),
     err(Debug)
 )]
 async fn show(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(idp_id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
+    let current = state
         .provider
         .get_federation_provider()
         .get_mapping(&state.db, &idp_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
-                resource: "identity provider".into(),
+                resource: "mapping".into(),
                 identifier: idp_id,
             })
-        })?
+        })??;
+
+    policy
+        .enforce(
+            "identity/mapping_show",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            None,
+        )
+        .await?;
+    Ok(current)
 }
 
 /// Create mapping
@@ -112,15 +149,30 @@ async fn show(
     responses(
         (status = CREATED, description = "mapping object", body = MappingResponse),
     ),
+    security(("x-auth" = [])),
     tag="mappings"
 )]
-#[tracing::instrument(name = "api::mapping_create", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::mapping_create",
+    level = "debug",
+    skip(state, user_auth, policy)
+)]
 #[debug_handler]
 async fn create(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     State(state): State<ServiceState>,
     Json(req): Json<MappingCreateRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce(
+            "identity/mapping_create",
+            &user_auth,
+            serde_json::to_value(&req.mapping)?,
+            None,
+        )
+        .await?;
+
     let res = state
         .provider
         .get_federation_provider()
@@ -135,20 +187,41 @@ async fn create(
     put,
     path = "/{idp_id}",
     description = "Update existing mapping",
-    params(),
     responses(
         (status = OK, description = "mapping object", body = MappingResponse),
         (status = 404, description = "mapping not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="mappings"
 )]
-#[tracing::instrument(name = "api::mapping_update", level = "debug", skip(state), err(Debug))]
+#[tracing::instrument(
+    name = "api::mapping_update",
+    level = "debug",
+    skip(state, user_auth, policy),
+    err(Debug)
+)]
 async fn update(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(idp_id): Path<String>,
     State(state): State<ServiceState>,
     Json(req): Json<MappingUpdateRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    let current = state
+        .provider
+        .get_federation_provider()
+        .get_mapping(&state.db, &idp_id)
+        .await?;
+
+    policy
+        .enforce(
+            "identity/mapping_update",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            Some(serde_json::to_value(&req.mapping)?),
+        )
+        .await?;
+
     let res = state
         .provider
         .get_federation_provider()
@@ -163,25 +236,52 @@ async fn update(
     delete,
     path = "/{idp_id}",
     description = "Delete mapping by ID",
-    params(),
     responses(
         (status = 204, description = "Deleted"),
         (status = 404, description = "mapping not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="mappings"
 )]
-#[tracing::instrument(name = "api::mapping_delete", level = "debug", skip(state), err(Debug))]
+#[tracing::instrument(
+    name = "api::mapping_delete",
+    level = "debug",
+    skip(state, user_auth, policy),
+    err(Debug)
+)]
 async fn remove(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
+    let current = state
         .provider
         .get_federation_provider()
-        .delete_mapping(&state.db, &id)
-        .await
-        .map_err(KeystoneApiError::federation)?;
+        .get_mapping(&state.db, &id)
+        .await?;
+
+    policy
+        .enforce(
+            "identity/mapping_delete",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            None,
+        )
+        .await?;
+    if current.is_some() {
+        state
+            .provider
+            .get_federation_provider()
+            .delete_mapping(&state.db, &id)
+            .await
+            .map_err(KeystoneApiError::federation)?;
+    } else {
+        return Err(KeystoneApiError::NotFound {
+            resource: "mapping".to_string(),
+            identifier: id.clone(),
+        });
+    }
     Ok((StatusCode::NO_CONTENT).into_response())
 }
 
@@ -193,22 +293,23 @@ mod tests {
     };
     use http_body_util::BodyExt; // for `collect`
     use sea_orm::DatabaseConnection;
-
     use std::sync::Arc;
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
+    use tracing_test::traced_test;
 
     use super::*;
     use crate::config::Config;
-    use crate::federation::{
-        MockFederationProvider, error::FederationProviderError, types as provider_types,
-    };
+    use crate::federation::{MockFederationProvider, types as provider_types};
     use crate::keystone::{Service, ServiceState};
-    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyEvaluationResult};
+    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyError, PolicyEvaluationResult};
     use crate::provider::Provider;
     use crate::token::{MockTokenProvider, Token, UnscopedPayload};
 
-    fn get_mocked_state(federation_mock: MockFederationProvider) -> ServiceState {
+    fn get_mocked_state(
+        federation_mock: MockFederationProvider,
+        policy_allowed: bool,
+    ) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
         token_mock.expect_validate_token().returning(|_, _, _| {
             Ok(Token::Unscoped(UnscopedPayload {
@@ -232,14 +333,23 @@ mod tests {
             .unwrap();
 
         let mut policy_factory_mock = MockPolicyFactory::default();
-        policy_factory_mock.expect_instantiate().returning(|| {
-            let mut policy_mock = MockPolicy::default();
-            policy_mock
-                .expect_enforce()
-                .returning(|_, _, _| Ok(PolicyEvaluationResult::allowed()));
-            Ok(policy_mock)
-        });
-
+        if policy_allowed {
+            policy_factory_mock.expect_instantiate().returning(|| {
+                let mut policy_mock = MockPolicy::default();
+                policy_mock
+                    .expect_enforce()
+                    .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+                Ok(policy_mock)
+            });
+        } else {
+            policy_factory_mock.expect_instantiate().returning(|| {
+                let mut policy_mock = MockPolicy::default();
+                policy_mock.expect_enforce().returning(|_, _, _, _| {
+                    Err(PolicyError::Forbidden(PolicyEvaluationResult::forbidden()))
+                });
+                Ok(policy_mock)
+            });
+        }
         Arc::new(
             Service::new(
                 Config::default(),
@@ -252,6 +362,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_list() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
@@ -270,7 +381,7 @@ mod tests {
                 }])
             });
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -316,6 +427,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_list_qp() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
@@ -350,7 +462,7 @@ mod tests {
                 }])
             });
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -375,6 +487,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_get() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
@@ -398,7 +511,7 @@ mod tests {
                 }))
             });
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -458,6 +571,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_create() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
@@ -472,7 +586,7 @@ mod tests {
                 })
             });
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -509,8 +623,21 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_update() {
         let mut federation_mock = MockFederationProvider::default();
+        federation_mock
+            .expect_get_mapping()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "1")
+            .returning(|_, _| {
+                Ok(Some(provider_types::Mapping {
+                    id: "bar".into(),
+                    name: "name".into(),
+                    domain_id: Some("did".into()),
+                    ..Default::default()
+                }))
+            });
+
         federation_mock
             .expect_update_mapping()
             .withf(
@@ -527,7 +654,7 @@ mod tests {
                 })
             });
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -561,19 +688,30 @@ mod tests {
     }
 
     #[tokio::test]
+    #[traced_test]
     async fn test_delete() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
-            .expect_delete_mapping()
+            .expect_get_mapping()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
-            .returning(|_, _| Err(FederationProviderError::MappingNotFound("foo".into())));
-
+            .returning(|_, _| Ok(None));
+        federation_mock
+            .expect_get_mapping()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .returning(|_, _| {
+                Ok(Some(provider_types::Mapping {
+                    id: "bar".into(),
+                    name: "name".into(),
+                    domain_id: Some("did".into()),
+                    ..Default::default()
+                }))
+            });
         federation_mock
             .expect_delete_mapping()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| Ok(()));
 
-        let state = get_mocked_state(federation_mock);
+        let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())

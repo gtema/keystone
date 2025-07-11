@@ -195,10 +195,7 @@ pub async fn callback(
         if Url::parse(bound_issuer)
             .map_err(OidcError::from)
             .wrap_err_with(|| {
-                format!(
-                    "while parsing the mapping bound_issuer url: {}",
-                    bound_issuer
-                )
+                format!("while parsing the mapping bound_issuer url: {bound_issuer}")
             })?
             == *claims.issuer().url()
         {}
