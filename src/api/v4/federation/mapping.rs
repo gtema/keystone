@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! Identity providers API
+//! Federation mappings API
 use axum::{
     Json, debug_handler,
     extract::{Path, Query, State},
@@ -25,22 +25,19 @@ use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
-use crate::api::v3::federation::types::*;
+use crate::api::v4::federation::types::*;
 use crate::federation::FederationApi;
 use crate::keystone::ServiceState;
 #[double]
 use crate::policy::Policy;
 
-pub(crate) static DESCRIPTION: &str = r#"Identity providers API.
+pub(crate) static DESCRIPTION: &str = r#"Federation mappings API.
 
-Identity provider resource allows to federate users from an external Identity Provider (i.e.
-Keycloak, Azure AD, etc.).
+Mappings define how the user attributes on the remote IDP are mapped to the local user.
 
-Using the Identity provider requires creation of the mapping, which describes how to map attributes
-of the remote Idp to local users.
-
-Identity provider with an empty domain_id are considered globals and every domain may use it with
-appropriate mapping.
+Mappings with an empty domain_id are considered globals and every domain may use it. Such mappings
+require the `domain_id_claim` attribute to be set to identify the domain_id for the respective
+user.
 "#;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
@@ -49,26 +46,27 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
         .routes(routes!(show, update, remove))
 }
 
-/// List identity providers.
+/// List federation mappings.
 ///
-/// List identity providers. Without any filters only global identity providers are returned.
-/// With the `domain_id` identity providers owned by the specified identity provider are returned.
+/// List available federation mappings.
 ///
-/// It is expected that only global or owned identity providers can be returned, while an admin
-/// user is able to list all providers.
+/// Without `domain_id` specified global mappings are returned.
+///
+/// It is expected that listing mappings belonging to the other domain is only allowed to the admin
+/// user.
 #[utoipa::path(
     get,
     path = "/",
-    params(IdentityProviderListParameters),
+    params(MappingListParameters),
     responses(
-        (status = OK, description = "List of identity providers", body = IdentityProviderList),
+        (status = OK, description = "List of mappings", body = MappingList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
     security(("x-auth" = [])),
-    tag="identity_providers"
+    tag="mappings"
 )]
 #[tracing::instrument(
-    name = "api::identity_provider_list",
+    name = "api::mapping_list",
     level = "debug",
     skip(state, user_auth, policy),
     err(Debug)
@@ -76,47 +74,42 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
 async fn list(
     Auth(user_auth): Auth,
     mut policy: Policy,
-    Query(query): Query<IdentityProviderListParameters>,
+    Query(query): Query<MappingListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
     policy
-        .enforce(
-            "identity/identity_provider_list",
-            &user_auth,
-            to_value(&query)?,
-            None,
-        )
+        .enforce("identity/mapping_list", &user_auth, to_value(&query)?, None)
         .await?;
 
-    let identity_providers: Vec<IdentityProvider> = state
+    let mappings: Vec<Mapping> = state
         .provider
         .get_federation_provider()
-        .list_identity_providers(&state.db, &query.try_into()?)
+        .list_mappings(&state.db, &query.try_into()?)
         .await
         .map_err(KeystoneApiError::federation)?
         .into_iter()
         .map(Into::into)
         .collect();
-    Ok(IdentityProviderList { identity_providers })
+    Ok(MappingList { mappings })
 }
 
-/// Get single identity provider.
-///
-/// Shows details of the existing identity provider.
+/// Get single mapping
 #[utoipa::path(
     get,
     path = "/{idp_id}",
+    description = "Get mapping by ID",
     responses(
-        (status = OK, description = "IDP object", body = IdentityProviderResponse),
-        (status = 404, description = "IDP not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
+        (status = OK, description = "mapping object", body = MappingResponse),
+        (status = 404, description = "mapping not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
     security(("x-auth" = [])),
-    tag="identity_providers"
+    tag="mappings"
 )]
 #[tracing::instrument(
-    name = "api::identity_provider_get",
+    name = "api::mapping_get",
     level = "debug",
     skip(state, user_auth, policy),
+    err(Debug),
     err(Debug)
 )]
 async fn show(
@@ -128,18 +121,18 @@ async fn show(
     let current = state
         .provider
         .get_federation_provider()
-        .get_identity_provider(&state.db, &idp_id)
+        .get_mapping(&state.db, &idp_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
-                resource: "identity provider".into(),
+                resource: "mapping".into(),
                 identifier: idp_id,
             })
         })??;
 
     policy
         .enforce(
-            "identity/identity_provider_show",
+            "identity/mapping_show",
             &user_auth,
             serde_json::to_value(&current)?,
             None,
@@ -148,38 +141,34 @@ async fn show(
     Ok(current)
 }
 
-/// Create the identity provider.
-///
-/// Create the identity provider with the specified properties.
-///
-/// It is expected that only admin user is able to create global identity providers.
+/// Create mapping
 #[utoipa::path(
     post,
     path = "/",
+    description = "Create new mapping",
     responses(
-        (status = CREATED, description = "identity provider object", body = IdentityProviderResponse),
+        (status = CREATED, description = "mapping object", body = MappingResponse),
     ),
     security(("x-auth" = [])),
-    tag="identity_providers"
+    tag="mappings"
 )]
 #[tracing::instrument(
-    name = "api::identity_provider_create",
+    name = "api::mapping_create",
     level = "debug",
-    skip(state, user_auth, policy),
-    err(Debug)
+    skip(state, user_auth, policy)
 )]
 #[debug_handler]
 async fn create(
     Auth(user_auth): Auth,
     mut policy: Policy,
     State(state): State<ServiceState>,
-    Json(req): Json<IdentityProviderCreateRequest>,
+    Json(req): Json<MappingCreateRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
     policy
         .enforce(
-            "identity/identity_provider_create",
+            "identity/mapping_create",
             &user_auth,
-            serde_json::to_value(&req.identity_provider)?,
+            serde_json::to_value(&req.mapping)?,
             None,
         )
         .await?;
@@ -187,28 +176,26 @@ async fn create(
     let res = state
         .provider
         .get_federation_provider()
-        .create_identity_provider(&state.db, req.into())
+        .create_mapping(&state.db, req.into())
         .await
         .map_err(KeystoneApiError::federation)?;
     Ok((StatusCode::CREATED, res).into_response())
 }
 
-/// Update single identity provider.
-///
-/// Updates the existing identity provider.
+/// Update single mapping
 #[utoipa::path(
     put,
     path = "/{idp_id}",
-    params(),
+    description = "Update existing mapping",
     responses(
-        (status = OK, description = "IDP object", body = IdentityProviderResponse),
-        (status = 404, description = "IDP not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
+        (status = OK, description = "mapping object", body = MappingResponse),
+        (status = 404, description = "mapping not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
     security(("x-auth" = [])),
-    tag="identity_providers"
+    tag="mappings"
 )]
 #[tracing::instrument(
-    name = "api::identity_provider_update",
+    name = "api::mapping_update",
     level = "debug",
     skip(state, user_auth, policy),
     err(Debug)
@@ -218,51 +205,46 @@ async fn update(
     mut policy: Policy,
     Path(idp_id): Path<String>,
     State(state): State<ServiceState>,
-    Json(req): Json<IdentityProviderUpdateRequest>,
+    Json(req): Json<MappingUpdateRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    // Fetch the current resource to pass current object into the policy evaluation
     let current = state
         .provider
         .get_federation_provider()
-        .get_identity_provider(&state.db, &idp_id)
+        .get_mapping(&state.db, &idp_id)
         .await?;
 
     policy
         .enforce(
-            "identity/identity_provider_update",
+            "identity/mapping_update",
             &user_auth,
             serde_json::to_value(&current)?,
-            Some(serde_json::to_value(&req.identity_provider)?),
+            Some(serde_json::to_value(&req.mapping)?),
         )
         .await?;
 
     let res = state
         .provider
         .get_federation_provider()
-        .update_identity_provider(&state.db, &idp_id, req.into())
+        .update_mapping(&state.db, &idp_id, req.into())
         .await
         .map_err(KeystoneApiError::federation)?;
     Ok(res.into_response())
 }
 
-/// Delete Identity provider.
-///
-/// Deletes the existing identity provider.
-///
-/// It is expected that only admin user is allowed to delete the global identity provider
+/// Delete Identity provider
 #[utoipa::path(
     delete,
     path = "/{idp_id}",
-    params(),
+    description = "Delete mapping by ID",
     responses(
         (status = 204, description = "Deleted"),
-        (status = 404, description = "identity provider not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
+        (status = 404, description = "mapping not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
     security(("x-auth" = [])),
-    tag="identity_providers"
+    tag="mappings"
 )]
 #[tracing::instrument(
-    name = "api::identity_provider_delete",
+    name = "api::mapping_delete",
     level = "debug",
     skip(state, user_auth, policy),
     err(Debug)
@@ -276,30 +258,27 @@ async fn remove(
     let current = state
         .provider
         .get_federation_provider()
-        .get_identity_provider(&state.db, &id)
+        .get_mapping(&state.db, &id)
         .await?;
 
     policy
         .enforce(
-            "identity/identity_provider_delete",
+            "identity/mapping_delete",
             &user_auth,
             serde_json::to_value(&current)?,
             None,
         )
         .await?;
-
-    // TODO: decide what to do with the users provisioned using this IDP, mappings, ...
-
     if current.is_some() {
         state
             .provider
             .get_federation_provider()
-            .delete_identity_provider(&state.db, &id)
+            .delete_mapping(&state.db, &id)
             .await
             .map_err(KeystoneApiError::federation)?;
     } else {
         return Err(KeystoneApiError::NotFound {
-            resource: "identity_provider".to_string(),
+            resource: "mapping".to_string(),
             identifier: id.clone(),
         });
     }
@@ -321,9 +300,7 @@ mod tests {
 
     use super::*;
     use crate::config::Config;
-    use crate::federation::{
-        MockFederationProvider, error::FederationProviderError, types as provider_types,
-    };
+    use crate::federation::{MockFederationProvider, types as provider_types};
     use crate::keystone::{Service, ServiceState};
     use crate::policy::{MockPolicy, MockPolicyFactory, PolicyError, PolicyEvaluationResult};
     use crate::provider::Provider;
@@ -389,19 +366,21 @@ mod tests {
     async fn test_list() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
-            .expect_list_identity_providers()
-            .withf(
-                |_: &DatabaseConnection, _: &provider_types::IdentityProviderListParameters| true,
-            )
+            .expect_list_mappings()
+            .withf(|_: &DatabaseConnection, _: &provider_types::MappingListParameters| true)
             .returning(|_, _| {
-                Ok(vec![provider_types::IdentityProvider {
+                Ok(vec![provider_types::Mapping {
                     id: "id".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
-                    default_mapping_name: Some("dummy".into()),
+                    idp_id: "idp_id".into(),
+                    user_id_claim: "sub".into(),
+                    user_name_claim: "preferred_username".into(),
+                    domain_id_claim: Some("domain_id".into()),
                     ..Default::default()
                 }])
             });
+
         let state = get_mocked_state(federation_mock, true);
 
         let mut api = openapi_router()
@@ -423,22 +402,27 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let res: IdentityProviderList = serde_json::from_slice(&body).unwrap();
+        let res: MappingList = serde_json::from_slice(&body).unwrap();
         assert_eq!(
-            vec![IdentityProvider {
+            vec![Mapping {
                 id: "id".into(),
                 name: "name".into(),
                 domain_id: Some("did".into()),
-                oidc_discovery_url: None,
-                oidc_client_id: None,
-                oidc_response_mode: None,
-                oidc_response_types: None,
-                jwt_validation_pubkeys: None,
-                bound_issuer: None,
-                default_mapping_name: Some("dummy".into()),
-                provider_config: None
+                idp_id: "idp_id".into(),
+                allowed_redirect_uris: None,
+                user_id_claim: "sub".into(),
+                user_name_claim: "preferred_username".into(),
+                domain_id_claim: Some("domain_id".into()),
+                groups_claim: None,
+                bound_audiences: None,
+                bound_subject: None,
+                bound_claims: None,
+                oidc_scopes: None,
+                token_user_id: None,
+                token_role_ids: None,
+                token_project_id: None
             }],
-            res.identity_providers
+            res.mappings
         );
     }
 
@@ -447,21 +431,34 @@ mod tests {
     async fn test_list_qp() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
-            .expect_list_identity_providers()
+            .expect_list_mappings()
             .withf(
-                |_: &DatabaseConnection, qp: &provider_types::IdentityProviderListParameters| {
-                    provider_types::IdentityProviderListParameters {
+                |_: &DatabaseConnection, qp: &provider_types::MappingListParameters| {
+                    provider_types::MappingListParameters {
                         name: Some("name".into()),
                         domain_id: Some("did".into()),
+                        idp_id: Some("idp".into()),
                     } == *qp
                 },
             )
             .returning(|_, _| {
-                Ok(vec![provider_types::IdentityProvider {
+                Ok(vec![provider_types::Mapping {
                     id: "id".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
-                    ..Default::default()
+                    idp_id: "idp".into(),
+                    allowed_redirect_uris: None,
+                    user_id_claim: "sub".into(),
+                    user_name_claim: "preferred_username".into(),
+                    domain_id_claim: Some("domain_id".into()),
+                    groups_claim: None,
+                    bound_audiences: None,
+                    bound_subject: None,
+                    bound_claims: None,
+                    oidc_scopes: None,
+                    token_user_id: None,
+                    token_role_ids: None,
+                    token_project_id: None,
                 }])
             });
 
@@ -475,7 +472,7 @@ mod tests {
             .as_service()
             .oneshot(
                 Request::builder()
-                    .uri("/?name=name&domain_id=did")
+                    .uri("/?name=name&domain_id=did&idp_id=idp")
                     .header("x-auth-token", "foo")
                     .body(Body::empty())
                     .unwrap(),
@@ -486,46 +483,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let _res: IdentityProviderList = serde_json::from_slice(&body).unwrap();
-    }
-
-    #[tokio::test]
-    #[traced_test]
-    async fn test_list_forbidden() {
-        let mut federation_mock = MockFederationProvider::default();
-        federation_mock
-            .expect_list_identity_providers()
-            .withf(
-                |_: &DatabaseConnection, _: &provider_types::IdentityProviderListParameters| true,
-            )
-            .returning(|_, _| {
-                Ok(vec![provider_types::IdentityProvider {
-                    id: "id".into(),
-                    name: "name".into(),
-                    domain_id: Some("did".into()),
-                    default_mapping_name: Some("dummy".into()),
-                    ..Default::default()
-                }])
-            });
-        let state = get_mocked_state(federation_mock, false);
-
-        let mut api = openapi_router()
-            .layer(TraceLayer::new_for_http())
-            .with_state(state);
-
-        let response = api
-            .as_service()
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .header("x-auth-token", "foo")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        let _res: MappingList = serde_json::from_slice(&body).unwrap();
     }
 
     #[tokio::test]
@@ -533,19 +491,22 @@ mod tests {
     async fn test_get() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
-            .expect_get_identity_provider()
+            .expect_get_mapping()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
 
         federation_mock
-            .expect_get_identity_provider()
+            .expect_get_mapping()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| {
-                Ok(Some(provider_types::IdentityProvider {
+                Ok(Some(provider_types::Mapping {
                     id: "bar".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
-                    default_mapping_name: Some("dummy".into()),
+                    idp_id: "idp_id".into(),
+                    user_id_claim: "sub".into(),
+                    user_name_claim: "preferred_username".into(),
+                    domain_id_claim: Some("domain_id".into()),
                     ..Default::default()
                 }))
             });
@@ -585,61 +546,28 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let res: IdentityProviderResponse = serde_json::from_slice(&body).unwrap();
+        let res: MappingResponse = serde_json::from_slice(&body).unwrap();
         assert_eq!(
-            IdentityProvider {
+            Mapping {
                 id: "bar".into(),
                 name: "name".into(),
                 domain_id: Some("did".into()),
-                oidc_discovery_url: None,
-                oidc_client_id: None,
-                oidc_response_mode: None,
-                oidc_response_types: None,
-                jwt_validation_pubkeys: None,
-                bound_issuer: None,
-                default_mapping_name: Some("dummy".into()),
-                provider_config: None
+                idp_id: "idp_id".into(),
+                allowed_redirect_uris: None,
+                user_id_claim: "sub".into(),
+                user_name_claim: "preferred_username".into(),
+                domain_id_claim: Some("domain_id".into()),
+                groups_claim: None,
+                bound_audiences: None,
+                bound_subject: None,
+                bound_claims: None,
+                oidc_scopes: None,
+                token_user_id: None,
+                token_role_ids: None,
+                token_project_id: None,
             },
-            res.identity_provider,
+            res.mapping,
         );
-    }
-
-    #[tokio::test]
-    #[traced_test]
-    async fn test_get_forbidden() {
-        let mut federation_mock = MockFederationProvider::default();
-        federation_mock
-            .expect_get_identity_provider()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
-            .returning(|_, _| {
-                Ok(Some(provider_types::IdentityProvider {
-                    id: "bar".into(),
-                    name: "name".into(),
-                    domain_id: Some("did".into()),
-                    default_mapping_name: Some("dummy".into()),
-                    ..Default::default()
-                }))
-            });
-
-        let state = get_mocked_state(federation_mock, false);
-
-        let mut api = openapi_router()
-            .layer(TraceLayer::new_for_http())
-            .with_state(state.clone());
-
-        let response = api
-            .as_service()
-            .oneshot(
-                Request::builder()
-                    .uri("/bar")
-                    .header("x-auth-token", "foo")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
@@ -647,12 +575,10 @@ mod tests {
     async fn test_create() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
-            .expect_create_identity_provider()
-            .withf(
-                |_: &DatabaseConnection, req: &provider_types::IdentityProvider| req.name == "name",
-            )
+            .expect_create_mapping()
+            .withf(|_: &DatabaseConnection, req: &provider_types::Mapping| req.name == "name")
             .returning(|_, _| {
-                Ok(provider_types::IdentityProvider {
+                Ok(provider_types::Mapping {
                     id: "bar".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
@@ -666,8 +592,8 @@ mod tests {
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
 
-        let req = IdentityProviderCreateRequest {
-            identity_provider: IdentityProviderCreate {
+        let req = MappingCreateRequest {
+            mapping: MappingCreate {
                 name: "name".into(),
                 domain_id: Some("did".into()),
                 ..Default::default()
@@ -691,12 +617,9 @@ mod tests {
         assert_eq!(response.status(), StatusCode::CREATED);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let res: IdentityProviderResponse = serde_json::from_slice(&body).unwrap();
-        assert_eq!(res.identity_provider.name, req.identity_provider.name);
-        assert_eq!(
-            res.identity_provider.domain_id,
-            req.identity_provider.domain_id
-        );
+        let res: MappingResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(res.mapping.name, req.mapping.name);
+        assert_eq!(res.mapping.domain_id, req.mapping.domain_id);
     }
 
     #[tokio::test]
@@ -704,27 +627,26 @@ mod tests {
     async fn test_update() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
-            .expect_get_identity_provider()
+            .expect_get_mapping()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "1")
             .returning(|_, _| {
-                Ok(Some(provider_types::IdentityProvider {
+                Ok(Some(provider_types::Mapping {
                     id: "bar".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
                     ..Default::default()
                 }))
             });
+
         federation_mock
-            .expect_update_identity_provider()
+            .expect_update_mapping()
             .withf(
-                |_: &DatabaseConnection,
-                 id: &'_ str,
-                 req: &provider_types::IdentityProviderUpdate| {
+                |_: &DatabaseConnection, id: &'_ str, req: &provider_types::MappingUpdate| {
                     id == "1" && req.name == Some("name".to_string())
                 },
             )
             .returning(|_, _, _| {
-                Ok(provider_types::IdentityProvider {
+                Ok(provider_types::Mapping {
                     id: "bar".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
@@ -738,10 +660,9 @@ mod tests {
             .layer(TraceLayer::new_for_http())
             .with_state(state.clone());
 
-        let req = IdentityProviderUpdateRequest {
-            identity_provider: IdentityProviderUpdate {
+        let req = MappingUpdateRequest {
+            mapping: MappingUpdate {
                 name: Some("name".into()),
-                oidc_client_id: Some(None),
                 ..Default::default()
             },
         };
@@ -763,7 +684,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
-        let _res: IdentityProviderResponse = serde_json::from_slice(&body).unwrap();
+        let _res: MappingResponse = serde_json::from_slice(&body).unwrap();
     }
 
     #[tokio::test]
@@ -771,14 +692,14 @@ mod tests {
     async fn test_delete() {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
-            .expect_get_identity_provider()
+            .expect_get_mapping()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
         federation_mock
-            .expect_get_identity_provider()
+            .expect_get_mapping()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| {
-                Ok(Some(provider_types::IdentityProvider {
+                Ok(Some(provider_types::Mapping {
                     id: "bar".into(),
                     name: "name".into(),
                     domain_id: Some("did".into()),
@@ -786,16 +707,7 @@ mod tests {
                 }))
             });
         federation_mock
-            .expect_delete_identity_provider()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
-            .returning(|_, _| {
-                Err(FederationProviderError::IdentityProviderNotFound(
-                    "foo".into(),
-                ))
-            });
-
-        federation_mock
-            .expect_delete_identity_provider()
+            .expect_delete_mapping()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
             .returning(|_, _| Ok(()));
 
@@ -818,7 +730,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "{:?}",
+            response.into_body().collect().await.unwrap()
+        );
 
         let response = api
             .as_service()

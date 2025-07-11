@@ -12,85 +12,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use axum::{
-    extract::{Path, Query, State},
-    response::IntoResponse,
-};
-use utoipa_axum::{router::OpenApiRouter, routes};
+use utoipa_axum::router::OpenApiRouter;
 
-use crate::api::auth::Auth;
-use crate::api::error::KeystoneApiError;
-use crate::assignment::AssignmentApi;
 use crate::keystone::ServiceState;
-use types::{Role, RoleList, RoleListParameters, RoleResponse};
 
-pub mod types;
+use crate::api::v3::role::openapi_router as v3_openapi_router;
 
-pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
-    OpenApiRouter::new()
-        .routes(routes!(list))
-        .routes(routes!(show))
-}
-
-/// List roles
-#[utoipa::path(
-    get,
-    path = "/",
-    params(RoleListParameters),
-    description = "List roles",
-    responses(
-        (status = OK, description = "List of roles", body = RoleList),
-        (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
-    ),
-    tag="roles"
-)]
-#[tracing::instrument(name = "api::role_list", level = "debug", skip(state))]
-async fn list(
-    Auth(user_auth): Auth,
-    Query(query): Query<RoleListParameters>,
-    State(state): State<ServiceState>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    let roles: Vec<Role> = state
-        .provider
-        .get_assignment_provider()
-        .list_roles(&state.db, &query.into())
-        .await
-        .map_err(KeystoneApiError::assignment)?
-        .into_iter()
-        .map(Into::into)
-        .collect();
-    Ok(RoleList { roles })
-}
-
-/// Get single role
-#[utoipa::path(
-    get,
-    path = "/{role_id}",
-    description = "Get role by ID",
-    params(),
-    responses(
-        (status = OK, description = "Role object", body = RoleResponse),
-        (status = 404, description = "Role not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
-    ),
-    tag="roles"
-)]
-#[tracing::instrument(name = "api::role_get", level = "debug", skip(state))]
-async fn show(
-    Auth(user_auth): Auth,
-    Path(role_id): Path<String>,
-    State(state): State<ServiceState>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
-        .provider
-        .get_assignment_provider()
-        .get_role(&state.db, &role_id)
-        .await
-        .map(|x| {
-            x.ok_or_else(|| KeystoneApiError::NotFound {
-                resource: "role".into(),
-                identifier: role_id,
-            })
-        })?
+pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
+    v3_openapi_router()
 }
 
 #[cfg(test)]

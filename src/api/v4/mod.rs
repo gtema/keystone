@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! v3 API
+//! v4 API
 
 use axum::{
     extract::{OriginalUri, Request},
@@ -25,6 +25,7 @@ use crate::api::error::KeystoneApiError;
 use crate::keystone::ServiceState;
 
 pub mod auth;
+pub mod federation;
 pub mod group;
 pub mod role;
 pub mod role_assignment;
@@ -36,6 +37,7 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .nest("/auth", auth::openapi_router())
         .nest("/groups", group::openapi_router())
+        .nest("/federation", federation::openapi_router())
         .nest("/role_assignments", role_assignment::openapi_router())
         .nest("/roles", role::openapi_router())
         .nest("/users", user::openapi_router())
@@ -66,7 +68,7 @@ async fn version(
         href: format!("http://{}{}", host, uri.path()),
     };
     let version = Version {
-        id: "v3.14".into(),
+        id: "v4.0".into(),
         status: VersionStatus::Stable,
         links: Some(vec![link]),
         media_types: Some(vec![MediaType::default()]),

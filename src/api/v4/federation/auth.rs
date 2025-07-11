@@ -29,8 +29,8 @@ use openidconnect::{
 };
 
 use crate::api::error::KeystoneApiError;
-use crate::api::v3::federation::error::OidcError;
-use crate::api::v3::federation::types::*;
+use crate::api::v4::federation::error::OidcError;
+use crate::api::v4::federation::types::*;
 use crate::federation::FederationApi;
 use crate::federation::types::{AuthState, MappingListParameters as ProviderMappingListParameters};
 use crate::keystone::ServiceState;

@@ -26,8 +26,8 @@ mod keystone_utils;
 use keycloak_utils::*;
 use keystone_utils::*;
 
-use openstack_keystone::api::v3::auth::token::types::TokenResponse;
-use openstack_keystone::api::v3::federation::types::*;
+use openstack_keystone::api::v4::auth::token::types::TokenResponse;
+use openstack_keystone::api::v4::federation::types::*;
 
 #[tokio::test]
 async fn test_login_keycloak() {
@@ -54,7 +54,7 @@ async fn test_login_keycloak() {
 
     let auth_req: IdentityProviderAuthResponse = client
         .post(format!(
-            "{}/v3/federation/identity_providers/{}/auth",
+            "{}/v4/federation/identity_providers/{}/auth",
             keystone_url, idp.identity_provider.id
         ))
         .json(&json!({
@@ -124,7 +124,7 @@ async fn test_login_keycloak() {
     let res: FederationAuthCodeCallbackResponse = guard.clone().unwrap();
 
     let _auth_rsp: TokenResponse = client
-        .post(format!("{}/v3/federation/oidc/callback", keystone_url))
+        .post(format!("{}/v4/federation/oidc/callback", keystone_url))
         .json(&json!({
             "state": res.state,
             "code": res.code

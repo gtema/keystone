@@ -253,10 +253,22 @@ pub enum TokenError {
         source: crate::api::v3::auth::token::types::TokenBuilderError,
     },
 
+    #[error("error building token data: {}", source)]
+    Builder4 {
+        #[from]
+        source: crate::api::v4::auth::token::types::TokenBuilderError,
+    },
+
     #[error("error building token user data: {}", source)]
     UserBuilder {
         #[from]
         source: crate::api::v3::auth::token::types::UserBuilderError,
+    },
+
+    #[error("error building token user data: {}", source)]
+    UserBuilder4 {
+        #[from]
+        source: crate::api::v4::auth::token::types::UserBuilderError,
     },
 
     #[error("error building token user data: {}", source)]
