@@ -19,7 +19,9 @@ use axum::{
 };
 use utoipa::{
     Modify, OpenApi,
-    openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
+    openapi::security::{
+        ApiKey, ApiKeyValue, AuthorizationCode, Flow, OAuth2, Scopes, SecurityScheme,
+    },
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -54,7 +56,18 @@ impl Modify for SecurityAddon {
             components.add_security_scheme(
                 "x-auth",
                 SecurityScheme::ApiKey(ApiKey::Header(ApiKeyValue::new("x-auth-token"))),
-            )
+            );
+            // TODO: This must be dynamic
+            components.add_security_scheme(
+                "oauth2",
+                SecurityScheme::OAuth2(OAuth2::new([Flow::AuthorizationCode(
+                    AuthorizationCode::new(
+                        "https://localhost/authorization/token",
+                        "https://localhost/token/url",
+                        Scopes::from_iter([("openid", "default scope")]),
+                    ),
+                )])),
+            );
         }
     }
 }

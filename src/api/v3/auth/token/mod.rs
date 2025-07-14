@@ -19,6 +19,9 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use mockall_double::double;
+use serde_json::{json, to_value};
+use tracing::error;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::types::Scope;
@@ -36,12 +39,14 @@ use crate::auth::{AuthenticatedInfo, AuthzInfo};
 use crate::catalog::CatalogApi;
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
+#[double]
+use crate::policy::Policy;
 use crate::token::TokenApi;
 
 mod common;
 pub mod types;
 
-pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
+pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new().routes(routes!(show, post))
 }
 
@@ -159,8 +164,6 @@ async fn post(
     let authed_info = authenticate_request(&state, &req).await?;
     let authz_info = get_authz_info(&state, &req).await?;
 
-    println!("Authz info is {:?}", authz_info);
-
     let mut token = state
         .provider
         .get_token_provider()
@@ -209,10 +212,11 @@ async fn post(
 #[tracing::instrument(
     name = "api::token_get",
     level = "debug",
-    skip(state, headers, _user_auth)
+    skip(state, headers, user_auth, policy)
 )]
 async fn show(
-    Auth(_user_auth): Auth,
+    Auth(user_auth): Auth,
+    mut policy: Policy,
     Query(query): Query<ValidateTokenParameters>,
     headers: HeaderMap,
     State(state): State<ServiceState>,
@@ -224,15 +228,27 @@ async fn show(
         .map_err(|_| KeystoneApiError::InvalidHeader)?
         .to_string();
 
+    // Default behavior is to return 404 for expired tokens. It makes sense to log internally the
+    // error before mapping it.
     let mut token = state
         .provider
         .get_token_provider()
         .validate_token(&subject_token, query.allow_expired, None)
         .await
+        .inspect_err(|e| error!("{:?}", e.to_string()))
         .map_err(|_| KeystoneApiError::NotFound {
             resource: "token".into(),
             identifier: String::new(),
         })?;
+
+    policy
+        .enforce(
+            "identity/validate_token",
+            &user_auth,
+            to_value(json!({"token": &token}))?,
+            None,
+        )
+        .await?;
 
     token = state
         .provider
@@ -283,7 +299,7 @@ mod tests {
         types::{UserPasswordAuthRequest, UserResponse},
     };
     use crate::keystone::Service;
-    use crate::policy::MockPolicyFactory;
+    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyEvaluationResult};
     use crate::provider::Provider;
     use crate::resource::{
         MockResourceProvider,
@@ -296,6 +312,18 @@ mod tests {
     };
 
     use super::*;
+
+    fn get_policy_factory_mock() -> MockPolicyFactory {
+        let mut policy_factory_mock = MockPolicyFactory::default();
+        policy_factory_mock.expect_instantiate().returning(|| {
+            let mut policy_mock = MockPolicy::default();
+            policy_mock
+                .expect_enforce()
+                .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+            Ok(policy_mock)
+        });
+        policy_factory_mock
+    }
 
     #[tokio::test]
     async fn test_authenticate_request_password() {
@@ -534,7 +562,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
-                MockPolicyFactory::new(),
+                get_policy_factory_mock(),
             )
             .unwrap(),
         );
@@ -647,7 +675,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
-                MockPolicyFactory::new(),
+                get_policy_factory_mock(),
             )
             .unwrap(),
         );
@@ -708,7 +736,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
-                MockPolicyFactory::new(),
+                get_policy_factory_mock(),
             )
             .unwrap(),
         );

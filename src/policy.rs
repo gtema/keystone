@@ -25,7 +25,7 @@ use std::path::Path;
 use thiserror::Error;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
-use tracing::{debug, trace};
+use tracing::{Level, debug};
 
 use crate::token::Token;
 
@@ -46,6 +46,10 @@ pub enum PolicyError {
 
     #[error(transparent)]
     Join(#[from] tokio::task::JoinError),
+
+    /// Json serializaion error.
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
 
     #[error(transparent)]
     Wasm(#[from] opa_wasm::wasmtime::Error),
@@ -103,7 +107,7 @@ impl PolicyFactory {
         Ok(factory)
     }
 
-    #[tracing::instrument(name = "policy.instantiate", skip_all, err)]
+    #[tracing::instrument(name = "policy.instantiate", level = Level::TRACE, skip_all, err)]
     pub async fn instantiate(&self) -> Result<Policy, PolicyError> {
         if let (Some(engine), Some(module)) = (&self.engine, &self.module) {
             let mut store = Store::new(engine, ());
@@ -156,7 +160,7 @@ pub enum EvaluationError {
 }
 
 /// OpenPolicyAgent `Credentials` object
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct Credentials {
     pub user_id: String,
     pub roles: Vec<String>,
@@ -184,31 +188,33 @@ impl Policy {
         skip_all,
         fields(
             entrypoint = policy_name.as_ref(),
+            input,
+            result,
         ),
         err,
+        level = Level::DEBUG
     )]
     pub async fn enforce<P: AsRef<str>>(
         &mut self,
         policy_name: P,
-        credentials: &Token,
+        credentials: impl Into<Credentials>,
         target: Value,
         update: Option<Value>,
     ) -> Result<PolicyEvaluationResult, PolicyError> {
+        let creds: Credentials = credentials.into();
         let input = json!({
-            "credentials": Credentials::from(credentials),
+            "credentials": creds,
             "target": target,
             "update": update,
         });
 
         if let (Some(store), Some(instance)) = (&mut self.store, &self.instance) {
-            trace!(
-                "enforcing policy {} with target {target}",
-                policy_name.as_ref()
-            );
+            tracing::Span::current().record("input", serde_json::to_string(&input)?);
             let [res]: [OpaResponse; 1] = instance
                 .evaluate(store, policy_name.as_ref(), &input)
                 .await?;
-            debug!("Res is {:?}", res);
+            tracing::Span::current().record("result", serde_json::to_string(&res.result)?);
+            debug!("authorized={}", res.result.allow());
             if !res.result.allow() {
                 return Err(PolicyError::Forbidden(res.result));
             }
@@ -225,7 +231,7 @@ impl Policy {
 }
 
 /// A single violation of a policy.
-#[derive(Clone, Deserialize, Debug, JsonSchema)]
+#[derive(Clone, Deserialize, Debug, JsonSchema, Serialize)]
 pub struct Violation {
     pub msg: String,
     pub field: Option<String>,
@@ -238,7 +244,7 @@ pub struct OpaResponse {
 }
 
 /// The result of a policy evaluation.
-#[derive(Clone, Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct PolicyEvaluationResult {
     pub allow: bool,
     #[serde(rename = "violation")]
