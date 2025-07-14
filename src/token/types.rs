@@ -14,6 +14,7 @@
 
 use chrono::{DateTime, Utc};
 use dyn_clone::DynClone;
+use serde::Serialize;
 
 use crate::assignment::types::Role;
 use crate::config::Config;
@@ -28,7 +29,8 @@ use crate::token::federation_unscoped::FederationUnscopedPayload;
 use crate::token::project_scoped::ProjectScopePayload;
 use crate::token::unscoped::UnscopedPayload;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(untagged)]
 pub enum Token {
     Unscoped(UnscopedPayload),
     DomainScope(DomainScopePayload),

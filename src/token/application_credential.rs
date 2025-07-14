@@ -15,6 +15,7 @@
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use rmp::{decode::read_pfix, encode::write_pfix};
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::io::Write;
 
@@ -28,7 +29,7 @@ use crate::token::{
     types::Token,
 };
 
-#[derive(Builder, Clone, Debug, Default, PartialEq)]
+#[derive(Builder, Clone, Debug, Default, PartialEq, Serialize)]
 #[builder(setter(into))]
 pub struct ApplicationCredentialPayload {
     pub user_id: String,

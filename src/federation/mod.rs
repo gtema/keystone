@@ -350,7 +350,7 @@ impl FederationApi for FederationProvider {
         id: &'a str,
         idp: MappingUpdate,
     ) -> Result<Mapping, FederationProviderError> {
-        // TODO: Check update of idp_id to enure it belongs to the same domain
+        // TODO: Check update of idp_id to ensure it belongs to the same domain
         self.backend_driver.update_mapping(db, id, idp).await
     }
 

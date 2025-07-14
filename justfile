@@ -1,4 +1,5 @@
 POLICY_ENTRY_POINTS := \
+" -e identity/validate_token" +\
 " -e identity/identity_provider_list" +\
 " -e identity/identity_provider_show" +\
 " -e identity/identity_provider_create" +\

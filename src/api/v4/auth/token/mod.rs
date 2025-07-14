@@ -11,38 +11,27 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
-
-use axum::{
-    Json,
-    extract::{Query, State},
-    http::HeaderMap,
-    http::StatusCode,
-    response::IntoResponse,
-};
-use utoipa_axum::{router::OpenApiRouter, routes};
+#![allow(dead_code)]
+use utoipa_axum::router::OpenApiRouter;
 
 use crate::api::types::Scope;
-use crate::api::v4::auth::token::types::{
-    AuthRequest, CreateTokenParameters, Token as ApiResponseToken, TokenResponse,
-    ValidateTokenParameters,
-};
+use crate::api::v4::auth::token::types::AuthRequest;
 use crate::api::{
-    Catalog,
-    auth::Auth,
     common::{find_project_from_scope, get_domain},
     error::KeystoneApiError,
 };
 use crate::auth::{AuthenticatedInfo, AuthzInfo};
-use crate::catalog::CatalogApi;
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
 use crate::token::TokenApi;
+
+use crate::api::v3::auth::token as v3_token;
 
 mod common;
 pub mod types;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
-    OpenApiRouter::new().routes(routes!(show, post))
+    v3_token::openapi_router()
 }
 
 /// Authenticate the user ignoring any scope information. It is important not to expose any
@@ -139,123 +128,6 @@ async fn get_authz_info(
     Ok(authz_info)
 }
 
-/// Authenticate user issuing a new token
-#[utoipa::path(
-    post,
-    path = "/",
-    description = "Issue token",
-    params(CreateTokenParameters),
-    responses(
-        (status = OK, description = "Token object", body = TokenResponse),
-    ),
-    tag="auth"
-)]
-#[tracing::instrument(name = "api::token_post", level = "debug", skip(state, req))]
-async fn post(
-    Query(query): Query<CreateTokenParameters>,
-    State(state): State<ServiceState>,
-    Json(req): Json<AuthRequest>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    let authed_info = authenticate_request(&state, &req).await?;
-    let authz_info = get_authz_info(&state, &req).await?;
-
-    let mut token = state
-        .provider
-        .get_token_provider()
-        .issue_token(authed_info, authz_info)?;
-
-    token = state
-        .provider
-        .get_token_provider()
-        .expand_token_information(&token, &state.db, &state.provider)
-        .await?;
-
-    let mut api_token = TokenResponse {
-        token: ApiResponseToken::from_provider_token(&state, &token).await?,
-    };
-    if !query.nocatalog.is_some_and(|x| x) {
-        let catalog: Catalog = state
-            .provider
-            .get_catalog_provider()
-            .get_catalog(&state.db, true)
-            .await?
-            .into();
-        api_token.token.catalog = Some(catalog);
-    }
-    return Ok((
-        StatusCode::OK,
-        [(
-            "X-Subject-Token",
-            state.provider.get_token_provider().encode_token(&token)?,
-        )],
-        Json(api_token),
-    )
-        .into_response());
-}
-
-/// Validate token
-#[utoipa::path(
-    get,
-    path = "/",
-    description = "Validate token",
-    params(ValidateTokenParameters),
-    responses(
-        (status = OK, description = "Token object", body = TokenResponse),
-    ),
-    tag="auth"
-)]
-#[tracing::instrument(
-    name = "api::token_get",
-    level = "debug",
-    skip(state, headers, _user_auth)
-)]
-async fn show(
-    Auth(_user_auth): Auth,
-    Query(query): Query<ValidateTokenParameters>,
-    headers: HeaderMap,
-    State(state): State<ServiceState>,
-) -> Result<impl IntoResponse, KeystoneApiError> {
-    let subject_token: String = headers
-        .get("X-Subject-Token")
-        .ok_or(KeystoneApiError::SubjectTokenMissing)?
-        .to_str()
-        .map_err(|_| KeystoneApiError::InvalidHeader)?
-        .to_string();
-
-    let mut token = state
-        .provider
-        .get_token_provider()
-        .validate_token(&subject_token, query.allow_expired, None)
-        .await
-        .map_err(|_| KeystoneApiError::NotFound {
-            resource: "token".into(),
-            identifier: String::new(),
-        })?;
-
-    token = state
-        .provider
-        .get_token_provider()
-        .expand_token_information(&token, &state.db, &state.provider)
-        .await
-        .map_err(|_| KeystoneApiError::Forbidden)?;
-
-    let mut response_token = ApiResponseToken::from_provider_token(&state, &token).await?;
-
-    if !query.nocatalog.is_some_and(|x| x) {
-        let catalog: Catalog = state
-            .provider
-            .get_catalog_provider()
-            .get_catalog(&state.db, true)
-            .await?
-            .into();
-        response_token.catalog = Some(catalog);
-    }
-
-    Ok(TokenResponse {
-        token: response_token,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use axum::{
@@ -281,7 +153,7 @@ mod tests {
         types::{UserPasswordAuthRequest, UserResponse},
     };
     use crate::keystone::Service;
-    use crate::policy::MockPolicyFactory;
+    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyEvaluationResult};
     use crate::provider::Provider;
     use crate::resource::{
         MockResourceProvider,
@@ -294,6 +166,18 @@ mod tests {
     };
 
     use super::*;
+
+    fn get_policy_factory_mock() -> MockPolicyFactory {
+        let mut policy_factory_mock = MockPolicyFactory::default();
+        policy_factory_mock.expect_instantiate().returning(|| {
+            let mut policy_mock = MockPolicy::default();
+            policy_mock
+                .expect_enforce()
+                .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+            Ok(policy_mock)
+        });
+        policy_factory_mock
+    }
 
     #[tokio::test]
     async fn test_authenticate_request_password() {
@@ -532,7 +416,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
-                MockPolicyFactory::new(),
+                get_policy_factory_mock(),
             )
             .unwrap(),
         );
@@ -645,7 +529,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
-                MockPolicyFactory::new(),
+                get_policy_factory_mock(),
             )
             .unwrap(),
         );
@@ -706,7 +590,7 @@ mod tests {
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
-                MockPolicyFactory::new(),
+                get_policy_factory_mock(),
             )
             .unwrap(),
         );

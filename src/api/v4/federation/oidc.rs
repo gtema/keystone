@@ -86,7 +86,12 @@ async fn get_authz_info(
     Ok(authz_info)
 }
 
-/// Authenticate callback
+/// Authentication callback.
+///
+/// This operation allows user to exchange the authorization code retrieved from the identity
+/// provider after calling the `/v4/federation/identity_providers/{idp_id}/auth` for the Keystone
+/// token. When desired scope was passed in that auth initialization call the scoped token is
+/// returned (assuming the user is having roles assigned on that scope).
 #[utoipa::path(
     post,
     path = "/oidc/callback",
@@ -98,6 +103,7 @@ async fn get_authz_info(
         ),
     ),
     ),
+    security(("oauth2" = ["openid"])),
     tag="identity_providers"
 )]
 #[tracing::instrument(

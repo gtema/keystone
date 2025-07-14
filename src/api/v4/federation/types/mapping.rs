@@ -332,7 +332,7 @@ impl IntoResponse for MappingList {
     }
 }
 
-/// Query parameters for listing OIDC/JWT mappings
+/// Query parameters for listing OIDC/JWT mappings.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
 pub struct MappingListParameters {
     /// Filters the response by IDP name.
@@ -340,6 +340,7 @@ pub struct MappingListParameters {
 
     /// Filters the response by a domain ID.
     pub domain_id: Option<String>,
+
     /// Filters the response by a idp ID.
     pub idp_id: Option<String>,
 }
