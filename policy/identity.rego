@@ -1,7 +1,21 @@
 package identity
 
 token_subject if {
-  input.credentials.user_id == input.target.token.user_id
+	input.credentials.user_id == input.target.token.user_id
+}
+
+own_domain if {
+	input.target.domain_id != null
+	input.target.domain_id == input.credentials.domain_id
+}
+
+foreign_domain if {
+	input.target.domain_id != null
+	input.target.domain_id != input.credentials.domain_id
+}
+
+no_domain if {
+	input.target.domain_id == null
 }
 
 global_idp if {

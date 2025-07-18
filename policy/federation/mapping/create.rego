@@ -27,5 +27,5 @@ violation contains {"field": "role", "msg": "creating global mapping requires `a
 
 violation contains {"field": "role", "msg": "creating mapping requires `manager` role."} if {
 	identity.own_mapping
-	not "member" in input.credentials.roles
+	not "manager" in input.credentials.roles
 }

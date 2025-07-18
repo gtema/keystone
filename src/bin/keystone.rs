@@ -83,8 +83,10 @@ async fn main() -> Result<(), Report> {
             _ => LevelFilter::TRACE,
         })
         .with_target("cranelift_codegen", Level::INFO)
+        .with_target("cranelift_frontend", Level::INFO)
         .with_target("wasmtime_codegen", Level::INFO)
         .with_target("wasmtime_cranelift", Level::INFO)
+        //.with_target("wasmtime_environ", Level::INFO)
         .with_target("wasmtime::runtime", Level::INFO);
 
     let log_layer = tracing_subscriber::fmt::layer()

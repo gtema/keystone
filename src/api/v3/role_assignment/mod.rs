@@ -16,12 +16,16 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
 };
+use mockall_double::double;
+use serde_json::to_value;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::assignment::AssignmentApi;
 use crate::keystone::ServiceState;
+#[double]
+use crate::policy::Policy;
 use types::{Assignment, AssignmentList, RoleAssignmentListParameters};
 
 pub mod types;
@@ -30,28 +34,40 @@ pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new().routes(routes!(list))
 }
 
-/// List role assignments
+/// List role assignments.
 #[utoipa::path(
     get,
     path = "/",
     params(RoleAssignmentListParameters),
-    description = "List roles",
     responses(
         (status = OK, description = "List of role assignments", body = AssignmentList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="roles"
 )]
 #[tracing::instrument(
     name = "api::role_assignment_list",
     level = "debug",
-    skip(state, _user_auth)
+    skip_all,
+    fields(query),
+    err(Debug)
 )]
 async fn list(
-    Auth(_user_auth): Auth,
+    Auth(user_auth): Auth,
+    mut policy: Policy,
     Query(query): Query<RoleAssignmentListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce(
+            "identity/role_assignment_list",
+            &user_auth,
+            to_value(&query)?,
+            None,
+        )
+        .await?;
+
     let assignments: Result<Vec<Assignment>, _> = state
         .provider
         .get_assignment_provider()

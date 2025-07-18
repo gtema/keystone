@@ -43,7 +43,10 @@ use crate::api::types::*;
     modifiers(&SecurityAddon),
     tags(
         (name="identity_providers", description=v4::federation::identity_provider::DESCRIPTION),
-        (name="mappings", description=v4::federation::mapping::DESCRIPTION)
+        (name="mappings", description=v4::federation::mapping::DESCRIPTION),
+        (name="users", description=v4::user::DESCRIPTION),
+        (name="groups", description=v4::group::DESCRIPTION),
+        (name="roles", description=v4::role::DESCRIPTION),
     )
 )]
 pub struct ApiDoc;

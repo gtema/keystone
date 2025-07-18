@@ -18,12 +18,16 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use mockall_double::double;
+use serde_json::to_value;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
+#[double]
+use crate::policy::Policy;
 use types::{Group, GroupCreateRequest, GroupList, GroupListParameters, GroupResponse};
 
 pub mod types;
@@ -34,24 +38,29 @@ pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
         .routes(routes!(show, remove))
 }
 
-/// List groups
+/// List groups.
 #[utoipa::path(
     get,
     path = "/",
     params(GroupListParameters),
-    description = "List groups",
     responses(
         (status = OK, description = "List of groups", body = GroupList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="groups"
 )]
-#[tracing::instrument(name = "api::group_list", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::group_list", level = "debug", skip_all, fields(query))]
 async fn list(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Query(query): Query<GroupListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce("identity/group_list", &user_auth, to_value(&query)?, None)
+        .await?;
+
     let groups: Vec<Group> = state
         .provider
         .get_identity_provider()
@@ -64,25 +73,25 @@ async fn list(
     Ok(GroupList { groups })
 }
 
-/// Get single group
+/// Get single group.
 #[utoipa::path(
     get,
     path = "/{group_id}",
-    description = "Get group by ID",
-    params(),
     responses(
         (status = OK, description = "Group object", body = GroupResponse),
         (status = 404, description = "Group not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="groups"
 )]
-#[tracing::instrument(name = "api::group_get", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::group_get", level = "debug", skip_all, fields(group_id))]
 async fn show(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(group_id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
+    let current = state
         .provider
         .get_identity_provider()
         .get_group(&state.db, &group_id)
@@ -92,26 +101,46 @@ async fn show(
                 resource: "group".into(),
                 identifier: group_id,
             })
-        })?
+        })??;
+
+    policy
+        .enforce(
+            "identity/group_show",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            None,
+        )
+        .await?;
+    Ok(current)
 }
 
-/// Create group
+/// Create group.
 #[utoipa::path(
     post,
     path = "/",
-    description = "Create new Group",
     responses(
         (status = CREATED, description = "Group object", body = GroupResponse),
     ),
+    security(("x-auth" = [])),
     tag="groups"
 )]
-#[tracing::instrument(name = "api::create_group", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::create_group", level = "debug", skip_all, fields(req))]
 #[debug_handler]
 async fn create(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     State(state): State<ServiceState>,
     Json(req): Json<GroupCreateRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce(
+            "identity/group_create",
+            &user_auth,
+            serde_json::to_value(&req.group)?,
+            None,
+        )
+        .await?;
+
     let res = state
         .provider
         .get_identity_provider()
@@ -121,24 +150,44 @@ async fn create(
     Ok((StatusCode::CREATED, res).into_response())
 }
 
-/// Delete group
+/// Delete group.
 #[utoipa::path(
     delete,
     path = "/{group_id}",
-    description = "Delete group by ID",
-    params(),
     responses(
         (status = 204, description = "Deleted"),
         (status = 404, description = "group not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="groups"
 )]
-#[tracing::instrument(name = "api::group_delete", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::group_delete",
+    level = "debug",
+    skip_all,
+    fields(group_id)
+)]
 async fn remove(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(group_id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    let current = state
+        .provider
+        .get_identity_provider()
+        .get_group(&state.db, &group_id)
+        .await?;
+
+    policy
+        .enforce(
+            "identity/group_delete",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            None,
+        )
+        .await?;
+
     state
         .provider
         .get_identity_provider()
@@ -397,6 +446,20 @@ mod tests {
     #[tokio::test]
     async fn test_delete() {
         let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_get_group()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .returning(|_, _| Ok(None));
+
+        identity_mock
+            .expect_get_group()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .returning(|_, _| {
+                Ok(Some(Group {
+                    id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
         identity_mock
             .expect_delete_group()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")

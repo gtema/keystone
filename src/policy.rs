@@ -100,6 +100,7 @@ impl PolicyFactory {
             engine: Some(engine),
             module: Some(module),
         };
+        println!("here {:?}", factory.module);
 
         // Try to instantiate
         factory.instantiate().await?;
@@ -111,6 +112,7 @@ impl PolicyFactory {
     pub async fn instantiate(&self) -> Result<Policy, PolicyError> {
         if let (Some(engine), Some(module)) = (&self.engine, &self.module) {
             let mut store = Store::new(engine, ());
+            println!("here {:?} {:?}", engine, module);
             let runtime = Runtime::new(&mut store, module).await?;
 
             let instance = runtime.without_data(&mut store).await?;

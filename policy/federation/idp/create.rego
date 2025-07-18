@@ -27,5 +27,5 @@ violation contains {"field": "role", "msg": "creating global identity provider r
 
 violation contains {"field": "role", "msg": "creating identity provider requires `manager` role."} if {
 	identity.own_idp
-	not "member" in input.credentials.roles
+	not "manager" in input.credentials.roles
 }

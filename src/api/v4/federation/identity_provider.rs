@@ -70,7 +70,8 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
 #[tracing::instrument(
     name = "api::identity_provider_list",
     level = "debug",
-    skip(state, user_auth, policy),
+    skip_all,
+    fields(query),
     err(Debug)
 )]
 async fn list(
@@ -116,7 +117,8 @@ async fn list(
 #[tracing::instrument(
     name = "api::identity_provider_get",
     level = "debug",
-    skip(state, user_auth, policy),
+    skip_all,
+    fields(idp_id),
     err(Debug)
 )]
 async fn show(
@@ -165,7 +167,8 @@ async fn show(
 #[tracing::instrument(
     name = "api::identity_provider_create",
     level = "debug",
-    skip(state, user_auth, policy),
+    skip_all,
+    fields(req),
     err(Debug)
 )]
 #[debug_handler]
@@ -210,7 +213,8 @@ async fn create(
 #[tracing::instrument(
     name = "api::identity_provider_update",
     level = "debug",
-    skip(state, user_auth, policy),
+    skip_all,
+    fields(idp_id, req),
     err(Debug)
 )]
 async fn update(
@@ -264,7 +268,8 @@ async fn update(
 #[tracing::instrument(
     name = "api::identity_provider_delete",
     level = "debug",
-    skip(state, user_auth, policy),
+    skip_all,
+    fields(id),
     err(Debug)
 )]
 async fn remove(

@@ -18,6 +18,8 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use mockall_double::double;
+use serde_json::to_value;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
@@ -25,6 +27,8 @@ use crate::api::error::KeystoneApiError;
 use crate::api::v3::group::types::{Group, GroupList};
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
+#[double]
+use crate::policy::Policy;
 use types::{User, UserCreateRequest, UserList, UserListParameters, UserResponse};
 
 pub mod types;
@@ -36,24 +40,29 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
         .routes(routes!(groups))
 }
 
-/// List users
+/// List users.
 #[utoipa::path(
     get,
     path = "/",
     params(UserListParameters),
-    description = "List users",
     responses(
         (status = OK, description = "List of users", body = UserList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="users"
 )]
-#[tracing::instrument(name = "api::user_list", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::user_list", level = "debug", skip_all, fields(query))]
 async fn list(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Query(query): Query<UserListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce("identity/user_list", &user_auth, to_value(&query)?, None)
+        .await?;
+
     let users: Vec<User> = state
         .provider
         .get_identity_provider()
@@ -66,24 +75,25 @@ async fn list(
     Ok(UserList { users })
 }
 
-/// Get single user
+/// Get single user.
 #[utoipa::path(
     get,
     path = "/{user_id}",
-    params(),
     responses(
         (status = OK, description = "Single user", body = UserResponse),
         (status = 404, description = "User not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="users"
 )]
-#[tracing::instrument(name = "api::user_get", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::user_get", level = "debug", skip_all, fields(user_id))]
 async fn show(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(user_id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
+    let current = state
         .provider
         .get_identity_provider()
         .get_user(&state.db, &user_id)
@@ -93,26 +103,44 @@ async fn show(
                 resource: "user".into(),
                 identifier: user_id,
             })
-        })?
+        })??;
+
+    policy
+        .enforce(
+            "identity/user_show",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            None,
+        )
+        .await?;
+    Ok(current)
 }
 
-/// Create user
+/// Create user.
 #[utoipa::path(
     post,
     path = "/",
-    description = "Create new user",
     responses(
         (status = CREATED, description = "New user", body = UserResponse),
     ),
+    security(("x-auth" = [])),
     tag="users"
 )]
-#[tracing::instrument(name = "api::create_user", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::create_user", level = "debug", skip_all, fields(req))]
 async fn create(
     Auth(user_auth): Auth,
-    Query(query): Query<UserListParameters>,
+    mut policy: Policy,
     State(state): State<ServiceState>,
     Json(req): Json<UserCreateRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce(
+            "identity/user_create",
+            &user_auth,
+            serde_json::to_value(&req.user)?,
+            None,
+        )
+        .await?;
     let user = state
         .provider
         .get_identity_provider()
@@ -122,24 +150,40 @@ async fn create(
     Ok((StatusCode::CREATED, user).into_response())
 }
 
-/// Delete user
+/// Delete user.
 #[utoipa::path(
     delete,
     path = "/{user_id}",
-    description = "Delete user by ID",
-    params(),
+    security(("x-auth" = [])),
     responses(
         (status = 204, description = "Deleted"),
         (status = 404, description = "User not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="users"
 )]
-#[tracing::instrument(name = "api::user_delete", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::user_delete", level = "debug", skip_all, fields(user_id))]
 async fn remove(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(user_id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    let current = state
+        .provider
+        .get_identity_provider()
+        .get_user(&state.db, &user_id)
+        .await?;
+
+    policy
+        .enforce(
+            "identity/user_delete",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            None,
+        )
+        .await?;
+
     state
         .provider
         .get_identity_provider()
@@ -149,23 +193,44 @@ async fn remove(
     Ok((StatusCode::NO_CONTENT).into_response())
 }
 
-/// List groups a user is member of
+/// List groups a user is member of.
 #[utoipa::path(
     get,
     path = "/{user_id}/groups",
-    description = "List groups a user is member of",
     responses(
         (status = OK, description = "List of user groups", body = GroupList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="users"
 )]
-#[tracing::instrument(name = "api::user_list", level = "debug", skip(state))]
+#[tracing::instrument(
+    name = "api::user_group_list",
+    level = "debug",
+    skip_all,
+    fields(user_id)
+)]
 async fn groups(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(user_id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    let current = state
+        .provider
+        .get_identity_provider()
+        .get_user(&state.db, &user_id)
+        .await?;
+
+    policy
+        .enforce(
+            "identity/user_group_list",
+            &user_auth,
+            to_value(&current)?,
+            None,
+        )
+        .await?;
+
     let groups: Vec<Group> = state
         .provider
         .get_identity_provider()
@@ -427,6 +492,19 @@ mod tests {
     async fn test_delete() {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
+            .expect_get_user()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .returning(|_, _| Ok(None));
+        identity_mock
+            .expect_get_user()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .returning(|_, _| {
+                Ok(Some(UserResponse {
+                    id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
+        identity_mock
             .expect_delete_user()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
             .returning(|_, _| Err(IdentityProviderError::UserNotFound("foo".into())));
@@ -476,6 +554,15 @@ mod tests {
     #[tokio::test]
     async fn test_groups() {
         let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_get_user()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .returning(|_, _| {
+                Ok(Some(UserResponse {
+                    id: "foo".into(),
+                    ..Default::default()
+                }))
+            });
         identity_mock
             .expect_list_groups_for_user()
             .withf(|_: &DatabaseConnection, uid: &str| uid == "foo")

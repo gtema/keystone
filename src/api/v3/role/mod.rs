@@ -16,12 +16,16 @@ use axum::{
     extract::{Path, Query, State},
     response::IntoResponse,
 };
+use mockall_double::double;
+use serde_json::to_value;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::assignment::AssignmentApi;
 use crate::keystone::ServiceState;
+#[double]
+use crate::policy::Policy;
 use types::{Role, RoleList, RoleListParameters, RoleResponse};
 
 pub mod types;
@@ -32,24 +36,29 @@ pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
         .routes(routes!(show))
 }
 
-/// List roles
+/// List roles.
 #[utoipa::path(
     get,
     path = "/",
     params(RoleListParameters),
-    description = "List roles",
     responses(
         (status = OK, description = "List of roles", body = RoleList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="roles"
 )]
-#[tracing::instrument(name = "api::role_list", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::role_list", level = "debug", skip_all, fields(query))]
 async fn list(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Query(query): Query<RoleListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce("identity/role_list", &user_auth, to_value(&query)?, None)
+        .await?;
+
     let roles: Vec<Role> = state
         .provider
         .get_assignment_provider()
@@ -62,25 +71,25 @@ async fn list(
     Ok(RoleList { roles })
 }
 
-/// Get single role
+/// Get single role.
 #[utoipa::path(
     get,
     path = "/{role_id}",
-    description = "Get role by ID",
-    params(),
     responses(
         (status = OK, description = "Role object", body = RoleResponse),
         (status = 404, description = "Role not found", example = json!(KeystoneApiError::NotFound(String::from("id = 1"))))
     ),
+    security(("x-auth" = [])),
     tag="roles"
 )]
-#[tracing::instrument(name = "api::role_get", level = "debug", skip(state))]
+#[tracing::instrument(name = "api::role_get", level = "debug", skip_all, fields(role_id))]
 async fn show(
     Auth(user_auth): Auth,
+    mut policy: Policy,
     Path(role_id): Path<String>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    state
+    let current = state
         .provider
         .get_assignment_provider()
         .get_role(&state.db, &role_id)
@@ -90,7 +99,17 @@ async fn show(
                 resource: "role".into(),
                 identifier: role_id,
             })
-        })?
+        })??;
+
+    policy
+        .enforce(
+            "identity/role_show",
+            &user_auth,
+            serde_json::to_value(&current)?,
+            None,
+        )
+        .await?;
+    Ok(current)
 }
 
 #[cfg(test)]
@@ -116,16 +135,12 @@ mod tests {
         MockAssignmentProvider,
         types::{Role, RoleListParameters},
     };
-
     use crate::config::Config;
-
     use crate::keystone::{Service, ServiceState};
-    use crate::policy::MockPolicyFactory;
+    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyEvaluationResult};
     use crate::provider::Provider;
-
-    use crate::token::{MockTokenProvider, Token, UnscopedPayload};
-
     use crate::tests::api::get_mocked_state_unauthed;
+    use crate::token::{MockTokenProvider, Token, UnscopedPayload};
 
     fn get_mocked_state(assignment_mock: MockAssignmentProvider) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
@@ -150,12 +165,20 @@ mod tests {
             .build()
             .unwrap();
 
+        let mut policy_factory_mock = MockPolicyFactory::default();
+        policy_factory_mock.expect_instantiate().returning(|| {
+            let mut policy_mock = MockPolicy::default();
+            policy_mock
+                .expect_enforce()
+                .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+            Ok(policy_mock)
+        });
         Arc::new(
             Service::new(
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
-                MockPolicyFactory::new(),
+                policy_factory_mock,
             )
             .unwrap(),
         )

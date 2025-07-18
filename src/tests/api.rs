@@ -33,12 +33,21 @@ pub(crate) fn get_mocked_state_unauthed() -> ServiceState {
         .build()
         .unwrap();
 
+    let mut policy_factory_mock = MockPolicyFactory::default();
+    policy_factory_mock.expect_instantiate().returning(|| {
+        let mut policy_mock = MockPolicy::default();
+        policy_mock
+            .expect_enforce()
+            .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+        Ok(policy_mock)
+    });
+
     Arc::new(
         Service::new(
             Config::default(),
             DatabaseConnection::Disconnected,
             provider,
-            MockPolicyFactory::default(),
+            policy_factory_mock,
         )
         .unwrap(),
     )

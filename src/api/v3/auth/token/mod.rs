@@ -155,7 +155,13 @@ async fn get_authz_info(
     ),
     tag="auth"
 )]
-#[tracing::instrument(name = "api::token_post", level = "debug", skip(state, req))]
+#[tracing::instrument(
+    name = "api::token_post",
+    level = "debug",
+    skip_all,
+    fields(query),
+    err(Debug)
+)]
 async fn post(
     Query(query): Query<CreateTokenParameters>,
     State(state): State<ServiceState>,
@@ -212,7 +218,9 @@ async fn post(
 #[tracing::instrument(
     name = "api::token_get",
     level = "debug",
-    skip(state, headers, user_auth, policy)
+    skip_all,
+    fields(query),
+    err(Debug)
 )]
 async fn show(
     Auth(user_auth): Auth,

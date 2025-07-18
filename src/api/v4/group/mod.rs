@@ -18,6 +18,24 @@ use crate::keystone::ServiceState;
 
 use crate::api::v3::group::openapi_router as v3_openapi_router;
 
+pub(crate) static DESCRIPTION: &str = r#"User group management API.
+
+A group is a collection of users. Each group is owned by a domain.
+
+You can use groups to ease the task of managing role assignments for users. Assigning a role to a
+group on a project or domain is equivalent to assigning the role to each group member on that
+project or domain.
+
+When you unassign a role from a group, that role is automatically unassigned from any user that is
+a member of the group. Any tokens that authenticates those users to the relevant project or domain
+are revoked.
+
+As with users, a group without any role assignments is useless from the perspective of an OpenStack
+service and has no access to resources. However, a group without role assignments is permitted as a
+way of acquiring or loading users and groups from external sources before mapping them to projects
+and domains.
+"#;
+
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     v3_openapi_router()
 }
@@ -271,6 +289,20 @@ mod tests {
     #[tokio::test]
     async fn test_delete() {
         let mut identity_mock = MockIdentityProvider::default();
+        identity_mock
+            .expect_get_group()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .returning(|_, _| Ok(None));
+
+        identity_mock
+            .expect_get_group()
+            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .returning(|_, _| {
+                Ok(Some(Group {
+                    id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
         identity_mock
             .expect_delete_group()
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")

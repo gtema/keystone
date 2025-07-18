@@ -30,6 +30,16 @@ use types::{User, UserCreateRequest, UserList, UserListParameters, UserResponse}
 pub mod passkey;
 pub mod types;
 
+pub(crate) static DESCRIPTION: &str = r#"User management API.
+
+A user is an individual API consumer that is owned by a domain. A role explicitly associates a user
+with projects or domains. A user with no assigned roles has no access to OpenStack resources.
+
+You can list, create, show details for, update, delete, and change the password for users.
+
+You can also list groups, projects, and role assignments for a specified user.
+"#;
+
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
         .routes(routes!(list, create))
