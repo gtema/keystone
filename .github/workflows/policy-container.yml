@@ -1,0 +1,74 @@
+name: OPA policy
+
+on:
+  pull_request:
+    paths:
+      - 'policy/**'
+      - '.github/workflows/policy-container.yml'
+  push:
+    branches: [ "main"]
+  workflow_dispatch: # Allow manual triggering
+
+env:
+  OPA_VERSION: 1.6.0
+  ORAS_VERSION: 1.2.0
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: ${{ env.OPA_VERSION }}
+
+      - name: Test OPA policies
+        run: opa test policy
+
+      - name: Build policy bundle
+        run: opa build policy --bundle
+
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      id-token: write
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0634a2670c59f64b4a01f0f96f84700a4088b9f0 # v2.12.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup OPA
+        uses: open-policy-agent/setup-opa@v2
+        with:
+          version: ${{ env.OPA_VERSION }}
+
+      - name: Setup ORAS CLI
+        uses: oras/setup-oras@v1
+        with:
+          oras-version: ${{ env.ORAS_VERSION }}
+
+      - name: Build policy container
+        run: opa build policy --bundle
+
+      - name: Create empty container config
+        run: echo "{}" > config.json
+
+      - name: Log in to GitHub Container Registry for ORAS
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username ${{ github.actor }} --password-stdin
+
+      - name: Push policy
+        run: oras push ghcr.io/${{ github.repository }}/opa-bundle:${{ github.ref_name }},latest --manifest-config {}:application/vnd.oci.image.config.v1+json bundle.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip
