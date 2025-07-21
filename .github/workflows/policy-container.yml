@@ -71,4 +71,4 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username ${{ github.actor }} --password-stdin
 
       - name: Push policy
-        run: oras push ghcr.io/${{ github.repository }}/opa-bundle:${{ github.ref_name }},latest --manifest-config {}:application/vnd.oci.image.config.v1+json bundle.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip
+        run: oras push ghcr.io/${{ github.repository }}/opa-bundle:${{ github.ref_name }},latest --config config.json:application/vnd.oci.image.config.v1+json bundle.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip
