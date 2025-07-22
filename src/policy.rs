@@ -18,14 +18,17 @@ use opa_wasm::{
     Runtime,
     wasmtime::{Config, Engine, Module, OptLevel, Store},
 };
+use reqwest::{Client, Url};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::path::Path;
+use std::sync::Arc;
+use std::time::SystemTime;
 use thiserror::Error;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
-use tracing::{Level, debug};
+use tracing::{Level, debug, trace};
 
 use crate::token::Token;
 
@@ -51,13 +54,28 @@ pub enum PolicyError {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
 
+    /// HTTP client error.
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
+
+    /// Url parsing error.
+    #[error(transparent)]
+    UrlParse(#[from] url::ParseError),
+
     #[error(transparent)]
     Wasm(#[from] opa_wasm::wasmtime::Error),
 }
 
+/// Policy factory.
 #[derive(Default)]
 pub struct PolicyFactory {
+    /// Requests client.
+    http_client: Option<Arc<Client>>,
+    /// OPA url address.
+    base_url: Option<Url>,
+    /// WASM engine.
     engine: Option<Engine>,
+    /// WASM module.
     module: Option<Module>,
 }
 
@@ -73,6 +91,17 @@ impl PolicyFactory {
     pub async fn from_wasm(path: &Path) -> Result<Self, PolicyError> {
         let file = tokio::fs::File::open(path).await?;
         PolicyFactory::load(file).await
+    }
+
+    #[tracing::instrument(name = "policy.http", err)]
+    pub async fn http(url: Url) -> Result<Self, PolicyError> {
+        let client = Client::new();
+        Ok(Self {
+            http_client: Some(Arc::new(client)),
+            base_url: Some(url.join("/v1/data/")?),
+            engine: None,
+            module: None,
+        })
     }
 
     #[tracing::instrument(name = "policy.load", skip(source), err)]
@@ -97,6 +126,8 @@ impl PolicyFactory {
         .map_err(PolicyError::Compilation)?;
 
         let factory = Self {
+            http_client: None,
+            base_url: None,
             engine: Some(engine),
             module: Some(module),
         };
@@ -115,11 +146,15 @@ impl PolicyFactory {
 
             let instance = runtime.without_data(&mut store).await?;
             Ok(Policy {
+                http_client: self.http_client.clone(),
+                base_url: self.base_url.clone(),
                 store: Some(store),
                 instance: Some(instance),
             })
         } else {
             Ok(Policy {
+                http_client: self.http_client.clone(),
+                base_url: self.base_url.clone(),
                 store: None,
                 instance: None,
             })
@@ -148,6 +183,8 @@ mock! {
 }
 
 pub struct Policy {
+    http_client: Option<Arc<Client>>,
+    base_url: Option<Url>,
     store: Option<Store<()>>,
     instance: Option<opa_wasm::Policy<opa_wasm::DefaultContext>>,
 }
@@ -190,6 +227,7 @@ impl Policy {
             entrypoint = policy_name.as_ref(),
             input,
             result,
+            duration_ms
         ),
         err,
         level = Level::DEBUG
@@ -201,32 +239,49 @@ impl Policy {
         target: Value,
         update: Option<Value>,
     ) -> Result<PolicyEvaluationResult, PolicyError> {
+        let start = SystemTime::now();
         let creds: Credentials = credentials.into();
         let input = json!({
             "credentials": creds,
             "target": target,
             "update": update,
         });
+        let span = tracing::Span::current();
 
-        if let (Some(store), Some(instance)) = (&mut self.store, &self.instance) {
+        let res = if let (Some(store), Some(instance)) = (&mut self.store, &self.instance) {
             tracing::Span::current().record("input", serde_json::to_string(&input)?);
             let [res]: [OpaResponse; 1] = instance
                 .evaluate(store, policy_name.as_ref(), &input)
                 .await?;
-            tracing::Span::current().record("result", serde_json::to_string(&res.result)?);
-            debug!("authorized={}", res.result.allow());
-            if !res.result.allow() {
-                return Err(PolicyError::Forbidden(res.result));
-            }
 
-            Ok(res.result)
+            res.result
+        } else if let (Some(client), Some(base_url)) = (&self.http_client, &self.base_url) {
+            trace!("checking policy decision with OPA using http");
+            let url = base_url.join(policy_name.as_ref())?;
+            let res: OpaResponse = client
+                .post(url)
+                .json(&json!({"input": input}))
+                .send()
+                .await?
+                .json()
+                .await?;
+
+            res.result
         } else {
             debug!("not enforcing policy due to the absence of initialized WASM data");
-            Ok(PolicyEvaluationResult {
+            PolicyEvaluationResult {
                 allow: true,
                 violations: None,
-            })
+            }
+        };
+        let elapsed = SystemTime::now().duration_since(start).unwrap_or_default();
+        span.record("result", serde_json::to_string(&res)?);
+        span.record("duration_ms", elapsed.as_millis());
+        debug!("authorized={}", res.allow());
+        if !res.allow() {
+            return Err(PolicyError::Forbidden(res));
         }
+        Ok(res)
     }
 }
 

@@ -2,6 +2,7 @@
 
 [Introduction](./intro.md)
 [Installation](./install.md)
+[Policy](./policy.md)
 
 ---
 

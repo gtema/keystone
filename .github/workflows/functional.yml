@@ -14,6 +14,7 @@ on:
 env:
   DATABASE_URL: postgresql://keystone:1234@127.0.0.1:5432/keystone
   KEYSTONE_URL: http://localhost:8080
+  OPA_URL: http://localhost:8181
   OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
 
 defaults:
@@ -168,6 +169,9 @@ jobs:
               interface: internal
           EOF
 
+      - name: Start open-policy-agent
+        run: docker run -p 8181:8181 -d -v $PWD/policy:/policy --name opa openpolicyagent/opa:1.6.0 run -s /policy --log-level debug
+
       - name: Start python keystone
         run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
 
@@ -296,6 +300,9 @@ jobs:
       - name: Start python keystone
         run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
 
+      - name: Start open-policy-agent
+        run: docker run -p 8181:8181 -d -v $PWD/policy:/policy --name opa openpolicyagent/opa:1.6.0 run -s /policy --log-level debug --addr :8181
+
       - name: Start rust keystone
         run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
 
@@ -308,6 +315,10 @@ jobs:
           KEYCLOAK_PASSWORD: password
           BROWSERDRIVER_PORT: 4444
         run: cargo test --test keycloak
+
+      - name: Dump OPA log
+        if: failure()
+        run: docker logs opa
 
       - name: Dump rust keystone log
         if: failure()

@@ -1,0 +1,17 @@
+services:
+  ghcr:
+    url: https://ghcr.io
+    type: oci
+    #credentials:
+    #  bearer:
+    #    scheme: "Bearer"
+    #    token: "<personal token>"
+
+bundles:
+  authz:
+    service: ghcr
+    resource: ghcr.io/gtema/keystone/opa-bundle:latest
+    persist: true
+    polling:
+      min_delay_seconds: 600
+      max_delay_seconds: 1200
