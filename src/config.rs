@@ -18,6 +18,7 @@ use regex::Regex;
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use url::Url;
 
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct Config {
@@ -121,6 +122,9 @@ impl DatabaseSection {
 pub struct PolicySection {
     /// Whether the policy enforcement should be enforced or not.
     pub enable: bool,
+
+    /// OpenPolicyAgent instance url to use for evaluating the policy.
+    pub opa_base_url: Option<Url>,
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
@@ -209,6 +213,7 @@ impl Config {
 
         builder = builder
             .set_default("api_policy.enable", "true")?
+            .set_default("api_policy.opa_base_url", "http://localhost:8181")?
             .set_default("identity.max_password_length", "4096")?
             .set_default("fernet_tokens.key_repository", "/etc/keystone/fernet-keys/")?
             .set_default("fernet_tokens.max_active_keys", "3")?

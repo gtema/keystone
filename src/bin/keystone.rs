@@ -112,8 +112,12 @@ async fn main() -> Result<(), Report> {
 
     let provider = Provider::new(cfg.clone(), plugin_manager)?;
 
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("policy.wasm");
-    let policy = PolicyFactory::from_wasm(&path).await?;
+    let policy = if let Some(opa_base_url) = &cfg.api_policy.opa_base_url {
+        PolicyFactory::http(opa_base_url.clone()).await?
+    } else {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("policy.wasm");
+        PolicyFactory::from_wasm(&path).await?
+    };
 
     let shared_state = Arc::new(Service::new(cfg, conn, provider, policy)?);
 
