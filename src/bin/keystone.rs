@@ -12,8 +12,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+//! Main Keystone executable.
+//!
+//! This is the entry point of the `keystone` binary.
+
 use axum::http::{self, HeaderName, Request, header};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use color_eyre::eyre::{Report, Result};
 use sea_orm::ConnectOptions;
 use sea_orm::Database;
@@ -45,17 +49,33 @@ use openstack_keystone::plugin_manager::PluginManager;
 use openstack_keystone::policy::PolicyFactory;
 use openstack_keystone::provider::Provider;
 
-/// Simple program to greet a person
+/// OpenStack Keystone.
+///
+/// Keystone is an OpenStack service that provides API client authentication, service discovery,
+/// and distributed multi-tenant authorization by implementing OpenStack’s Identity API.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Path to the keystone config file
-    #[arg(short, long)]
-    config: String,
+    /// Path to the keystone config file.
+    #[arg(short, long, required_unless_present("dump_openapi"))]
+    config: Option<String>,
 
     /// Verbosity level. Repeat to increase level.
     #[arg(short, long, global=true, action = clap::ArgAction::Count, display_order = 920)]
     pub verbose: u8,
+
+    /// Print the OpenAPI schema json instead of running the Keystone.
+    #[arg(long)]
+    pub dump_openapi: Option<OpenApiFormat>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, ValueEnum)]
+enum OpenApiFormat {
+    /// Json.
+    Json,
+    #[default]
+    /// Yaml.
+    Yaml,
 }
 
 // A `MakeRequestId` that increments an atomic counter
@@ -95,10 +115,27 @@ async fn main() -> Result<(), Report> {
     // build the tracing registry
     tracing_subscriber::registry().with(log_layer).init();
 
+    let openapi = api::ApiDoc::openapi();
+
+    let (router, api) = OpenApiRouter::with_openapi(openapi.clone())
+        .merge(api::openapi_router())
+        .split_for_parts();
+
+    if let Some(dump_format) = &args.dump_openapi {
+        println!(
+            "{}",
+            match dump_format {
+                OpenApiFormat::Yaml => api.to_yaml()?,
+                OpenApiFormat::Json => api.to_pretty_json()?,
+            }
+        );
+        return Ok(());
+    }
+
     let token = CancellationToken::new();
     let cloned_token = token.clone();
 
-    let cfg = Config::new(args.config.into())?;
+    let cfg = Config::new(args.config.expect("config file is required.").into())?;
     let db_url = cfg.database.get_connection();
     let mut opt = ConnectOptions::new(db_url.to_owned());
     if args.verbose < 2 {
@@ -127,10 +164,6 @@ async fn main() -> Result<(), Report> {
     let shared_state = Arc::new(Service::new(cfg, conn, provider, policy)?);
 
     spawn(cleanup(cloned_token, shared_state.clone()));
-
-    let (router, api) = OpenApiRouter::with_openapi(api::ApiDoc::openapi())
-        .merge(api::openapi_router())
-        .split_for_parts();
 
     let x_request_id = HeaderName::from_static("x-openstack-request-id");
     let sensitive_headers: Arc<[_]> = vec![
