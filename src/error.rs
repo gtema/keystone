@@ -60,6 +60,10 @@ pub enum KeystoneError {
         source: PolicyError,
     },
 
+    /// Policy engine is not available.
+    #[error("policy enforcement is requested, but not available with the enabled features")]
+    PolicyEnforcementNotAvailable,
+
     #[error(transparent)]
     ResourceError {
         #[from]

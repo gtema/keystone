@@ -37,7 +37,7 @@ eyre = { version = "0.6" }
 fernet = { version = "0.2" }
 futures-util = { version = "0.3" }
 mockall_double = { version = "0.3" }
-opa-wasm = { version = "^0.1" }
+opa-wasm = { version = "^0.1", optional = true }
 openidconnect = { version = "4.0" }
 regex = { version = "1.11"}
 reqwest = { version = "0.12", features = ["json"] }
@@ -76,6 +76,10 @@ tempfile = { version = "3.20" }
 thirtyfour = "0.36.0"
 tracing-test = { version = "0.2" }
 url = { version = "2.5" }
+
+[features]
+default = []
+wasm = ["dep:opa-wasm"]
 
 [profile.release]
 strip = true
