@@ -24,7 +24,8 @@ crate happening for the big policy files. The investigation is in progress, so
 it is preferred not to rely on this method anyway. While running OPA as a WASM
 eliminates any networking communication, it heavily reduces feature set. In
 particular hot policy reload, decision logging, external calls done by the
-policies themselves are not possible by design.
+policies themselves are not possible by design. Using this way of policy
+enforcement requires `wasm` feature enabled.
 
 All the policies currently are using the same policy names and definitions as
 the original Keystone to keep the deviation as less as possible. For the newly
