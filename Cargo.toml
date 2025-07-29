@@ -49,7 +49,7 @@ serde = { version = "1.0" }
 serde_bytes = { version = "0.11" }
 serde_json = { version = "1.0" }
 thiserror = { version = "2.0" }
-tokio = { version = "1.46", features = ["fs", "macros", "signal", "rt-multi-thread"] }
+tokio = { version = "1.47", features = ["fs", "macros", "signal", "rt-multi-thread"] }
 tokio-util = { version = "0.7" }
 tower = { version = "0.5" }
 tower-http = { version = "0.6", features = ["compression-full", "request-id", "sensitive-headers", "trace", "util"] }
