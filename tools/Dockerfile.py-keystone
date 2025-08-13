@@ -1,0 +1,12 @@
+FROM python:3.12-bookworm
+
+RUN pip3 install keystone==27.0 uwsgi psycopg2-binary
+
+WORKDIR /app
+
+COPY start_keystone.sh /app/start.sh
+
+# Sadly podman-compose does not support service complete checks, so in order to
+# have a more or less controlled order of the initialization steps we use the
+# start script.
+CMD ["/app/start.sh"]
