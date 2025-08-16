@@ -33,7 +33,7 @@ use tower_http::{
     request_id::{MakeRequestId, PropagateRequestIdLayer, RequestId, SetRequestIdLayer},
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
-use tracing::{Level, error, info, info_span, trace};
+use tracing::{Level, debug, error, info, info_span, trace};
 use tracing_subscriber::{filter::*, prelude::*};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
@@ -115,6 +115,8 @@ async fn main() -> Result<(), Report> {
     // build the tracing registry
     tracing_subscriber::registry().with(log_layer).init();
 
+    info!("Starting Keystone...");
+
     let openapi = api::ApiDoc::openapi();
 
     let (router, api) = OpenApiRouter::with_openapi(openapi.clone())
@@ -142,6 +144,7 @@ async fn main() -> Result<(), Report> {
         opt.sqlx_logging(false);
     }
 
+    debug!("Establishing the database connection...");
     let conn = Database::connect(opt)
         .await
         .expect("Database connection failed");

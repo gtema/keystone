@@ -1,0 +1,54 @@
+services:
+  db:
+    image: "postgres"
+    environment:
+      POSTGRES_USER: keystone
+      POSTGRES_PASSWORD: password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d mydb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+  keystone_py:
+    image: keystone-py:dev
+    build:
+      context: tools/
+      dockerfile: Dockerfile.py-keystone
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    ports:
+      - "15001:5000"
+    volumes:
+      - fernet:/etc/keystone/fernet-keys:rw
+      - ${PWD}/tools/keystone.conf:/etc/keystone/keystone.conf
+  keystone_rust:
+    image: keystone-rust:dev
+    build: .
+    command: ["bash", "-c", "keystone-db up && keystone -c /etc/keystone/keystone.conf -vv"]
+    environment:
+      DATABASE_URL: postgresql://keystone:password@db/keystone
+    ports:
+      - "18080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    volumes:
+      - fernet:/etc/keystone/fernet-keys:rw
+      - ${PWD}/tools/keystone.conf:/etc/keystone/keystone.conf
+  opa:
+    image: openpolicyagent/opa:1.7.0
+    ports:
+      - "18181:8181"
+    command: ["run", "-s", "/policy", "--addr", "0.0.0.0:8181", "--log-level", "debug"]
+    volumes:
+      - ${PWD}/policy:/policy
+volumes:
+  pg_data:
+  fernet:
