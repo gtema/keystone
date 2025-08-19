@@ -11,8 +11,11 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
-
-use sea_orm_migration::{prelude::*, schema::*};
+#![allow(clippy::enum_variant_names)]
+use sea_orm_migration::{
+    prelude::{extension::postgres::Type, *},
+    schema::*,
+};
 
 use crate::db::entity::prelude::Project;
 use crate::db::entity::project;
@@ -51,6 +54,7 @@ impl MigrationTrait for Migration {
                         FederatedIdentityProvider::OidcResponseTypes,
                         255,
                     ))
+                    .col(text_null(FederatedIdentityProvider::JwksUrl))
                     .col(text_null(FederatedIdentityProvider::JwtValidationPubkeys))
                     .col(string_len_null(FederatedIdentityProvider::BoundIssuer, 255))
                     .col(json_null(FederatedIdentityProvider::ProviderConfig))
@@ -71,10 +75,21 @@ impl MigrationTrait for Migration {
                     .index(
                         Index::create()
                             .unique()
-                            .name("idx-idp-name-domain")
+                            .nulls_not_distinct()
+                            .name("idx-idp-name-domain-discovery")
                             .col(FederatedIdentityProvider::DomainId)
-                            .col(FederatedIdentityProvider::Name),
+                            .col(FederatedIdentityProvider::Name)
+                            .col(FederatedIdentityProvider::OidcDiscoveryUrl),
                     )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_type(
+                Type::create()
+                    .as_enum(FederatedMappingType::FederatedMappingType)
+                    .values([FederatedMappingType::Oidc, FederatedMappingType::Jwt])
                     .to_owned(),
             )
             .await?;
@@ -88,6 +103,11 @@ impl MigrationTrait for Migration {
                     .col(string_len(FederatedMapping::Name, 255))
                     .col(string_len(FederatedMapping::IdpId, 64))
                     .col(string_len_null(FederatedMapping::DomainId, 64))
+                    .col(enumeration(
+                        FederatedMapping::Type,
+                        FederatedMappingType::FederatedMappingType,
+                        [FederatedMappingType::Oidc, FederatedMappingType::Jwt],
+                    ))
                     .col(string_len_null(FederatedMapping::AllowedRedirectUris, 1024))
                     .col(string_len(FederatedMapping::UserIdClaim, 64))
                     .col(string_len(FederatedMapping::UserNameClaim, 64))
@@ -172,11 +192,30 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(FederatedAuthState::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .if_exists()
+                    .table(FederatedAuthState::Table)
+                    .to_owned(),
+            )
             .await?;
 
         manager
-            .drop_table(Table::drop().table(FederatedMapping::Table).to_owned())
+            .drop_table(
+                Table::drop()
+                    .if_exists()
+                    .table(FederatedMapping::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_type(
+                Type::drop()
+                    .if_exists()
+                    .name(FederatedMappingType::FederatedMappingType)
+                    .to_owned(),
+            )
             .await?;
 
         manager
@@ -203,6 +242,7 @@ enum FederatedIdentityProvider {
     OidcResponseMode,
     OidcResponseTypes,
     BoundIssuer,
+    JwksUrl,
     JwtValidationPubkeys,
     ProviderConfig,
     DefaultMappingName,
@@ -215,6 +255,7 @@ enum FederatedMapping {
     DomainId,
     Name,
     IdpId,
+    Type,
     AllowedRedirectUris,
     UserIdClaim,
     UserNameClaim,
@@ -227,6 +268,12 @@ enum FederatedMapping {
     TokenUserId,
     TokenRoleIds,
     TokenProjectId,
+}
+#[derive(DeriveIden)]
+enum FederatedMappingType {
+    FederatedMappingType,
+    Oidc,
+    Jwt,
 }
 
 #[derive(DeriveIden)]

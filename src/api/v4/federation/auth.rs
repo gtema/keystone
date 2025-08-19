@@ -117,7 +117,7 @@ pub async fn post(
                 &ProviderMappingListParameters {
                     idp_id: Some(idp.id.clone()),
                     name: Some(mapping_name.clone()),
-                    domain_id: None,
+                    ..Default::default()
                 },
             )
             .await?

@@ -54,3 +54,16 @@ impl IntoResponse for IdentityProviderAuthResponse {
         (StatusCode::OK, Json(self)).into_response()
     }
 }
+
+/// JWT authentication request.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct IdentityProviderJwtAuthRequest {
+    /// JWT token.
+    pub jwt: String,
+    /// Identity provider ID.
+    pub idp_id: Option<String>,
+    /// Authentication mapping id.
+    pub mapping_id: Option<String>,
+    /// Authentication mapping name.
+    pub mapping_name: Option<String>,
+}

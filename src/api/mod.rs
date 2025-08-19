@@ -20,7 +20,8 @@ use axum::{
 use utoipa::{
     Modify, OpenApi,
     openapi::security::{
-        ApiKey, ApiKeyValue, AuthorizationCode, Flow, OAuth2, Scopes, SecurityScheme,
+        ApiKey, ApiKeyValue, AuthorizationCode, Flow, HttpAuthScheme, HttpBuilder, OAuth2, Scopes,
+        SecurityScheme,
     },
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
@@ -56,6 +57,16 @@ impl Modify for SecurityAddon {
             components.add_security_scheme(
                 "x-auth",
                 SecurityScheme::ApiKey(ApiKey::Header(ApiKeyValue::new("x-auth-token"))),
+            );
+            components.add_security_scheme(
+                "jwt",
+                SecurityScheme::Http(
+                    HttpBuilder::new()
+                        .scheme(HttpAuthScheme::Bearer)
+                        .bearer_format("JWT")
+                        .description(Some("JWT (ID) Token issued by the federated IDP"))
+                        .build(),
+                ),
             );
             // TODO: This must be dynamic
             components.add_security_scheme(

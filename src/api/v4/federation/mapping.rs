@@ -409,6 +409,7 @@ mod tests {
                 name: "name".into(),
                 domain_id: Some("did".into()),
                 idp_id: "idp_id".into(),
+                r#type: MappingType::default(),
                 allowed_redirect_uris: None,
                 user_id_claim: "sub".into(),
                 user_name_claim: "preferred_username".into(),
@@ -438,6 +439,7 @@ mod tests {
                         name: Some("name".into()),
                         domain_id: Some("did".into()),
                         idp_id: Some("idp".into()),
+                        ..Default::default()
                     } == *qp
                 },
             )
@@ -447,6 +449,7 @@ mod tests {
                     name: "name".into(),
                     domain_id: Some("did".into()),
                     idp_id: "idp".into(),
+                    r#type: MappingType::default().into(),
                     allowed_redirect_uris: None,
                     user_id_claim: "sub".into(),
                     user_name_claim: "preferred_username".into(),
@@ -553,6 +556,7 @@ mod tests {
                 name: "name".into(),
                 domain_id: Some("did".into()),
                 idp_id: "idp_id".into(),
+                r#type: MappingType::default(),
                 allowed_redirect_uris: None,
                 user_id_claim: "sub".into(),
                 user_name_claim: "preferred_username".into(),
