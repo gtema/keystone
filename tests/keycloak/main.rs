@@ -13,6 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use reqwest::Client;
+use reqwest::header::AUTHORIZATION;
 use serde_json::json;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -30,7 +31,7 @@ use openstack_keystone::api::v4::auth::token::types::TokenResponse;
 use openstack_keystone::api::v4::federation::types::*;
 
 #[tokio::test]
-async fn test_login_keycloak() {
+async fn test_login_oidc_keycloak() {
     let keystone_url = env::var("KEYSTONE_URL").expect("KEYSTONE_URL is set");
     let client = Client::new();
     let user_name = "test";
@@ -137,4 +138,47 @@ async fn test_login_keycloak() {
         .unwrap();
 
     // TODO: Add checks for the response
+}
+
+#[tokio::test]
+async fn test_login_jwt_keycloak() {
+    let keystone_url = env::var("KEYSTONE_URL").expect("KEYSTONE_URL is set");
+    let client = Client::new();
+    let user_name = "test";
+    let user_password = "pass";
+    let client_id = "keystone_test";
+    let client_secret = "keystone_test_secret";
+
+    let keycloak = get_keycloak_admin(&client).await.unwrap();
+
+    create_keycloak_client(&keycloak, client_id, client_secret)
+        .await
+        .unwrap();
+    create_keycloak_user(&keycloak, user_name, user_password)
+        .await
+        .unwrap();
+    let jwt = generate_user_jwt(client_id, client_secret, user_name, user_password)
+        .await
+        .unwrap();
+    println!("jwt is {:?}", jwt);
+
+    let token = auth().await;
+    let user = ensure_user(&token, "jwt_user", "default").await.unwrap();
+    let (idp, mapping) = setup_kecloak_idp_jwt(&token, client_id, client_secret)
+        .await
+        .unwrap();
+
+    let _auth_rsp: TokenResponse = client
+        .post(format!(
+            "{}/v4/federation/identity_providers/{}/jwt",
+            keystone_url, idp.identity_provider.id
+        ))
+        .header(AUTHORIZATION, jwt)
+        .header("openstack-mapping", mapping.mapping.name)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
 }

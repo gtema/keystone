@@ -31,6 +31,9 @@ pub enum OidcError {
     )]
     MappingRequired,
 
+    #[error("mapping id or mapping name with idp id must be specified")]
+    MappingIdOrNameWithIdp,
+
     #[error("request token error")]
     RequestToken { msg: String },
 
@@ -69,13 +72,20 @@ pub enum OidcError {
 
     #[error("ID token does not contain user id claim {0}")]
     UserNameClaimRequired(String),
+
+    /// Domain_id for the user cannot be identified.
     #[error("can not identify resulting domain_id for the user")]
     UserDomainUnbound,
 
+    /// Bound subject mismatch.
     #[error("bound subject mismatches {expected} != {found}")]
     BoundSubjectMismatch { expected: String, found: String },
+
+    /// Bound audiences mismatch.
     #[error("bound audiences mismatch {expected} != {found}")]
     BoundAudiencesMismatch { expected: String, found: String },
+
+    /// Bound claims mismatch.
     #[error("bound claims mismatch")]
     BoundClaimsMismatch {
         claim: String,
@@ -83,6 +93,7 @@ pub enum OidcError {
         found: String,
     },
 
+    /// Error building user data.
     #[error(transparent)]
     MappedUserDataBuilder {
         #[from]
@@ -90,8 +101,21 @@ pub enum OidcError {
         source: MappedUserDataBuilderError,
     },
 
+    /// Authentication expired.
     #[error("Authentication expired")]
     AuthStateExpired,
+
+    /// Cannot use OIDC attribute mapping for JWT login.
+    #[error("non jwt mapping requested for jwt login")]
+    NonJwtMapping,
+
+    /// No JWT issuer can be identified for the mapping.
+    #[error("no jwt issuer can be determined")]
+    NoJwtIssuer,
+
+    /// User not found
+    #[error("token user not found")]
+    UserNotFound(String),
 }
 
 impl OidcError {
@@ -121,6 +145,9 @@ impl From<OidcError> for KeystoneApiError {
             }
             OidcError::MappingRequired => {
                 KeystoneApiError::BadRequest("Federated authentication requires mapping being specified in the payload or default set on the identity provider.".to_string())
+            }
+            OidcError::MappingIdOrNameWithIdp => {
+                KeystoneApiError::BadRequest("Federated authentication requires mapping being specified in the payload either with ID or name with identity provider id.".to_string())
             }
             OidcError::RequestToken { msg } => {
                 KeystoneApiError::BadRequest(format!("Error exchanging authorization code for the authorization token: {msg}"))
@@ -166,6 +193,14 @@ impl From<OidcError> for KeystoneApiError {
             }
             OidcError::AuthStateExpired => {
                 KeystoneApiError::BadRequest("Authentication has expired. Please start again.".to_string())
+            }
+            OidcError::NonJwtMapping | OidcError::NoJwtIssuer => {
+                // Not exposing info about mapping and idp existence.
+                KeystoneApiError::Unauthorized
+            }
+            OidcError::UserNotFound(_) => {
+                // Not exposing info about mapping and idp existence.
+                KeystoneApiError::Unauthorized
             }
         }
     }

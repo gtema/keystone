@@ -44,6 +44,9 @@ pub struct IdentityProvider {
     pub oidc_response_types: Option<Vec<String>>,
 
     #[builder(default)]
+    pub jwks_url: Option<String>,
+
+    #[builder(default)]
     pub jwt_validation_pubkeys: Option<Vec<String>>,
 
     #[builder(default)]
@@ -76,6 +79,9 @@ pub struct IdentityProviderUpdate {
 
     #[builder(default)]
     pub oidc_response_types: Option<Option<Vec<String>>>,
+
+    #[builder(default)]
+    pub jwks_url: Option<Option<String>>,
 
     #[builder(default)]
     pub jwt_validation_pubkeys: Option<Option<Vec<String>>>,

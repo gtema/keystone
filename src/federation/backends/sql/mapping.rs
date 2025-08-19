@@ -19,6 +19,7 @@ use sea_orm::query::*;
 use crate::config::Config;
 use crate::db::entity::{
     federated_mapping as db_federated_mapping, prelude::FederatedMapping as DbFederatedMapping,
+    sea_orm_active_enums::MappingType as db_mapping_type,
 };
 use crate::federation::backends::error::FederationDatabaseError;
 use crate::federation::types::*;
@@ -53,6 +54,10 @@ pub async fn list(
         select = select.filter(db_federated_mapping::Column::IdpId.eq(val));
     }
 
+    if let Some(val) = &params.r#type {
+        select = select.filter(db_federated_mapping::Column::r#Type.eq(db_mapping_type::from(val)));
+    }
+
     let db_entities: Vec<db_federated_mapping::Model> = select.all(db).await?;
     let results: Result<Vec<Mapping>, _> = db_entities
         .into_iter()
@@ -60,6 +65,23 @@ pub async fn list(
         .collect();
 
     results
+}
+
+impl From<MappingType> for db_mapping_type {
+    fn from(value: MappingType) -> db_mapping_type {
+        match value {
+            MappingType::Oidc => db_mapping_type::Oidc,
+            MappingType::Jwt => db_mapping_type::Jwt,
+        }
+    }
+}
+impl From<&MappingType> for db_mapping_type {
+    fn from(value: &MappingType) -> db_mapping_type {
+        match value {
+            MappingType::Oidc => db_mapping_type::Oidc,
+            MappingType::Jwt => db_mapping_type::Jwt,
+        }
+    }
 }
 
 pub async fn create(
@@ -72,6 +94,7 @@ pub async fn create(
         domain_id: Set(mapping.domain_id.clone()),
         name: Set(mapping.name.clone()),
         idp_id: Set(mapping.idp_id.clone()),
+        r#type: Set(mapping.r#type.into()),
         allowed_redirect_uris: mapping
             .allowed_redirect_uris
             .clone()
@@ -154,6 +177,9 @@ pub async fn update<S: AsRef<str>>(
         if let Some(val) = mapping.idp_id {
             entry.idp_id = Set(val.to_owned());
         }
+        if let Some(val) = mapping.r#type {
+            entry.r#type = Set(val.into());
+        }
         if let Some(val) = mapping.allowed_redirect_uris {
             entry.allowed_redirect_uris = Set(val.clone().map(|x| x.join(",")));
         }
@@ -228,6 +254,10 @@ impl TryFrom<db_federated_mapping::Model> for Mapping {
         if let Some(val) = &value.domain_id {
             builder.domain_id(val);
         }
+        builder.r#type(match value.r#type {
+            db_mapping_type::Oidc => MappingType::Oidc,
+            db_mapping_type::Jwt => MappingType::Jwt,
+        });
         if let Some(val) = &value.allowed_redirect_uris {
             if !val.is_empty() {
                 builder.allowed_redirect_uris(Vec::from_iter(val.split(",").map(Into::into)));
@@ -288,6 +318,7 @@ mod tests {
             name: "name".into(),
             domain_id: Some("did".into()),
             idp_id: "idp".into(),
+            r#type: MappingType::default().into(),
             allowed_redirect_uris: None,
             user_id_claim: "sub".into(),
             user_name_claim: "preferred_username".into(),
@@ -327,7 +358,7 @@ mod tests {
             db.into_transaction_log(),
             [Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_user_id", "federated_mapping"."token_role_ids", "federated_mapping"."token_project_id" FROM "federated_mapping" WHERE "federated_mapping"."id" = $1 LIMIT $2"#,
+                r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", CAST("federated_mapping"."type" AS "text"), "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_user_id", "federated_mapping"."token_role_ids", "federated_mapping"."token_project_id" FROM "federated_mapping" WHERE "federated_mapping"."id" = $1 LIMIT $2"#,
                 ["1".into(), 1u64.into()]
             ),]
         );
@@ -352,7 +383,8 @@ mod tests {
                 &MappingListParameters {
                     name: Some("mapping_name".into()),
                     domain_id: Some("did".into()),
-                    idp_id: Some("idp".into())
+                    idp_id: Some("idp".into()),
+                    r#type: Some(MappingType::Jwt)
                 }
             )
             .await
@@ -374,13 +406,18 @@ mod tests {
             [
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_user_id", "federated_mapping"."token_role_ids", "federated_mapping"."token_project_id" FROM "federated_mapping""#,
+                    r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", CAST("federated_mapping"."type" AS "text"), "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_user_id", "federated_mapping"."token_role_ids", "federated_mapping"."token_project_id" FROM "federated_mapping""#,
                     []
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_user_id", "federated_mapping"."token_role_ids", "federated_mapping"."token_project_id" FROM "federated_mapping" WHERE "federated_mapping"."name" = $1 AND "federated_mapping"."domain_id" = $2 AND "federated_mapping"."idp_id" = $3"#,
-                    ["mapping_name".into(), "did".into(), "idp".into()]
+                    r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", CAST("federated_mapping"."type" AS "text"), "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_user_id", "federated_mapping"."token_role_ids", "federated_mapping"."token_project_id" FROM "federated_mapping" WHERE "federated_mapping"."name" = $1 AND "federated_mapping"."domain_id" = $2 AND "federated_mapping"."idp_id" = $3 AND "federated_mapping"."type" = (CAST($4 AS "federated_mapping_type"))"#,
+                    [
+                        "mapping_name".into(),
+                        "did".into(),
+                        "idp".into(),
+                        "jwt".into()
+                    ]
                 ),
             ]
         );
@@ -397,6 +434,7 @@ mod tests {
             id: "1".into(),
             name: "mapping".into(),
             domain_id: Some("foo_domain".into()),
+            r#type: MappingType::default(),
             idp_id: "idp".into(),
             allowed_redirect_uris: Some(vec!["url".into()]),
             user_id_claim: "sub".into(),
@@ -421,12 +459,13 @@ mod tests {
             db.into_transaction_log(),
             [Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                r#"INSERT INTO "federated_mapping" ("id", "name", "idp_id", "domain_id", "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_user_id", "token_role_ids", "token_project_id") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING "id", "name", "idp_id", "domain_id", "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_user_id", "token_role_ids", "token_project_id""#,
+                r#"INSERT INTO "federated_mapping" ("id", "name", "idp_id", "domain_id", "type", "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_user_id", "token_role_ids", "token_project_id") VALUES ($1, $2, $3, $4, CAST($5 AS "federated_mapping_type"), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING "id", "name", "idp_id", "domain_id", CAST("type" AS "text"), "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_user_id", "token_role_ids", "token_project_id""#,
                 [
                     "1".into(),
                     "mapping".into(),
                     "idp".into(),
                     "foo_domain".into(),
+                    "oidc".into(),
                     "url".into(),
                     "sub".into(),
                     "preferred_username".into(),
@@ -458,6 +497,7 @@ mod tests {
         let req = MappingUpdate {
             name: Some("name".into()),
             idp_id: Some("idp".into()),
+            r#type: MappingType::default().into(),
             allowed_redirect_uris: Some(Some(vec!["url".into()])),
             user_id_claim: Some("sub".into()),
             user_name_claim: Some("preferred_username".into()),
@@ -482,15 +522,16 @@ mod tests {
             [
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_user_id", "federated_mapping"."token_role_ids", "federated_mapping"."token_project_id" FROM "federated_mapping" WHERE "federated_mapping"."id" = $1 LIMIT $2"#,
+                    r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", CAST("federated_mapping"."type" AS "text"), "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_user_id", "federated_mapping"."token_role_ids", "federated_mapping"."token_project_id" FROM "federated_mapping" WHERE "federated_mapping"."id" = $1 LIMIT $2"#,
                     ["1".into(), 1u64.into()]
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"UPDATE "federated_mapping" SET "name" = $1, "idp_id" = $2, "allowed_redirect_uris" = $3, "user_id_claim" = $4, "user_name_claim" = $5, "domain_id_claim" = $6, "groups_claim" = $7, "bound_audiences" = $8, "bound_subject" = $9, "bound_claims" = $10, "oidc_scopes" = $11, "token_user_id" = $12, "token_role_ids" = $13, "token_project_id" = $14 WHERE "federated_mapping"."id" = $15 RETURNING "id", "name", "idp_id", "domain_id", "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_user_id", "token_role_ids", "token_project_id""#,
+                    r#"UPDATE "federated_mapping" SET "name" = $1, "idp_id" = $2, "type" = CAST($3 AS "federated_mapping_type"), "allowed_redirect_uris" = $4, "user_id_claim" = $5, "user_name_claim" = $6, "domain_id_claim" = $7, "groups_claim" = $8, "bound_audiences" = $9, "bound_subject" = $10, "bound_claims" = $11, "oidc_scopes" = $12, "token_user_id" = $13, "token_role_ids" = $14, "token_project_id" = $15 WHERE "federated_mapping"."id" = $16 RETURNING "id", "name", "idp_id", "domain_id", CAST("type" AS "text"), "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_user_id", "token_role_ids", "token_project_id""#,
                     [
                         "name".into(),
                         "idp".into(),
+                        "oidc".into(),
                         "url".into(),
                         "sub".into(),
                         "preferred_username".into(),

@@ -24,6 +24,7 @@ use crate::keystone::ServiceState;
 pub mod auth;
 pub mod error;
 pub mod identity_provider;
+pub mod jwt;
 pub mod mapping;
 pub mod oidc;
 pub mod types;
@@ -33,5 +34,6 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
         .nest("/identity_providers", identity_provider::openapi_router())
         .nest("/mappings", mapping::openapi_router())
         .merge(auth::openapi_router())
+        .merge(jwt::openapi_router())
         .merge(oidc::openapi_router())
 }
