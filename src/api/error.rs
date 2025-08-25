@@ -218,6 +218,7 @@ impl KeystoneApiError {
                 resource: "mapping provider".into(),
                 identifier: x,
             },
+            FederationProviderError::Conflict(x) => Self::Conflict(x),
             _ => Self::Federation { source },
         }
     }
@@ -300,6 +301,7 @@ pub enum WebauthnError {
     #[error("User Has No Credentials")]
     UserHasNoCredentials,
 }
+
 impl IntoResponse for WebauthnError {
     fn into_response(self) -> Response {
         let body = match self {

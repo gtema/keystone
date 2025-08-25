@@ -14,6 +14,7 @@ pub struct Model {
     pub oidc_client_secret: Option<String>,
     pub oidc_response_mode: Option<String>,
     pub oidc_response_types: Option<String>,
+    pub jwks_url: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub jwt_validation_pubkeys: Option<String>,
     pub bound_issuer: Option<String>,

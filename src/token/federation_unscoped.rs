@@ -104,7 +104,6 @@ impl MsgPackToken for FederationUnscopedPayload {
     ) -> Result<Self::Token, TokenProviderError> {
         // Order of reading is important
         let user_id = fernet_utils::read_uuid(rd)?;
-        println!("u: {user_id:?}");
         let methods: Vec<String> = fernet::decode_auth_methods(read_pfix(rd)?.into(), auth_map)?
             .into_iter()
             .collect();

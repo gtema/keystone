@@ -13,7 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use bytes::Bytes;
-use eyre::Report;
+use eyre::{Report, eyre};
 use http_body_util::{BodyExt, Empty, combinators::BoxBody};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -31,6 +31,7 @@ use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
 use openstack_keystone::api::v4::federation::types::*;
+use openstack_keystone::api::v4::user::types::*;
 
 pub async fn auth() -> String {
     let keystone_url = env::var("KEYSTONE_URL").expect("KEYSTONE_URL is set");
@@ -115,6 +116,98 @@ pub async fn setup_kecloak_idp<T: AsRef<str>, K: AsRef<str>, S: AsRef<str>>(
         .await?.json().await?;
 
     Ok((idp, mapping))
+}
+
+pub async fn setup_kecloak_idp_jwt<T: AsRef<str>, K: AsRef<str>, S: AsRef<str>>(
+    token: T,
+    _client_id: K,
+    _client_secret: S,
+) -> Result<(IdentityProviderResponse, MappingResponse), Report> {
+    let keystone_url = env::var("KEYSTONE_URL").expect("KEYSTONE_URL is set");
+    let keycloak_url = env::var("KEYCLOAK_URL").expect("KEYCLOAK_URL is set");
+    let client = Client::new();
+
+    let idp_rsp = client
+        .post(format!("{}/v4/federation/identity_providers", keystone_url))
+        .header("x-auth-token", token.as_ref())
+        .json(&json!({
+            "identity_provider": {
+                "id": "kc_jwt",
+                "name": "keycloak_jwt",
+                "oidc_discovery_url": format!("{}/realms/master", keycloak_url),
+                "jwks_url": format!("{}/realms/master/protocol/openid-connect/certs", keycloak_url),
+                "bound_issuer": format!("{}/realms/master", keycloak_url)
+             }
+        }))
+        .send()
+        .await?;
+    if !idp_rsp.status().is_success() {
+        return Err(eyre!("{:?}", idp_rsp.text().await?));
+    }
+
+    let idp: IdentityProviderResponse = idp_rsp.json().await?;
+
+    let mapping: MappingResponse = client
+        .post(format!("{}/v4/federation/mappings", keystone_url,))
+        .header("x-auth-token", token.as_ref())
+        .json(&json!({
+            "mapping": {
+                "id": "kc_jwt",
+                "name": "keycloak_jwt",
+                "idp_id": idp.identity_provider.id.clone(),
+                "type": "jwt",
+                "user_id_claim": "sub",
+                "user_name_claim": "preferred_username",
+                "domain_id_claim": "domain_id"
+             }
+        }))
+        .send()
+        .await?
+        .json()
+        .await?;
+
+    Ok((idp, mapping))
+}
+
+pub async fn ensure_user<T: AsRef<str>, U: AsRef<str>, D: AsRef<str>>(
+    token: T,
+    user_name: U,
+    domain_id: D,
+) -> Result<User, Report> {
+    let keystone_url = env::var("KEYSTONE_URL").expect("KEYSTONE_URL is set");
+    let client = Client::new();
+
+    let user_rsp = client
+        .post(format!("{}/v4/users", keystone_url))
+        .header("x-auth-token", token.as_ref())
+        .json(&json!({
+            "user": {
+                "name": user_name.as_ref(),
+                "domain_id": domain_id.as_ref()
+             }
+        }))
+        .send()
+        .await?;
+    if !user_rsp.status().is_success() {
+        return Ok(client
+            .get(format!("{}/v4/users", keystone_url))
+            .query(&[
+                ("domain_id", domain_id.as_ref()),
+                ("name", user_name.as_ref()),
+            ])
+            .header("x-auth-token", token.as_ref())
+            .send()
+            .await?
+            .json::<UserList>()
+            .await?
+            .users
+            .first()
+            .expect("cannot find user")
+            .clone());
+    }
+    let user: UserResponse = user_rsp.json().await?;
+
+    Ok(user.user)
 }
 
 /// Information for finishing the authorization request (received as a callback from `/authorize`

@@ -214,6 +214,8 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
+    permissions:
+      id-token: write
     env:
       KEYCLOAK_URL: http://localhost:8082
     services:
@@ -315,6 +317,17 @@ jobs:
           KEYCLOAK_PASSWORD: password
           BROWSERDRIVER_PORT: 4444
         run: cargo test --test keycloak
+
+      - name: Get GitHub JWT token
+        id: get_token
+        run: |
+          TOKEN_JSON=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com")
+
+      - name: Run github tests
+        env:
+          GITHUB_TOKEN: ${{ steps.get_token.outputs.token }}
+        run: cargo test --test github -- --nocapture
 
       - name: Dump OPA log
         if: failure()

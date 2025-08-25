@@ -148,6 +148,7 @@ impl Default for federated_identity_provider::Model {
             oidc_client_secret: None,
             oidc_response_mode: None,
             oidc_response_types: None,
+            jwks_url: None,
             jwt_validation_pubkeys: None,
             bound_issuer: None,
             default_mapping_name: None,

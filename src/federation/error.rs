@@ -18,40 +18,50 @@ use crate::federation::backends::error::*;
 
 #[derive(Error, Debug)]
 pub enum FederationProviderError {
-    /// Unsupported driver
+    /// Unsupported driver.
     #[error("unsupported driver {0}")]
     UnsupportedDriver(String),
 
-    /// Identity provider error
+    /// Identity provider error.
     #[error("data serialization error")]
     Serde {
         #[from]
         source: serde_json::Error,
     },
 
-    /// IDP not found
+    /// IDP not found.
     #[error("identity provider {0} not found")]
     IdentityProviderNotFound(String),
 
-    /// IDP mapping not found
+    /// IDP mapping not found.
     #[error("mapping {0} not found")]
     MappingNotFound(String),
 
-    /// Identity provider error
+    /// Use of token_user_id requires domain_id to be set.
+    #[error("`mapping.token_user_id` must be set")]
+    MappingTokenUserDomainUnset,
+
+    /// Use of token_project_id requires domain_id to be set.
+    #[error("`mapping.token_project_id` must be set")]
+    MappingTokenProjectDomainUnset,
+
+    /// Conflict.
+    #[error("oha {0}")]
+    Conflict(String),
+
+    /// Identity provider error.
     #[error(transparent)]
-    FederationDatabase {
-        #[from]
-        source: FederationDatabaseError,
-    },
+    FederationDatabase { source: FederationDatabaseError },
 }
 
-impl FederationProviderError {
-    pub fn database(source: FederationDatabaseError) -> Self {
+impl From<FederationDatabaseError> for FederationProviderError {
+    fn from(source: FederationDatabaseError) -> Self {
         match source {
             FederationDatabaseError::IdentityProviderNotFound(x) => {
                 Self::IdentityProviderNotFound(x)
             }
             FederationDatabaseError::MappingNotFound(x) => Self::MappingNotFound(x),
+            FederationDatabaseError::Conflict(x) => Self::Conflict(x),
             _ => Self::FederationDatabase { source },
         }
     }
