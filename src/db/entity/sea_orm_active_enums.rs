@@ -36,3 +36,16 @@ pub enum Type {
     #[sea_orm(string_value = "UserProject")]
     UserProject,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+#[sea_orm(
+    rs_type = "String",
+    db_type = "Enum",
+    enum_name = "federated_mapping_type"
+)]
+pub enum MappingType {
+    #[sea_orm(string_value = "oidc")]
+    Oidc,
+    #[sea_orm(string_value = "jwt")]
+    Jwt,
+}

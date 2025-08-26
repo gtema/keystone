@@ -16,107 +16,152 @@ use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Attribute mapping data.
 #[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[builder(setter(strip_option, into))]
 pub struct Mapping {
-    /// Federation IDP mapping ID
+    /// Federation IDP attribute mapping ID.
     pub id: String,
 
-    /// Mapping name
+    /// Attribute mapping name.
     pub name: String,
 
+    /// ID of the domain for the attribute mapping.
     #[builder(default)]
     pub domain_id: Option<String>,
 
-    /// IDP ID
+    /// Identity provider for the attribute mapping.
     pub idp_id: String,
 
+    /// Mapping type.
+    pub r#type: MappingType,
+
+    /// List of allowed redirect_uri for the oidc mapping.
     #[builder(default)]
     pub allowed_redirect_uris: Option<Vec<String>>,
 
+    /// Claim attribute name to extract `user_id`.
     #[builder(default)]
     pub user_id_claim: String,
 
+    /// Claim attribute name to extract `user_name`.
     #[builder(default)]
     pub user_name_claim: String,
 
+    /// Claim attribute name to extract `domain_id`.
     #[builder(default)]
     pub domain_id_claim: Option<String>,
 
+    /// Claim attribute name to extract list of groups.
     #[builder(default)]
     pub groups_claim: Option<String>,
 
+    /// Fixed (JWT) audiences that the assertion must be issued for.
     #[builder(default)]
     pub bound_audiences: Option<Vec<String>>,
 
+    /// Fixed subject that the assertion (jwt) must be issued for.
     #[builder(default)]
     pub bound_subject: Option<String>,
 
+    /// Additional claims to further restrict the attribute mapping.
     #[builder(default)]
     pub bound_claims: Option<Value>,
 
+    /// List of the oidc scopes to request in the oidc flow.
     #[builder(default)]
     pub oidc_scopes: Option<Vec<String>>,
 
     //#[builder(default)]
     //pub claim_mappings: Option<Value>,
+    /// Fixed `user_id` of the token to issue for successful authentication.
     #[builder(default)]
     pub token_user_id: Option<String>,
 
+    /// List of fixed role ids of the token to issue for successful authentication.
     #[builder(default)]
     pub token_role_ids: Option<Vec<String>>,
 
+    /// Fixed `project_id` scope of the token to issue for successful authentication.
     #[builder(default)]
     pub token_project_id: Option<String>,
 }
 
+/// Update attribute mapping data.
 #[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 #[builder(setter(into))]
 pub struct MappingUpdate {
-    /// Mapping name
+    /// Attribute mapping name.
     pub name: Option<String>,
 
-    // TODO: on update must check that domain_id match
+    /// Identity provider for the attribute mapping.
     #[builder(default)]
     pub idp_id: Option<String>,
 
+    /// Mapping type.
+    #[builder(default)]
+    pub r#type: Option<MappingType>,
+
+    /// List of allowed redirect_uri for the oidc mapping.
     #[builder(default)]
     pub allowed_redirect_uris: Option<Option<Vec<String>>>,
 
+    /// Claim attribute name to extract `user_id`.
     #[builder(default)]
     pub user_id_claim: Option<String>,
 
+    /// Claim attribute name to extract `user_name`.
     #[builder(default)]
     pub user_name_claim: Option<String>,
 
+    /// Claim attribute name to extract `domain_id`.
     #[builder(default)]
     pub domain_id_claim: Option<String>,
 
+    /// claim attribute name to extract list of groups.
     #[builder(default)]
     pub groups_claim: Option<Option<String>>,
 
+    /// Fixed (JWT) audiences that the assertion must be issued for.
     #[builder(default)]
     pub bound_audiences: Option<Option<Vec<String>>>,
 
+    /// Fixed subject that the assertion (jwt) must be issued for.
     #[builder(default)]
     pub bound_subject: Option<Option<String>>,
 
+    /// Additional claims to further restrict the attribute mapping.
     #[builder(default)]
     pub bound_claims: Option<Value>,
 
+    /// List of the oidc scopes to request in the oidc flow.
     #[builder(default)]
     pub oidc_scopes: Option<Option<Vec<String>>>,
 
+    /// Fixed `user_id` of the token to issue for successful authentication.
     #[builder(default)]
     pub token_user_id: Option<Option<String>>,
 
+    /// List of fixed role ids of the token to issue for successful authentication.
     #[builder(default)]
     pub token_role_ids: Option<Option<Vec<String>>>,
 
+    /// Fixed `project_id` scope of the token to issue for successful authentication.
     #[builder(default)]
     pub token_project_id: Option<Option<String>>,
 }
 
+/// Attribute mapping type.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub enum MappingType {
+    #[default]
+    /// OIDC
+    Oidc,
+    /// JWT
+    Jwt,
+}
+
+/// List attribute mappings request.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[builder(setter(strip_option, into))]
 pub struct MappingListParameters {
@@ -126,4 +171,6 @@ pub struct MappingListParameters {
     pub domain_id: Option<String>,
     /// Filters the response by IDP ID.
     pub idp_id: Option<String>,
+    /// Filters mappings by the type
+    pub r#type: Option<MappingType>,
 }

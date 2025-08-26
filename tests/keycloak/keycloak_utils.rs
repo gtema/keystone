@@ -13,11 +13,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use eyre::Report;
-use keycloak::{
-    types::*,
-    {KeycloakAdmin, KeycloakAdminToken},
-};
+use keycloak::{KeycloakAdmin, KeycloakAdminToken, KeycloakError, types::*};
 use reqwest::Client;
+use serde::Deserialize;
 use std::collections::HashMap;
 
 pub async fn get_keycloak_admin(client: &Client) -> Result<KeycloakAdmin, Report> {
@@ -56,11 +54,14 @@ pub async fn create_keycloak_client<S1: AsRef<str>, S2: AsRef<str>>(
             ..Default::default()
         }]
         .into(),
+        // allow generating JWT directly
+        direct_access_grants_enabled: Some(true),
         ..Default::default()
     };
-    admin.realm_clients_post(realm, keystone_client_req).await?;
-
-    Ok(())
+    match admin.realm_clients_post(realm, keystone_client_req).await {
+        Ok(_) | Err(KeycloakError::HttpFailure { status: 409, .. }) => Ok(()),
+        Err(err) => Err(err)?,
+    }
 }
 
 pub async fn create_keycloak_user<U: AsRef<str>, P: AsRef<str>>(
@@ -81,7 +82,42 @@ pub async fn create_keycloak_user<U: AsRef<str>, P: AsRef<str>>(
         enabled: Some(true),
         ..Default::default()
     };
-    admin.realm_users_post(realm, user_req).await?;
+    match admin.realm_users_post(realm, user_req).await {
+        Ok(_) | Err(KeycloakError::HttpFailure { status: 409, .. }) => Ok(()),
+        Err(err) => Err(err)?,
+    }
+}
 
-    Ok(())
+#[derive(Debug, Deserialize)]
+pub struct AuthResponse {
+    pub id_token: String,
+}
+
+pub async fn generate_user_jwt(
+    client_id: &'static str,
+    client_secret: &'static str,
+    user: &'static str,
+    password: &'static str,
+) -> Result<String, Report> {
+    let client = Client::new();
+    let url = std::env::var("KEYCLOAK_URL").unwrap_or_else(|_| "http://localhost:8082".into());
+    let realm = "master";
+    let response: AuthResponse = client
+        .post(format!(
+            "{}/realms/{}/protocol/openid-connect/token",
+            url, realm
+        ))
+        .form(&[
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("username", user),
+            ("password", password),
+            ("scope", "openid"),
+            ("grant_type", "password"),
+        ])
+        .send()
+        .await?
+        .json()
+        .await?;
+    Ok(response.id_token)
 }

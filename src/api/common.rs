@@ -56,7 +56,7 @@ pub async fn get_domain<I: AsRef<str>, N: AsRef<str>>(
                 identifier: name.as_ref().to_string(),
             })
     } else {
-        return Err(KeystoneApiError::DomainIdOrName);
+        Err(KeystoneApiError::DomainIdOrName)
     }
 }
 

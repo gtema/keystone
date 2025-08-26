@@ -12,6 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use sea_orm::SqlErr;
 use thiserror::Error;
 
 use crate::federation::types::*;
@@ -25,10 +26,7 @@ pub enum FederationDatabaseError {
     },
 
     #[error("database error")]
-    Database {
-        #[from]
-        source: sea_orm::DbErr,
-    },
+    Database { source: sea_orm::DbErr },
 
     #[error("identity provider {0} not found")]
     IdentityProviderNotFound(String),
@@ -38,6 +36,14 @@ pub enum FederationDatabaseError {
 
     #[error("auth state {0} not found")]
     AuthStateNotFound(String),
+
+    /// Conflict
+    #[error("conflict: {0}")]
+    Conflict(String),
+
+    /// SqlError
+    #[error("sql error: {0}")]
+    Sql(String),
 
     #[error(transparent)]
     AuthStateBuilder {
@@ -56,4 +62,17 @@ pub enum FederationDatabaseError {
         #[from]
         source: MappingBuilderError,
     },
+}
+
+impl From<sea_orm::DbErr> for FederationDatabaseError {
+    fn from(err: sea_orm::DbErr) -> Self {
+        match err.sql_err() {
+            Some(err) => match err {
+                SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
+                SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
+                other => Self::Sql(other.to_string()),
+            },
+            None => Self::Database { source: err },
+        }
+    }
 }

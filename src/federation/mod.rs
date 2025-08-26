@@ -81,14 +81,14 @@ pub trait FederationApi: Send + Sync + Clone {
     async fn create_mapping(
         &self,
         db: &DatabaseConnection,
-        idp: Mapping,
+        mapping: Mapping,
     ) -> Result<Mapping, FederationProviderError>;
 
     async fn update_mapping<'a>(
         &self,
         db: &DatabaseConnection,
         id: &'a str,
-        idp: MappingUpdate,
+        mapping: MappingUpdate,
     ) -> Result<Mapping, FederationProviderError>;
 
     async fn delete_mapping<'a>(
@@ -175,7 +175,7 @@ mock! {
         async fn create_mapping(
             &self,
             db: &DatabaseConnection,
-            idp: Mapping,
+            mapping: Mapping,
         ) -> Result<Mapping, FederationProviderError>;
 
         /// Update mapping
@@ -183,7 +183,7 @@ mock! {
             &self,
             db: &DatabaseConnection,
             id: &'a str,
-            idp: MappingUpdate,
+            mapping: MappingUpdate,
         ) -> Result<Mapping, FederationProviderError>;
 
         /// Delete mapping
@@ -279,7 +279,9 @@ impl FederationApi for FederationProvider {
         idp: IdentityProvider,
     ) -> Result<IdentityProvider, FederationProviderError> {
         let mut mod_idp = idp;
-        mod_idp.id = Uuid::new_v4().into();
+        if mod_idp.id.is_empty() {
+            mod_idp.id = Uuid::new_v4().into();
+        }
 
         self.backend_driver
             .create_identity_provider(db, mod_idp)
@@ -334,12 +336,29 @@ impl FederationApi for FederationProvider {
     async fn create_mapping(
         &self,
         db: &DatabaseConnection,
-        idp: Mapping,
+        mapping: Mapping,
     ) -> Result<Mapping, FederationProviderError> {
-        let mut mod_idp = idp;
-        mod_idp.id = Uuid::new_v4().into();
+        let mut mod_mapping = mapping;
+        mod_mapping.id = Uuid::new_v4().into();
+        if let Some(_uid) = &mod_mapping.token_user_id {
+            // ensure domain_id is set and matches the user_id.
+            if let Some(_did) = &mod_mapping.domain_id {
+                // TODO: Get the user_id and compare the domain_id
+            } else {
+                return Err(FederationProviderError::MappingTokenUserDomainUnset);
+            }
+        }
+        if let Some(_pid) = &mod_mapping.token_project_id {
+            // ensure domain_id is set and matches the one of the project_id.
+            if let Some(_did) = &mod_mapping.domain_id {
+                // TODO: Get the project_id and compare the domain_id
+            } else {
+                return Err(FederationProviderError::MappingTokenProjectDomainUnset);
+            }
+            // TODO: ensure current user has access to the project
+        }
 
-        self.backend_driver.create_mapping(db, mod_idp).await
+        self.backend_driver.create_mapping(db, mod_mapping).await
     }
 
     /// Update mapping
@@ -348,10 +367,37 @@ impl FederationApi for FederationProvider {
         &self,
         db: &DatabaseConnection,
         id: &'a str,
-        idp: MappingUpdate,
+        mapping: MappingUpdate,
     ) -> Result<Mapping, FederationProviderError> {
-        // TODO: Check update of idp_id to ensure it belongs to the same domain
-        self.backend_driver.update_mapping(db, id, idp).await
+        let current = self
+            .backend_driver
+            .get_mapping(db, id)
+            .await?
+            .ok_or_else(|| FederationProviderError::MappingNotFound(id.to_string()))?;
+
+        if let Some(_new_idp_id) = &mapping.idp_id {
+            // TODO: Check the new idp_id domain escaping
+        }
+
+        if let Some(_uid) = &mapping.token_user_id {
+            // ensure domain_id is set and matches the user_id.
+            if let Some(_did) = &current.domain_id {
+                // TODO: Get the user_id and compare the domain_id
+            } else {
+                return Err(FederationProviderError::MappingTokenUserDomainUnset);
+            }
+        }
+        if let Some(_pid) = &mapping.token_project_id {
+            // ensure domain_id is set and matches the one of the project_id.
+            if let Some(_did) = &current.domain_id {
+                // TODO: Get the project_id and compare the domain_id
+            } else {
+                return Err(FederationProviderError::MappingTokenProjectDomainUnset);
+            }
+            // TODO: ensure current user has access to the project
+        }
+        // TODO: Pass current to the backend to skip re-fetching
+        self.backend_driver.update_mapping(db, id, mapping).await
     }
 
     /// Delete identity provider

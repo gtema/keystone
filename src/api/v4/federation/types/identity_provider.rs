@@ -52,6 +52,11 @@ pub struct IdentityProvider {
     #[builder(default)]
     pub oidc_response_types: Option<Vec<String>>,
 
+    /// URL to fetch JsonWebKeySet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
+    pub jwks_url: Option<String>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub jwt_validation_pubkeys: Option<Vec<String>>,
@@ -113,6 +118,12 @@ pub struct IdentityProviderCreate {
     #[builder(default)]
     pub oidc_response_types: Option<Vec<String>>,
 
+    /// Optional URL to fetch JsonWebKeySet. Must be specified for JWT authentication when
+    /// discovery for the provider is not available or not standard compliant.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[builder(default)]
+    pub jwks_url: Option<String>,
+
     /// JWT validation public keys
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
@@ -155,6 +166,11 @@ pub struct IdentityProviderUpdate {
     #[builder(default)]
     pub oidc_response_types: Option<Option<Vec<String>>>,
 
+    /// Optional URL to fetch JsonWebKeySet. Must be specified for JWT authentication when
+    /// discovery for the provider is not available or not standard compliant.
+    #[builder(default)]
+    pub jwks_url: Option<Option<String>>,
+
     #[builder(default)]
     pub jwt_validation_pubkeys: Option<Option<Vec<String>>>,
 
@@ -195,6 +211,7 @@ impl From<types::IdentityProvider> for IdentityProvider {
             oidc_client_id: value.oidc_client_id,
             oidc_response_mode: value.oidc_response_mode,
             oidc_response_types: value.oidc_response_types,
+            jwks_url: value.jwks_url,
             jwt_validation_pubkeys: value.jwt_validation_pubkeys,
             bound_issuer: value.bound_issuer,
             default_mapping_name: value.default_mapping_name,
@@ -214,6 +231,7 @@ impl From<IdentityProviderCreateRequest> for types::IdentityProvider {
             oidc_client_secret: value.identity_provider.oidc_client_secret,
             oidc_response_mode: value.identity_provider.oidc_response_mode,
             oidc_response_types: value.identity_provider.oidc_response_types,
+            jwks_url: value.identity_provider.jwks_url,
             jwt_validation_pubkeys: value.identity_provider.jwt_validation_pubkeys,
             bound_issuer: value.identity_provider.bound_issuer,
             default_mapping_name: value.identity_provider.default_mapping_name,
@@ -231,6 +249,7 @@ impl From<IdentityProviderUpdateRequest> for types::IdentityProviderUpdate {
             oidc_client_secret: value.identity_provider.oidc_client_secret,
             oidc_response_mode: value.identity_provider.oidc_response_mode,
             oidc_response_types: value.identity_provider.oidc_response_types,
+            jwks_url: value.identity_provider.jwks_url,
             jwt_validation_pubkeys: value.identity_provider.jwt_validation_pubkeys,
             bound_issuer: value.identity_provider.bound_issuer,
             default_mapping_name: value.identity_provider.default_mapping_name,

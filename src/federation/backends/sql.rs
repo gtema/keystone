@@ -83,9 +83,7 @@ impl FederationBackend for SqlBackend {
         db: &DatabaseConnection,
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
-        identity_provider::delete(&self.config, db, id)
-            .await
-            .map_err(FederationProviderError::database)
+        Ok(identity_provider::delete(&self.config, db, id).await?)
     }
 
     /// List Mapping
@@ -136,9 +134,7 @@ impl FederationBackend for SqlBackend {
         db: &DatabaseConnection,
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
-        mapping::delete(&self.config, db, id)
-            .await
-            .map_err(FederationProviderError::database)
+        Ok(mapping::delete(&self.config, db, id).await?)
     }
 
     /// Get auth state by ID
@@ -168,17 +164,13 @@ impl FederationBackend for SqlBackend {
         db: &DatabaseConnection,
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
-        auth_state::delete(&self.config, db, id)
-            .await
-            .map_err(FederationProviderError::database)
+        Ok(auth_state::delete(&self.config, db, id).await?)
     }
 
     /// Cleanup expired resources
     #[tracing::instrument(level = "debug", skip(self, db))]
     async fn cleanup(&self, db: &DatabaseConnection) -> Result<(), FederationProviderError> {
-        auth_state::delete_expired(&self.config, db)
-            .await
-            .map_err(FederationProviderError::database)
+        Ok(auth_state::delete_expired(&self.config, db).await?)
     }
 }
 
