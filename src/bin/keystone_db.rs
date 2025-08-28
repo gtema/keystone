@@ -16,7 +16,7 @@ use sea_orm_migration::prelude::*;
 
 use openstack_keystone::db_migration;
 
-#[async_std::main]
+#[tokio::main]
 async fn main() {
     cli::run_cli(db_migration::Migrator).await;
 }
