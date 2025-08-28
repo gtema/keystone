@@ -6,6 +6,7 @@
 
 ---
 
+- [API](./swagger-ui.html)
 - [Federation](./federation.md)
 - [Passkeys](./passkey.md)
 
