@@ -22,7 +22,6 @@ harness = false
 
 [dependencies]
 async-trait = { version = "0.1" }
-async-std = { version = "1", features = ["attributes", "tokio1"] }
 axum = { version = "0.8", features = ["macros"] }
 base64 = { version = "0.22" }
 bcrypt = { version = "0.17", features = ["alloc"] }
