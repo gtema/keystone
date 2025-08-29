@@ -12,36 +12,55 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use sea_orm::SqlErr;
 use thiserror::Error;
 
 use crate::resource::types::*;
 
 #[derive(Error, Debug)]
 pub enum ResourceDatabaseError {
-    #[error("domain {0} not found")]
+    #[error("{0}")]
     DomainNotFound(String),
 
-    #[error("data serialization error")]
+    #[error(transparent)]
     Serde {
         #[from]
         source: serde_json::Error,
     },
 
-    #[error("error building domain data")]
+    #[error(transparent)]
     DomainBuilderError {
         #[from]
         source: DomainBuilderError,
     },
 
-    #[error("error building project data")]
+    #[error(transparent)]
     ProjectBuilderError {
         #[from]
         source: ProjectBuilderError,
     },
 
-    #[error("database data")]
-    Database {
-        #[from]
-        source: sea_orm::DbErr,
-    },
+    /// Conflict
+    #[error("{0}")]
+    Conflict(String),
+
+    /// SqlError
+    #[error("{0}")]
+    Sql(String),
+
+    #[error(transparent)]
+    Database { source: sea_orm::DbErr },
+}
+
+impl From<sea_orm::DbErr> for ResourceDatabaseError {
+    fn from(err: sea_orm::DbErr) -> Self {
+        match err.sql_err() {
+            Some(err) => match err {
+                SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
+                SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
+                other => Self::Sql(other.to_string()),
+            },
+            None => Self::Database { source: err },
+        }
+    }
 }

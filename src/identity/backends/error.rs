@@ -12,6 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use sea_orm::SqlErr;
 use thiserror::Error;
 
 use crate::identity::error::IdentityProviderPasswordHashError;
@@ -22,13 +23,13 @@ pub enum IdentityDatabaseError {
     #[error("corrupted database entries for user {0}")]
     MalformedUser(String),
 
-    #[error("user {0} not found")]
+    #[error("{0}")]
     UserNotFound(String),
 
-    #[error("group {0} not found")]
+    #[error("{0}")]
     GroupNotFound(String),
 
-    #[error("data serialization error")]
+    #[error(transparent)]
     Serde {
         #[from]
         source: serde_json::Error,
@@ -46,11 +47,16 @@ pub enum IdentityDatabaseError {
         source: FederationBuilderError,
     },
 
-    #[error("database data")]
-    Database {
-        #[from]
-        source: sea_orm::DbErr,
-    },
+    /// Conflict
+    #[error("{0}")]
+    Conflict(String),
+
+    /// SqlError
+    #[error("{0}")]
+    Sql(String),
+
+    #[error(transparent)]
+    Database { source: sea_orm::DbErr },
 
     #[error("password hashing error")]
     PasswordHash {
@@ -60,4 +66,17 @@ pub enum IdentityDatabaseError {
 
     #[error("either user id or user name with user domain id or name must be given")]
     UserIdOrNameWithDomain,
+}
+
+impl From<sea_orm::DbErr> for IdentityDatabaseError {
+    fn from(err: sea_orm::DbErr) -> Self {
+        match err.sql_err() {
+            Some(err) => match err {
+                SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
+                SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
+                other => Self::Sql(other.to_string()),
+            },
+            None => Self::Database { source: err },
+        }
+    }
 }

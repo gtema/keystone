@@ -32,15 +32,16 @@ pub enum AssignmentProviderError {
         source: serde_json::Error,
     },
 
+    /// Conflict.
+    #[error("conflict: {0}")]
+    Conflict(String),
+
     #[error("role {0} not found")]
     RoleNotFound(String),
 
     /// Assignment provider error
-    #[error("assignment provider database error: {}", source)]
-    AssignmentDatabaseError {
-        #[from]
-        source: AssignmentDatabaseError,
-    },
+    #[error(transparent)]
+    AssignmentDatabaseError { source: AssignmentDatabaseError },
 
     /// Identity provider error
     #[error(transparent)]
@@ -68,10 +69,12 @@ pub enum AssignmentProviderError {
     },
 }
 
-impl AssignmentProviderError {
-    pub fn database(source: AssignmentDatabaseError) -> Self {
+impl From<AssignmentDatabaseError> for AssignmentProviderError {
+    fn from(source: AssignmentDatabaseError) -> Self {
         match source {
+            AssignmentDatabaseError::Conflict(x) => Self::Conflict(x),
             AssignmentDatabaseError::RoleNotFound(x) => Self::RoleNotFound(x),
+            AssignmentDatabaseError::Serde { source } => Self::Serde { source },
             _ => Self::AssignmentDatabaseError { source },
         }
     }
