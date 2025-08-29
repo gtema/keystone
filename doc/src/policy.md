@@ -80,13 +80,36 @@ As can be guessed such policy would permit the API request when `admin` role is
 present in the current credentials roles or the mapping in scope is owned by
 the domain the user is currently scoped to with the `manager` role.`
 
-Additional improvement from the legacy Keystone is the time and data when the
-policies are evaluated. For `list` operation policy input is populated with the
-credentials and all query parameters. For `show` operation the input
-additionally contain the target object previously fetched so that the policy
-can additionally consider current resource attributes. `create` operation also
-gets the complete input. `update` operation first fetch the target resource and
-pass it as the target, while the updated properties are passed as the "update"
-object into the policy. The `delete` operation also fetches the to be deleted
-object passing it into the policy. This approach allow advanced cases where
-operations may need to be prohibited by certain resource attributes.
+## List operation
+
+All query parameters are passed into the policy engine to be provide capability
+of making decision based on the parameters passed. For example an admin user
+may specify `domain_id` parameter when the current authentication scope is not
+matching the given `domain_id` or a user with the `manager` role being able to
+list shared federated identity providers.
+
+Policy is being evaluated before the real data is being fetched from the backend.
+
+## Show operation
+
+Policy evaluation for GET operations on the resource are executed with the
+requested entity in the scope. This allows policy to deny the operation if the
+user requested resource it is should not have access to. This means that 404
+error may be raised before the validation of whether the user is allowed to
+perform such operations.
+
+## Create operation
+
+Resource creation operation would pass the whole object to be created in the
+context to the policy enforcement engine.
+
+## Update operation
+
+For the update operation the context contain the current state of the resource
+and the new one. This allows defining policies preventing resource update upon
+certain conditions (i.e. when tag "locked" is added).
+
+## Delete operation
+
+Resource deletion also passes the current resource state in the context to
+allow comprehensive logic.

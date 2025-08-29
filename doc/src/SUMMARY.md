@@ -2,14 +2,19 @@
 
 [Introduction](./intro.md)
 [Installation](./install.md)
-[Policy](./policy.md)
 
 ---
 
-- [API](./swagger-ui.html)
-- [Federation](./federation.md)
-- [Passkeys](./passkey.md)
+[Architecture](./architecture.md)
+[Policy enforcement](./policy.md)
 
+---
+
+- [Federation](./federation.md)
+  - [Oidc RP mode](./oidc.md)
+  - [JWT](./jwt.md)
+- [Passkeys](./passkey.md)
+- [API](./swagger-ui.html)
 
 ---
 
