@@ -19,11 +19,15 @@ use crate::resource::types::DomainBuilderError;
 
 #[derive(Error, Debug)]
 pub enum ResourceProviderError {
-    /// Unsupported driver
+    /// Unsupported driver.
     #[error("unsupported driver {0}")]
     UnsupportedDriver(String),
 
-    /// Identity provider error
+    /// Conflict.
+    #[error("conflict: {0}")]
+    Conflict(String),
+
+    /// Data (de)serialization error.
     #[error("data serialization error")]
     Serde {
         #[from]
@@ -35,10 +39,7 @@ pub enum ResourceProviderError {
 
     /// Identity provider error
     #[error(transparent)]
-    ResourceDatabase {
-        #[from]
-        source: ResourceDatabaseError,
-    },
+    ResourceDatabase { source: ResourceDatabaseError },
 
     #[error(transparent)]
     DomainBuilder {
@@ -47,9 +48,10 @@ pub enum ResourceProviderError {
     },
 }
 
-impl ResourceProviderError {
-    pub fn database(source: ResourceDatabaseError) -> Self {
+impl From<ResourceDatabaseError> for ResourceProviderError {
+    fn from(source: ResourceDatabaseError) -> Self {
         match source {
+            ResourceDatabaseError::Conflict(x) => Self::Conflict(x),
             ResourceDatabaseError::DomainNotFound(x) => Self::DomainNotFound(x),
             _ => Self::ResourceDatabase { source },
         }

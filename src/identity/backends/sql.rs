@@ -154,9 +154,7 @@ impl IdentityBackend for SqlBackend {
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        user::delete(&self.config, db, user_id)
-            .await
-            .map_err(IdentityProviderError::database)
+        Ok(user::delete(&self.config, db, user_id).await?)
     }
 
     /// List groups
@@ -196,9 +194,7 @@ impl IdentityBackend for SqlBackend {
         db: &DatabaseConnection,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        group::delete(&self.config, db, group_id)
-            .await
-            .map_err(IdentityProviderError::database)
+        Ok(group::delete(&self.config, db, group_id).await?)
     }
 
     /// List groups a user is member of
@@ -281,9 +277,7 @@ impl IdentityBackend for SqlBackend {
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        passkey_state::delete(db, user_id)
-            .await
-            .map_err(IdentityProviderError::database)
+        Ok(passkey_state::delete(db, user_id).await?)
     }
 
     /// Delete passkey auth state for a user
@@ -293,9 +287,7 @@ impl IdentityBackend for SqlBackend {
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        passkey_state::delete(db, user_id)
-            .await
-            .map_err(IdentityProviderError::database)
+        Ok(passkey_state::delete(db, user_id).await?)
     }
 }
 

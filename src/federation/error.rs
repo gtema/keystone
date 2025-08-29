@@ -46,7 +46,7 @@ pub enum FederationProviderError {
     MappingTokenProjectDomainUnset,
 
     /// Conflict.
-    #[error("oha {0}")]
+    #[error("conflict: {0}")]
     Conflict(String),
 
     /// Identity provider error.
@@ -62,6 +62,7 @@ impl From<FederationDatabaseError> for FederationProviderError {
             }
             FederationDatabaseError::MappingNotFound(x) => Self::MappingNotFound(x),
             FederationDatabaseError::Conflict(x) => Self::Conflict(x),
+            FederationDatabaseError::Serde { source } => Self::Serde { source },
             _ => Self::FederationDatabase { source },
         }
     }
