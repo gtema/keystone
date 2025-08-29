@@ -12,16 +12,17 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use sea_orm::SqlErr;
 use thiserror::Error;
 
 use crate::assignment::types::*;
 
 #[derive(Error, Debug)]
 pub enum AssignmentDatabaseError {
-    #[error("role {0} not found")]
+    #[error("{0}")]
     RoleNotFound(String),
 
-    #[error("data serialization error: {}", source)]
+    #[error(transparent)]
     Serde {
         #[from]
         source: serde_json::Error,
@@ -39,12 +40,30 @@ pub enum AssignmentDatabaseError {
         source: RoleBuilderError,
     },
 
-    #[error("database error: {}", source)]
-    Database {
-        #[from]
-        source: sea_orm::DbErr,
-    },
+    #[error(transparent)]
+    Database { source: sea_orm::DbErr },
 
-    #[error("invalid assignment type: {0}")]
+    /// Conflict
+    #[error("{0}")]
+    Conflict(String),
+
+    /// SqlError
+    #[error("{0}")]
+    Sql(String),
+
+    #[error("{0}")]
     InvalidAssignmentType(String),
+}
+
+impl From<sea_orm::DbErr> for AssignmentDatabaseError {
+    fn from(err: sea_orm::DbErr) -> Self {
+        match err.sql_err() {
+            Some(err) => match err {
+                SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
+                SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
+                other => Self::Sql(other.to_string()),
+            },
+            None => Self::Database { source: err },
+        }
+    }
 }

@@ -19,30 +19,30 @@ use crate::federation::types::*;
 
 #[derive(Error, Debug)]
 pub enum FederationDatabaseError {
-    #[error("data serialization error")]
+    #[error(transparent)]
     Serde {
         #[from]
         source: serde_json::Error,
     },
 
-    #[error("database error")]
+    #[error(transparent)]
     Database { source: sea_orm::DbErr },
 
-    #[error("identity provider {0} not found")]
+    #[error("{0}")]
     IdentityProviderNotFound(String),
 
-    #[error("mapping provider {0} not found")]
+    #[error("{0}")]
     MappingNotFound(String),
 
-    #[error("auth state {0} not found")]
+    #[error("{0}")]
     AuthStateNotFound(String),
 
     /// Conflict
-    #[error("conflict: {0}")]
+    #[error("{0}")]
     Conflict(String),
 
     /// SqlError
-    #[error("sql error: {0}")]
+    #[error("{0}")]
     Sql(String),
 
     #[error(transparent)]
