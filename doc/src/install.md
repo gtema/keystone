@@ -57,6 +57,11 @@ Since keystone itself communicates with the database and OpenPolicyAgent those
 must be provided separately. `docker-compose.yaml` demonstrates how this can be
 done.
 
+```console
+
+docker run -v /etc/keystone/:/etc/keystone -p 8080:8080 ghcr.io/gtema/keystone:main -v /etc/keystone/keystone.conf
+```
+
 ## Database migrations
 
 Rust Keystone is using different ORM and implements migration that co-exist
