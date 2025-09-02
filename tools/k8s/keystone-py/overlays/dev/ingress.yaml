@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "keystone-py"
+  labels:
+    app.kubernetes.io/name: "keystone"
+    app.kubernetes.io/part-of: "glue"
+    app.kubernetes.io/component: "keystone"
+  annotations:
+    cert-manager.io/cluster-issuer: "selfsigned"
+    traefik.ingress.kubernetes.io/router.entrypoints: "web"
+    #traefik.ingress.kubernetes.io/router.tls=true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "keystone-py.local"
+      http:
+        paths:
+          - backend:
+              service:
+                name: "keystone-py"
+                port:
+                  number: 5000
+            path: "/"
+            pathType: "Prefix"
+  tls:
+    - hosts:
+        - keystone-py.local
+      secretName: keystone-tls

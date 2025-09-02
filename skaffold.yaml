@@ -1,0 +1,38 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: keystone
+build:
+  insecureRegistries:
+    - localhost
+  artifacts:
+    - image: py-keystone
+      context: tools
+      docker:
+        dockerfile: Dockerfile.py-keystone
+manifests:
+  kustomize:
+    paths:
+      - tools/k8s/keystone-py/overlays/dev
+deploy:
+  kubectl: {}
+  helm:
+    releases:
+      - name: ingress-nginx
+        repo: https://kubernetes.github.io/ingress-nginx
+        remoteChart: ingress-nginx
+        createNamespace: true
+      - name: cloudnative-pg
+        repo: https://cloudnative-pg.github.io/charts
+        remoteChart: cloudnative-pg
+        createNamespace: true
+        namespace: cnpg
+profiles:
+  - name: glue
+    build:
+      artifacts:
+      local: {}
+    manifests:
+      kustomize:
+        paths:
+          - k8s/glue/overlays/dev
