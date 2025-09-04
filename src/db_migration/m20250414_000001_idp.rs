@@ -26,6 +26,7 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let db_backend = manager.get_database_backend();
         manager
             .create_table(
                 Table::create()
@@ -85,14 +86,16 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager
-            .create_type(
-                Type::create()
-                    .as_enum(FederatedMappingType::FederatedMappingType)
-                    .values([FederatedMappingType::Oidc, FederatedMappingType::Jwt])
-                    .to_owned(),
-            )
-            .await?;
+        if db_backend == sea_orm::DatabaseBackend::Postgres {
+            manager
+                .create_type(
+                    Type::create()
+                        .as_enum(FederatedMappingType::FederatedMappingType)
+                        .values([FederatedMappingType::Oidc, FederatedMappingType::Jwt])
+                        .to_owned(),
+                )
+                .await?;
+        }
 
         manager
             .create_table(
@@ -191,6 +194,7 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let db_backend = manager.get_database_backend();
         manager
             .drop_table(
                 Table::drop()
@@ -209,14 +213,16 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager
-            .drop_type(
-                Type::drop()
-                    .if_exists()
-                    .name(FederatedMappingType::FederatedMappingType)
-                    .to_owned(),
-            )
-            .await?;
+        if db_backend == sea_orm::DatabaseBackend::Postgres {
+            manager
+                .drop_type(
+                    Type::drop()
+                        .if_exists()
+                        .name(FederatedMappingType::FederatedMappingType)
+                        .to_owned(),
+                )
+                .await?;
+        }
 
         manager
             .drop_table(
