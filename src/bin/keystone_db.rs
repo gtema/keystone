@@ -11,12 +11,122 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
+use clap::{Parser, Subcommand};
+use color_eyre::Report;
+use std::io;
+use std::path::PathBuf;
+use tracing::info;
+use tracing_subscriber::{filter::*, prelude::*};
+
+use sea_orm::ConnectOptions;
+use sea_orm::Database;
 
 use sea_orm_migration::prelude::*;
 
-use openstack_keystone::db_migration;
+use openstack_keystone::config::Config;
+use openstack_keystone::db_migration::Migrator;
+
+#[derive(Parser)]
+#[command(author, version, about)]
+struct Cli {
+    /// Path to the keystone config file.
+    #[arg(short, long, default_value = "/etc/keystone/keystone.conf")]
+    config: PathBuf,
+
+    /// Verbosity level. Repeat to increase level.
+    #[arg(short, long, global=true, action = clap::ArgAction::Count)]
+    pub verbose: u8,
+
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Apply pending migrations.
+    Up {
+        /// Number of pending migrations to apply.
+        #[arg(short('n'))]
+        steps: Option<u32>,
+    },
+    /// Rollback applied migrations.
+    Down {
+        /// Number of migrations to rollback.
+        #[arg(short('n'))]
+        steps: Option<u32>,
+    },
+    /// Check the status of all migrations.
+    Status,
+    /// Drop all tables from the database, then reapply all migrations.
+    Fresh,
+    /// Rollback all applied migrations, then reapply all migrations.
+    Refresh,
+    /// Rollback all applied migrations.
+    Reset,
+}
 
 #[tokio::main]
-async fn main() {
-    cli::run_cli(db_migration::Migrator).await;
+async fn main() -> Result<(), Report> {
+    let cli = Cli::parse();
+
+    let filter = Targets::new().with_default(match cli.verbose {
+        0 => LevelFilter::WARN,
+        1 => LevelFilter::INFO,
+        2 => LevelFilter::DEBUG,
+        _ => LevelFilter::TRACE,
+    });
+
+    let log_layer = tracing_subscriber::fmt::layer()
+        .with_writer(io::stderr)
+        .with_filter(filter);
+
+    // build the tracing registry
+    tracing_subscriber::registry().with(log_layer).init();
+    let cfg = Config::new(cli.config)?;
+    let db_url = cfg.database.get_connection();
+    let mut opt = ConnectOptions::new(db_url.to_owned());
+
+    if cli.verbose < 2 {
+        opt.sqlx_logging(false);
+    }
+
+    info!("Establishing the database connection...");
+    let conn = Database::connect(opt)
+        .await
+        .expect("Database connection failed");
+
+    match cli.command {
+        Commands::Up { steps } => {
+            Migrator::up(&conn, steps).await?;
+        }
+        Commands::Down { steps } => {
+            Migrator::down(&conn, steps).await?;
+        }
+        Commands::Status => {
+            let migrations = Migrator::get_pending_migrations(&conn).await?;
+            if !migrations.is_empty() {
+                println!("Pending migrations:");
+                for mig in migrations {
+                    println!("{}", mig.name());
+                }
+            } else {
+                println!("No pending migrations!")
+            };
+            let migrations = Migrator::get_applied_migrations(&conn).await?;
+            println!("Applied migrations:");
+            for mig in migrations {
+                println!("{}", mig.name());
+            }
+        }
+        Commands::Fresh => {
+            Migrator::fresh(&conn).await?;
+        }
+        Commands::Refresh => {
+            Migrator::refresh(&conn).await?;
+        }
+        Commands::Reset => {
+            Migrator::reset(&conn).await?;
+        }
+    }
+    Ok(())
 }

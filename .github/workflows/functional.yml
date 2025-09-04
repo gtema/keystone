@@ -299,7 +299,7 @@ jobs:
           keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:8080
 
       - name: Apply Rust keystone DB changes
-        run: ./keystone-db up
+        run: ./keystone-db -c ${{ github.workspace }}/etc/keystone.conf up
 
       - name: Start python keystone
         run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
