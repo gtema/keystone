@@ -58,9 +58,10 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
 #[utoipa::path(
     post,
     path = "/identity_providers/{idp_id}/auth",
-    description = "Authenticate using identity provider",
+    operation_id = "federation/identity_provider/auth:post",
+    request_body = IdentityProviderAuthRequest,
     responses(
-        (status = CREATED, description = "identity provider object", body = IdentityProviderAuthResponse),
+        (status = CREATED, description = "Authentication data", body = IdentityProviderAuthResponse),
     ),
     tag="identity_providers"
 )]

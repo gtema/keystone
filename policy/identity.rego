@@ -1,7 +1,7 @@
 package identity
 
 token_subject if {
-  input.credentials.user_id == input.target.token.user_id
+	input.credentials.user_id == input.target.token.user_id
 }
 
 global_idp if {

@@ -12,15 +12,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::keystone::ServiceState;
 
-pub mod passkey;
-pub mod token;
+mod register_finish;
+mod register_start;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new()
-        .nest("/tokens", token::openapi_router())
-        .nest("/passkey", passkey::openapi_router())
+        .routes(routes!(register_start::start))
+        .routes(routes!(register_finish::finish))
 }

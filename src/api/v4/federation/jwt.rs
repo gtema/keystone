@@ -112,6 +112,7 @@ async fn get_authz_info(
     post,
     //path = "/jwt/login",
     path = "/identity_providers/{idp_id}/jwt",
+    operation_id = "/federation/identity_provider/jwt:login",
     params(
         ("openstack-mapping" = String, Header, description = "Federated attribute mapping"),
 

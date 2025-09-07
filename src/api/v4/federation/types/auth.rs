@@ -11,7 +11,7 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
-
+//! Federated auth OIDC auth types.
 use axum::{
     Json,
     http::StatusCode,
@@ -20,27 +20,27 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
-/// Request for initializing the federated authentication
+/// Request for initializing the federated authentication.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct IdentityProviderAuthRequest {
-    /// Redirect URI to include in the auth request
+    /// Redirect URI to include in the auth request.
     pub redirect_uri: String,
-    /// IDP mapping id
+    /// IDP mapping id.
     pub mapping_id: Option<String>,
-    /// IDP mapping name
+    /// IDP mapping name.
     pub mapping_name: Option<String>,
-    /// Authentication scope
+    /// Authentication scope.
     pub scope: Option<crate::api::types::Scope>,
 }
 
-/// Authentication initialization response
+/// Authentication initialization response.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct IdentityProviderAuthResponse {
-    /// Url the client must open in the browser to continue the authentication
+    /// Url the client must open in the browser to continue the authentication.
     pub auth_url: String,
 }
 
-/// Authentication callback request the user is sending to complete the authentication request
+/// Authentication callback request the user is sending to complete the authentication request.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct AuthCallbackParameters {
     /// Authentication state.
@@ -53,17 +53,4 @@ impl IntoResponse for IdentityProviderAuthResponse {
     fn into_response(self) -> Response {
         (StatusCode::OK, Json(self)).into_response()
     }
-}
-
-/// JWT authentication request.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
-pub struct IdentityProviderJwtAuthRequest {
-    /// JWT token.
-    pub jwt: String,
-    /// Identity provider ID.
-    pub idp_id: Option<String>,
-    /// Authentication mapping id.
-    pub mapping_id: Option<String>,
-    /// Authentication mapping name.
-    pub mapping_name: Option<String>,
 }
