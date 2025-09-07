@@ -11,7 +11,7 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
-/// Federated login - attribute mapping types.
+//! Federated attribute mapping types.
 use axum::{
     Json,
     http::StatusCode,
@@ -133,6 +133,7 @@ pub struct MappingCreate {
     /// attribute).
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub domain_id: Option<String>,
 
     /// ID of the federated identity provider for which this attribute mapping can be used.
@@ -141,11 +142,13 @@ pub struct MappingCreate {
     /// Attribute mapping type ([oidc, jwt]).
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub r#type: Option<MappingType>,
 
     /// List of allowed redirect urls (only for `oidc` type).
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub allowed_redirect_uris: Option<Vec<String>>,
 
     /// `user_id` claim name.
@@ -157,46 +160,55 @@ pub struct MappingCreate {
     /// `domain_id` claim name.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub domain_id_claim: Option<String>,
 
     /// `groups` claim name.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub groups_claim: Option<String>,
 
     /// List of audiences that must be present in the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub bound_audiences: Option<Vec<String>>,
 
     /// Token subject value that must be set in the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub bound_subject: Option<String>,
 
     /// Additional claims that must be present in the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub bound_claims: Option<Value>,
 
     /// List of OIDC scopes.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub oidc_scopes: Option<Vec<String>>,
 
     /// Fixed user_id for which the keystone token would be issued.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub token_user_id: Option<String>,
 
     /// List of fixed roles that would be included in the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub token_role_ids: Option<Vec<String>>,
 
     /// Fixed project_id for the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub token_project_id: Option<String>,
 }
 

@@ -23,6 +23,7 @@ use sea_orm::ConnectOptions;
 use sea_orm::Database;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::{net::TcpListener, signal, spawn, time};
@@ -57,8 +58,8 @@ use openstack_keystone::provider::Provider;
 #[command(version, about, long_about = None)]
 struct Args {
     /// Path to the keystone config file.
-    #[arg(short, long, required_unless_present("dump_openapi"))]
-    config: Option<String>,
+    #[arg(short, long, default_value = "/etc/keystone/keystone.conf")]
+    config: PathBuf,
 
     /// Verbosity level. Repeat to increase level.
     #[arg(short, long, global=true, action = clap::ArgAction::Count, display_order = 920)]
@@ -137,7 +138,7 @@ async fn main() -> Result<(), Report> {
     let token = CancellationToken::new();
     let cloned_token = token.clone();
 
-    let cfg = Config::new(args.config.expect("config file is required.").into())?;
+    let cfg = Config::new(args.config)?;
     let db_url = cfg.database.get_connection();
     let mut opt = ConnectOptions::new(db_url.to_owned());
     if args.verbose < 2 {
@@ -230,6 +231,7 @@ async fn main() -> Result<(), Report> {
 async fn cleanup(cancel: CancellationToken, state: ServiceState) {
     let mut interval = time::interval(Duration::from_secs(60));
     interval.tick().await;
+    // TODO: Clean passkeys expired states
     info!("Start the periodic cleanup thread");
     loop {
         tokio::select! {

@@ -294,8 +294,10 @@ pub enum TokenError {
 pub enum WebauthnError {
     #[error("unknown webauthn error")]
     Unknown,
-    #[error("Corrupt Session")]
+    #[error("corrupt session")]
     CorruptSession,
+    #[error("no session")]
+    NoSession,
     #[error("User Not Found")]
     UserNotFound,
     #[error("User Has No Credentials")]
@@ -305,7 +307,8 @@ pub enum WebauthnError {
 impl IntoResponse for WebauthnError {
     fn into_response(self) -> Response {
         let body = match self {
-            WebauthnError::CorruptSession => "Corrupt Session",
+            WebauthnError::CorruptSession => "Corrupt session",
+            WebauthnError::NoSession => "Registration state for the user not found",
             WebauthnError::UserNotFound => "User Not Found",
             WebauthnError::Unknown => "Unknown Error",
             WebauthnError::UserHasNoCredentials => "User Has No Credentials",

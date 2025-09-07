@@ -11,7 +11,7 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
-
+//! Federated identity provider types.
 use axum::{
     Json,
     http::StatusCode,
@@ -29,159 +29,203 @@ use crate::federation::types;
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct IdentityProvider {
+    /// The ID of the federated identity provider.
     pub id: String,
+
+    /// The Name of the federated identity provider.
     pub name: String,
 
+    /// The ID of the domain this identity provider belongs to. Empty value identifies that the
+    /// identity provider can be used by other domains as well.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub domain_id: Option<String>,
 
+    /// OIDC discovery endpoint for the identity provider.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub oidc_discovery_url: Option<String>,
 
+    /// The oidc `client_id` to use for the private client. The `client_secret` is never returned
+    /// and can be only overwritten.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub oidc_client_id: Option<String>,
 
+    /// The oidc response mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub oidc_response_mode: Option<String>,
 
+    /// List of supported response types.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub oidc_response_types: Option<Vec<String>>,
 
-    /// URL to fetch JsonWebKeySet.
+    /// URL to fetch JsonWebKeySet. This must be set for "jwt" mapping when the provider does not
+    /// provide discovery endpoint or when it is not standard compliant.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub jwks_url: Option<String>,
 
+    /// List of the jwt validation public keys.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub jwt_validation_pubkeys: Option<Vec<String>>,
 
+    /// The bound issuer that is verified when using the identity provider.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub bound_issuer: Option<String>,
 
+    /// Default attribute mapping name which is automatically used when no mapping is explicitly
+    /// requested. The referred attribute mapping must exist.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub default_mapping_name: Option<String>,
 
+    /// Additional provider configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(value_type = Object)]
     pub provider_config: Option<Value>,
 }
 
-/// Identity provider response
+/// Identity provider response.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct IdentityProviderResponse {
-    /// IDP object
+    /// Identity provider object.
     pub identity_provider: IdentityProvider,
 }
 
-/// Identity provider data
+/// Identity provider data.
 #[derive(Builder, Clone, Default, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct IdentityProviderCreate {
+    // TODO: add ID
     /// Identity provider name.
     pub name: String,
 
-    /// Identity provider domain.
+    /// The ID of the domain this identity provider belongs to. Empty value identifies that the
+    /// identity provider can be used by other domains as well.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub domain_id: Option<String>,
 
-    /// OIDC/OAuth2 discovery url
+    /// OIDC discovery endpoint for the identity provider.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub oidc_discovery_url: Option<String>,
 
-    /// OIDC/OAuth2 Client id
+    /// The oidc `client_id` to use for the private client.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub oidc_client_id: Option<String>,
 
-    /// OIDC/OAuth2 Client secret
+    /// The oidc `client_secret` to use for the private client. It is never returned back.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub oidc_client_secret: Option<String>,
 
-    /// OIDC response more
+    /// The oidc response mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub oidc_response_mode: Option<String>,
 
-    /// OIDC response types
+    /// List of supported response types.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub oidc_response_types: Option<Vec<String>>,
 
     /// Optional URL to fetch JsonWebKeySet. Must be specified for JWT authentication when
     /// discovery for the provider is not available or not standard compliant.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub jwks_url: Option<String>,
 
-    /// JWT validation public keys
+    /// List of the jwt validation public keys.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub jwt_validation_pubkeys: Option<Vec<String>>,
 
-    /// Bound issuer
+    /// The bound issuer that is verified when using the identity provider.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub bound_issuer: Option<String>,
 
-    /// Default mapping name that should be used by default
+    /// Default attribute mapping name which is automatically used when no mapping is explicitly
+    /// requested. The referred attribute mapping must exist.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(nullable = false)]
     pub default_mapping_name: Option<String>,
 
     /// Additional special provider specific configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
+    #[schema(value_type = Object)]
+    #[schema(nullable = false)]
     pub provider_config: Option<Value>,
 }
 
-/// Identity provider data
+/// New identity provider data.
 #[derive(Builder, Clone, Default, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct IdentityProviderUpdate {
+    /// The new name of the federated identity provider.
     pub name: Option<String>,
 
+    /// The new OIDC discovery endpoint for the identity provider.
     #[builder(default)]
     pub oidc_discovery_url: Option<Option<String>>,
 
+    /// The new oidc `client_id` to use for the private client.
     #[builder(default)]
     pub oidc_client_id: Option<Option<String>>,
 
+    /// The new oidc `client_secret` to use for the private client.
     #[builder(default)]
     pub oidc_client_secret: Option<Option<String>>,
 
+    /// The new oidc response mode.
     #[builder(default)]
     pub oidc_response_mode: Option<Option<String>>,
 
+    /// The new oidc response mode.
     #[builder(default)]
     pub oidc_response_types: Option<Option<Vec<String>>>,
 
-    /// Optional URL to fetch JsonWebKeySet. Must be specified for JWT authentication when
-    /// discovery for the provider is not available or not standard compliant.
+    /// New URL to fetch JsonWebKeySet. This must be set for "jwt" mapping when the provider does not
+    /// provide discovery endpoint or when it is not standard compliant.
     #[builder(default)]
     pub jwks_url: Option<Option<String>>,
 
+    /// The list of the jwt validation public keys.
     #[builder(default)]
     pub jwt_validation_pubkeys: Option<Option<Vec<String>>>,
 
+    /// The new bound issuer that is verified when using the identity provider.
     #[builder(default)]
     pub bound_issuer: Option<Option<String>>,
 
+    /// New default attribute mapping name which is automatically used when no mapping is explicitly
+    /// requested. The referred attribute mapping must exist.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[builder(default)]
     pub default_mapping_name: Option<Option<String>>,
 
+    /// New additional provider configuration.
     #[builder(default)]
+    #[schema(value_type = Object)]
     pub provider_config: Option<Option<Value>>,
 }
 
@@ -276,10 +320,10 @@ impl From<IdentityProviderBuilderError> for KeystoneApiError {
     }
 }
 
-/// List of Identity Providers
+/// List of Identity Providers.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct IdentityProviderList {
-    /// Collection of identity provider objects
+    /// Collection of identity provider objects.
     pub identity_providers: Vec<IdentityProvider>,
 }
 
@@ -289,7 +333,7 @@ impl IntoResponse for IdentityProviderList {
     }
 }
 
-/// Query parameters for listing federated identity providers
+/// Query parameters for listing federated identity providers.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
 pub struct IdentityProviderListParameters {
     /// Filters the response by IDP name.

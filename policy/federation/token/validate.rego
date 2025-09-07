@@ -12,11 +12,11 @@ allow if {
 
 allow if {
 	"reader" in input.credentials.roles
-  "all" in input.credentials.system_scope
+	"all" in input.credentials.system_scope
 }
 
 allow if {
-  identity.token_subject
+	identity.token_subject
 }
 
 allow if {

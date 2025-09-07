@@ -11,6 +11,7 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
+//! Finish OIDC login.
 
 use axum::{Json, debug_handler, extract::State, http::StatusCode, response::IntoResponse};
 use chrono::Utc;
@@ -95,7 +96,7 @@ async fn get_authz_info(
 #[utoipa::path(
     post,
     path = "/oidc/callback",
-    description = "OIDC authentication callback",
+    operation_id = "/federation/oidc:callback",
     responses(
         (status = OK, description = "Authentication Token object", body = KeystoneTokenResponse,
         headers(

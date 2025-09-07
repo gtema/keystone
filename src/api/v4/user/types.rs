@@ -22,6 +22,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::{IntoParams, ToSchema};
 
+pub mod passkey;
+
 use crate::identity::types as identity_types;
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
