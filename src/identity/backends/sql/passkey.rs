@@ -30,7 +30,9 @@ pub(super) async fn create<U: AsRef<str>>(
     let entry = webauthn_credential::ActiveModel {
         id: NotSet,
         user_id: Set(user_id.as_ref().to_string()),
-        credential_id: Set(passkey.cred_id().escape_ascii().to_string()),
+        credential_id: Set(serde_json::to_string(passkey.cred_id())?
+            .trim_matches('"')
+            .to_string()),
         passkey: Set(serde_json::to_string(&passkey)?),
         r#type: Set("cross-platform".to_string()),
         aaguid: NotSet,

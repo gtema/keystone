@@ -17,15 +17,17 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Passkey registration request.
+///
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct UserPasskeyRegistrationStartRequest {
+    /// The description for the passkey (name).
+    pub description: Option<String>,
+}
+
 /// Passkey challenge.
 ///
-/// This is an embedded version of the
-/// [webauthn-rs::CreationChallengeResponse](https://docs.rs/webauthn-rs/latest/webauthn_rs/prelude/struct.CreationChallengeResponse.html)
-///
-/// A JSON serializable challenge which is issued to the user’s web browser for handling. This is
-/// meant to be opaque, that is, you should not need to inspect or alter the content of the struct
-/// - you should serialise it and transmit it to the client only. #[derive(Clone, Debug,
-/// Deserialize, PartialEq, Serialize, ToSchema)]
+/// This is the WebauthN challenge that need to be signed by the passkey/security device.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserPasskeyRegistrationStartResponse {
     /// The options.
@@ -35,38 +37,51 @@ pub struct UserPasskeyRegistrationStartResponse {
 /// The requested options for the authentication.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct PublicKeyCredentialCreationOptions {
-    /// The relying party
-    pub rp: RelyingParty,
-    /// The user.
-    pub user: User,
-    /// The challenge that should be signed by the authenticator.
-    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
-    pub challenge: Vec<u8>,
-    /// The set of cryptographic types allowed by this server.
-    pub pub_key_cred_params: Vec<PubKeyCredParams>,
-    /// The timeout for the authenticator in case of no interaction.
-    pub timeout: Option<u32>,
-    /// Credential ID’s that are excluded from being able to be registered.
-    pub exclude_credentials: Option<Vec<PublicKeyCredentialDescriptor>>,
-    /// Criteria defining which authenticators may be used in this operation.
-    pub authenticator_selection: Option<AuthenticatorSelectionCriteria>,
-    /// Hints defining which types credentials may be used in this operation.
-    pub hints: Option<Vec<PublicKeyCredentialHints>>,
     /// The requested attestation level from the device.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub attestation: Option<AttestationConveyancePreference>,
     /// The list of attestation formats that the RP will accept.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub attestation_formats: Option<Vec<AttestationFormat>>,
+    /// Criteria defining which authenticators may be used in this operation.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authenticator_selection: Option<AuthenticatorSelectionCriteria>,
+    /// The challenge that should be signed by the authenticator.
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    pub challenge: String,
+    /// Credential ID’s that are excluded from being able to be registered.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude_credentials: Option<Vec<PublicKeyCredentialDescriptor>>,
     /// extensions.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub extensions: Option<RequestRegistrationExtensions>,
+    /// Hints defining which types credentials may be used in this operation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hints: Option<Vec<PublicKeyCredentialHints>>,
+    /// The set of cryptographic types allowed by this server.
+    pub pub_key_cred_params: Vec<PubKeyCredParams>,
+    /// The relying party
+    pub rp: RelyingParty,
+    /// The timeout for the authenticator in case of no interaction.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<u32>,
+    /// The user.
+    pub user: User,
 }
 
 /// Relying Party Entity.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct RelyingParty {
-    /// The name of the relying party.
-    pub name: String,
     /// The id of the relying party.
     pub id: String,
+    /// The name of the relying party.
+    pub name: String,
 }
 
 /// User Entity.
@@ -75,7 +90,7 @@ pub struct User {
     /// The user’s id in base64 form. This MUST be a unique id, and must NOT contain personally
     /// identifying information, as this value can NEVER be changed. If in doubt, use a UUID.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
-    pub id: Vec<u8>,
+    pub id: String,
     /// A detailed name for the account, such as an email address. This value can change, so must
     /// not be used as a primary key.
     pub name: String,
@@ -87,10 +102,10 @@ pub struct User {
 /// Public key cryptographic parameters
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct PubKeyCredParams {
+    /// The algorithm in use defined by CASE.
+    pub alg: i64,
     /// The type of public-key credential.
     pub type_: String,
-    /// The algorithm in use defined by COSE.
-    pub alg: i64,
 }
 
 /// https://www.w3.org/TR/webauthn/#dictdef-publickeycredentialdescriptor
@@ -100,16 +115,20 @@ pub struct PublicKeyCredentialDescriptor {
     pub type_: String,
     /// The credential id.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
-    pub id: Vec<u8>,
+    pub id: String,
     /// The allowed transports for this credential. Note this is a hint, and is NOT enforced.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub transports: Option<Vec<AuthenticatorTransport>>,
 }
 
-///  
+///
 /// Request in residentkey workflows that conditional mediation should be used in the UI, or not.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum Mediation {
-    /// Discovered credentials are presented to the user in a dialog. Conditional UI is used. See https://github.com/w3c/webauthn/wiki/Explainer:-WebAuthn-Conditional-UI https://w3c.github.io/webappsec-credential-management/#enumdef-credentialmediationrequirement
+    /// Discovered credentials are presented to the user in a dialog. Conditional UI is used. See
+    /// https://github.com/w3c/webauthn/wiki/Explainer:-WebAuthn-Conditional-UI
+    /// https://w3c.github.io/webappsec-credential-management/#enumdef-credentialmediationrequirement
     Conditional,
 }
 
@@ -120,28 +139,31 @@ pub struct AllowCredentials {
     pub type_: String,
     /// The id of the credential.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
-    pub id: Vec<u8>,
+    pub id: String,
     /// https://www.w3.org/TR/webauthn/#transport may be usb, nfc, ble, internal
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub transports: Option<Vec<AuthenticatorTransport>>,
 }
 
 /// https://www.w3.org/TR/webauthn/#enumdef-authenticatortransport
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum AuthenticatorTransport {
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-usb
-    Usb,
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-nfc
-    Nfc,
     /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-ble
     Ble,
+    /// Hybrid transport, formerly caBLE. Part of the level 3 draft specification.
+    /// https://w3c.github.io/webauthn/#dom-authenticatortransport-hybrid
+    Hybrid,
     /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-internal
     Internal,
-    /// Hybrid transport, formerly caBLE. Part of the level 3 draft specification. https://w3c.github.io/webauthn/#dom-authenticatortransport-hybrid
-    Hybrid,
+    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-nfc
+    Nfc,
     /// Test transport; used for Windows 10.
     Test,
     /// An unknown transport was provided - it will be ignored.
     Unknown,
+    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-usb
+    Usb,
 }
 
 /// https://www.w3.org/TR/webauthn/#dictdef-authenticatorselectioncriteria
@@ -149,11 +171,15 @@ pub enum AuthenticatorTransport {
 pub struct AuthenticatorSelectionCriteria {
     /// How the authenticator should be attached to the client machine. Note this is only a hint.
     /// It is not enforced in anyway shape or form. https://www.w3.org/TR/webauthn/#attachment.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub authenticator_attachment: Option<AuthenticatorAttachment>,
     /// Hint to the credential to create a resident key. Note this value should be a member of
     /// ResidentKeyRequirement, but client must ignore unknown values, treating an unknown value as
     /// if the member does not exist.
     /// https://www.w3.org/TR/webauthn-2/#dom-authenticatorselectioncriteria-residentkey.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub resident_key: Option<ResidentKeyRequirement>,
     /// Hint to the credential to create a resident key. Note this can not be enforced or
     /// validated, so the authenticator may choose to ignore this parameter.
@@ -165,15 +191,16 @@ pub struct AuthenticatorSelectionCriteria {
     pub user_verification: UserVerificationPolicy,
 }
 
-/// The authenticator attachment hint. This is NOT enforced, and is only used to help a user select a relevant authenticator type.
+/// The authenticator attachment hint. This is NOT enforced, and is only used to help a user select
+/// a relevant authenticator type.
 ///
 /// https://www.w3.org/TR/webauthn/#attachment
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum AuthenticatorAttachment {
-    /// Request a device that is part of the machine aka inseperable.
+    /// Request a device that is part of the machine aka inseparable.
     /// https://www.w3.org/TR/webauthn/#attachment.
     Platform,
-    /// Request a device that can be seperated from the machine aka an external token.
+    /// Request a device that can be separated from the machine aka an external token.
     /// https://www.w3.org/TR/webauthn/#attachment.
     CrossPlatform,
 }
@@ -197,12 +224,12 @@ pub enum ResidentKeyRequirement {
 /// https://www.w3.org/TR/webauthn-3/#enumdef-publickeycredentialhints
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum PublicKeyCredentialHints {
-    /// The credential is a removable security key.
-    SecurityKey,
     /// The credential is a platform authenticator.
     ClientDevice,
     /// The credential will come from an external device.
     Hybrid,
+    /// The credential is a removable security key.
+    SecurityKey,
 }
 
 /// https://www.w3.org/TR/webauthn/#enumdef-attestationconveyancepreference
@@ -245,17 +272,28 @@ pub enum AttestationFormat {
 /// Implements [AuthenticatorExtensionsClientInputs] from the spec.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct RequestRegistrationExtensions {
-    /// The credProtect extension options.
-    pub cred_protect: Option<CredProtect>,
-    /// ⚠️ - Browsers do not support this! Uvm
-    pub uvm: Option<bool>,
-    /// ⚠️ - This extension result is always unsigned, and only indicates if the browser requests a residentKey to be created. It has no bearing on the true rk state of the credential.
+    /// ⚠️ - This extension result is always unsigned, and only indicates if the browser requests a
+    /// residentKey to be created. It has no bearing on the true rk state of the credential.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cred_props: Option<bool>,
-    /// CTAP2.1 Minumum pin length.
-    pub min_pin_length: Option<bool>,
+    /// The credProtect extension options.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cred_protect: Option<CredProtect>,
     /// ⚠️ - Browsers support the creation of the secret, but not the retrieval of it. CTAP2.1
     /// create hmac secret.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hmac_create_secret: Option<bool>,
+    /// CTAP2.1 Minimum pin length.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_pin_length: Option<bool>,
+    /// ⚠️ - Browsers do not support this! Uvm
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uvm: Option<bool>,
 }
 
 /// The desired options for the client’s use of the credProtect extension
@@ -265,7 +303,10 @@ pub struct RequestRegistrationExtensions {
 pub struct CredProtect {
     /// The credential policy to enact.
     pub credential_protection_policy: CredentialProtectionPolicy,
-    /// Whether it is better for the authenticator to fail to create a credential rather than ignore the protection policy If no value is provided, the client treats it as false.
+    /// Whether it is better for the authenticator to fail to create a credential rather than
+    /// ignore the protection policy If no value is provided, the client treats it as false.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub enforce_credential_protection_policy: Option<bool>,
 }
 
@@ -285,7 +326,9 @@ pub enum CredentialProtectionPolicy {
     UserVerificationRequired = 3,
 }
 
-/// Defines the User Authenticator Verification policy. This is documented https://w3c.github.io/webauthn/#enumdef-userverificationrequirement, and each variant lists it’s effects.
+/// Defines the User Authenticator Verification policy. This is documented
+/// https://w3c.github.io/webauthn/#enumdef-userverificationrequirement, and each variant lists
+/// it’s effects.
 ///
 /// To be clear, Verification means that the Authenticator perform extra or supplementary
 /// interaction with the user to verify who they are. An example of this is Apple Touch Id required
@@ -331,6 +374,9 @@ pub enum UserVerificationPolicy {
     /// However, in some cases use of this policy can lead to some credentials failing to verify
     /// correctly due to browser peripheral exchange bypasses.
     Preferred,
+    /// Discourage - but do not prevent - user verification from being supplied. Many CTAP devices
+    /// will attempt UV during registration but not authentication leading to user confusion.
+    DiscouragedDoNotUse,
 }
 
 /// A client response to a registration challenge. This contains all required information to assess
@@ -351,7 +397,7 @@ pub struct UserPasskeyRegistrationFinishRequest {
     /// This is NEVER actually used in a real registration, because the true credential ID is taken
     /// from the attestation data.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
-    pub raw_id: Vec<u8>,
+    pub raw_id: String,
     /// https://w3c.github.io/webauthn/#dom-publickeycredential-response.
     pub response: AuthenticatorAttestationResponseRaw,
     /// The type of credential.
@@ -365,11 +411,13 @@ pub struct UserPasskeyRegistrationFinishRequest {
 pub struct AuthenticatorAttestationResponseRaw {
     /// https://w3c.github.io/webauthn/#dom-authenticatorattestationresponse-attestationobject.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
-    pub attestation_object: Vec<u8>,
+    pub attestation_object: String,
     /// https://w3c.github.io/webauthn/#dom-authenticatorresponse-clientdatajson.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
     pub client_data_json: String,
     /// https://w3c.github.io/webauthn/#dom-authenticatorattestationresponse-gettransports.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub transports: Option<Vec<AuthenticatorTransport>>,
 }
 
@@ -378,15 +426,25 @@ pub struct AuthenticatorAttestationResponseRaw {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct RegistrationExtensionsClientOutputs {
     /// Indicates whether the client used the provided appid extension.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub appid: Option<bool>,
     /// Indicates if the client believes it created a resident key. This property is managed by the
     /// webbrowser, and is NOT SIGNED and CAN NOT be trusted!
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cred_props: Option<CredProps>,
     /// Indicates if the client successfully applied a HMAC Secret.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hmac_secret: Option<bool>,
     /// Indicates if the client successfully applied a credential protection policy.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cred_protect: Option<CredentialProtectionPolicy>,
     /// Indicates the current minimum PIN length.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub min_pin_length: Option<u32>,
 }
 
@@ -394,7 +452,7 @@ pub struct RegistrationExtensionsClientOutputs {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct CredProps {
     /// A user agent supplied hint that this credential may have created a resident key. It is
-    /// retured from the user agent, not the authenticator meaning that this is an unreliable
+    /// returned from the user agent, not the authenticator meaning that this is an unreliable
     /// signal.
     ///
     /// Note that this extension is UNSIGNED and may have been altered by page javascript.

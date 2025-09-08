@@ -2851,6 +2851,7 @@ dependencies = [
  "utoipa-swagger-ui",
  "uuid",
  "webauthn-rs",
+ "webauthn-rs-proto",
 ]
 
 [[package]]
