@@ -23,7 +23,7 @@ harness = false
 [dependencies]
 async-trait = { version = "0.1" }
 axum = { version = "0.8", features = ["macros"] }
-base64 = { version = "0.22" }
+base64 = "0.22"
 bcrypt = { version = "0.17", features = ["alloc"] }
 bytes = { version = "1.10" }
 chrono = { version = "0.4" }
@@ -60,6 +60,7 @@ utoipa-axum = { version = "0.2" }
 utoipa-swagger-ui = { version = "9.0", features = ["axum", "vendored"], default-features = false }
 uuid = { version = "1.18", features = ["v4"] }
 webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
+webauthn-rs-proto = "0.5.2"
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["async_tokio"] }

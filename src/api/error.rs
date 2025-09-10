@@ -143,6 +143,10 @@ pub enum KeystoneApiError {
         source: serde_json::Error,
     },
 
+    /// Base64 decoding error.
+    #[error(transparent)]
+    Base64Decode(#[from] base64::DecodeError),
+
     #[error("domain id or name must be present")]
     DomainIdOrName,
 
