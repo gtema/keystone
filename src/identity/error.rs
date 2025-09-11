@@ -40,10 +40,7 @@ pub enum IdentityProviderError {
 
     /// Identity provider error
     #[error(transparent)]
-    IdentityDatabase {
-        #[from]
-        source: IdentityDatabaseError,
-    },
+    IdentityDatabase { source: IdentityDatabaseError },
 
     #[error(transparent)]
     UserBuilder {
@@ -90,15 +87,21 @@ pub enum IdentityProviderError {
         source: ResourceProviderError,
     },
 
+    /// Conflict.
+    #[error("conflict: {0}")]
+    Conflict(String),
+
     #[error("wrong username or password")]
     WrongUsernamePassword,
 }
 
-impl IdentityProviderError {
-    pub fn database(source: IdentityDatabaseError) -> Self {
+impl From<IdentityDatabaseError> for IdentityProviderError {
+    fn from(source: IdentityDatabaseError) -> Self {
         match source {
+            IdentityDatabaseError::Conflict(x) => Self::Conflict(x),
             IdentityDatabaseError::UserNotFound(x) => Self::UserNotFound(x),
             IdentityDatabaseError::GroupNotFound(x) => Self::GroupNotFound(x),
+            IdentityDatabaseError::Serde { source } => Self::Serde { source },
             _ => Self::IdentityDatabase { source },
         }
     }
