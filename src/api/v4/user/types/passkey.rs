@@ -22,6 +22,34 @@ use utoipa::ToSchema;
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserPasskeyRegistrationStartRequest {
     /// The description for the passkey (name).
+    pub passkey: PasskeyCreate,
+}
+
+/// Passkey information.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct PasskeyCreate {
+    /// Passkey description
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// Passkey.
+///
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct PasskeyResponse {
+    /// The description for the passkey (name).
+    pub passkey: Passkey,
+}
+
+/// Passkey information.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct Passkey {
+    /// Credential ID.
+    pub credential_id: String,
+    /// Credential description.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
@@ -86,6 +114,7 @@ pub struct RelyingParty {
 
 /// User Entity.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[schema(as = PasskeyUser)]
 pub struct User {
     /// The user’s id in base64 form. This MUST be a unique id, and must NOT contain personally
     /// identifying information, as this value can NEVER be changed. If in doubt, use a UUID.

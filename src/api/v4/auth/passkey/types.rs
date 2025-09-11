@@ -12,20 +12,19 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-//! Embedded type webauthn-rs::auth::PublickeyCredentialRequest.
+//! Passkey authentication types.
 
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+/// Request for initialization of the passkey authentication.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct PasskeyAuthenticationStartRequest {
-    /// The ID of the user that is trying to authenticate
+    /// The ID of the user that is authenticating.
     pub user_id: String,
 }
+
 /// Passkey Authorization challenge.
-///
-/// This is an embedded version of the
-/// [webauthn-rs::auth::PublickeyCredentialRequest](https://docs.rs/webauthn-rs-proto/0.5.2/webauthn_rs_proto/auth/struct.PublicKeyCredentialRequestOptions.html)
 ///
 /// A JSON serializable challenge which is issued to the user’s webbrowser for handling. This is
 /// meant to be opaque, that is, you should not need to inspect or alter the content of the struct
@@ -35,66 +34,80 @@ pub struct PasskeyAuthenticationStartResponse {
     /// The options.
     pub public_key: PublicKeyCredentialRequestOptions,
     /// The mediation requested.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub mediation: Option<Mediation>,
 }
 
 /// The requested options for the authentication.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct PublicKeyCredentialRequestOptions {
-    /// The challenge that should be signed by the authenticator.
-    pub challenge: Base64UrlSafeData,
-    /// The timeout for the authenticator in case of no interaction.
-    pub timeout: Option<u32>,
-    /// The relying party ID.
-    pub rp_id: String,
     /// The set of credentials that are allowed to sign this challenge.
     pub allow_credentials: Vec<AllowCredentials>,
+    /// The challenge that should be signed by the authenticator.
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    pub challenge: String,
+    /// extensions.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<RequestAuthenticationExtensions>,
+    /// Hints defining which types credentials may be used in this operation.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hints: Option<Vec<PublicKeyCredentialHint>>,
+    /// The relying party ID.
+    pub rp_id: String,
+    /// The timeout for the authenticator in case of no interaction.
+    pub timeout: Option<u32>,
     /// The verification policy the browser will request.
     pub user_verification: UserVerificationPolicy,
-    /// Hints defining which types credentials may be used in this operation.
-    pub hints: Option<Vec<PublicKeyCredentialHints>>,
-    /// extensions.
-    pub extensions: Option<RequestAuthenticationExtensions>,
 }
 
 /// Request in residentkey workflows that conditional mediation should be used in the UI, or not.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum Mediation {
-    /// Discovered credentials are presented to the user in a dialog. Conditional UI is used. See https://github.com/w3c/webauthn/wiki/Explainer:-WebAuthn-Conditional-UI https://w3c.github.io/webappsec-credential-management/#enumdef-credentialmediationrequirement
+    /// Discovered credentials are presented to the user in a dialog. Conditional UI is used. See
+    /// https://github.com/w3c/webauthn/wiki/Explainer:-WebAuthn-Conditional-UI
+    /// https://w3c.github.io/webappsec-credential-management/#enumdef-credentialmediationrequirement
     Conditional,
 }
 
 /// A descriptor of a credential that can be used.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct AllowCredentials {
+    /// The id of the credential.
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    pub id: String,
+    /// https://www.w3.org/TR/webauthn/#transport may be usb, nfc, ble, internal
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transports: Option<Vec<AuthenticatorTransport>>,
     /// The type of credential.
     pub type_: String,
-    /// The id of the credential.
-    pub id: Base64UrlSafeData,
-    /// https://www.w3.org/TR/webauthn/#transport may be usb, nfc, ble, internal
-    pub transports: Option<Vec<AuthenticatorTransport>>,
 }
 
 /// https://www.w3.org/TR/webauthn/#enumdef-authenticatortransport
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum AuthenticatorTransport {
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-usb
-    Usb,
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-nfc
-    Nfc,
     /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-ble
     Ble,
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-internal
-    Internal,
     /// Hybrid transport, formerly caBLE. Part of the level 3 draft specification. https://w3c.github.io/webauthn/#dom-authenticatortransport-hybrid
     Hybrid,
+    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-internal
+    Internal,
+    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-nfc
+    Nfc,
     /// Test transport; used for Windows 10.
     Test,
     /// An unknown transport was provided - it will be ignored.
     Unknown,
+    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-usb
+    Usb,
 }
 
-/// Defines the User Authenticator Verification policy. This is documented https://w3c.github.io/webauthn/#enumdef-userverificationrequirement, and each variant lists it’s effects.
+/// Defines the User Authenticator Verification policy. This is documented
+/// https://w3c.github.io/webauthn/#enumdef-userverificationrequirement, and each variant lists
+/// it’s effects.
 ///
 /// To be clear, Verification means that the Authenticator perform extra or supplementary
 /// interaction with the user to verify who they are. An example of this is Apple Touch Id required
@@ -140,19 +153,22 @@ pub enum UserVerificationPolicy {
     /// However, in some cases use of this policy can lead to some credentials failing to verify
     /// correctly due to browser peripheral exchange bypasses.
     Preferred,
+    /// Discourage - but do not prevent - user verification from being supplied. Many CTAP devices
+    /// will attempt UV during registration but not authentication leading to user confusion.
+    DiscouragedDoNotUse,
 }
 
 /// A hint as to the class of device that is expected to fufil this operation.
 ///
 /// https://www.w3.org/TR/webauthn-3/#enumdef-publickeycredentialhints
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
-pub enum PublicKeyCredentialHints {
-    /// The credential is a removable security key.
-    SecurityKey,
+pub enum PublicKeyCredentialHint {
     /// The credential is a platform authenticator.
     ClientDevice,
     /// The credential will come from an external device.
     Hybrid,
+    /// The credential is a removable security key.
+    SecurityKey,
 }
 
 /// Extension option inputs for PublicKeyCredentialRequestOptions
@@ -161,12 +177,18 @@ pub enum PublicKeyCredentialHints {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct RequestAuthenticationExtensions {
     /// The appid extension options.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub appid: Option<String>,
-    /// ⚠️ - Browsers do not support this! Uvm.
-    pub uvm: Option<bool>,
     /// ⚠️ - Browsers do not support this!
     /// https://bugs.chromium.org/p/chromium/issues/detail?id=1023225 Hmac get secret.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hmac_get_secret: Option<HmacGetSecretInput>,
+    /// ⚠️ - Browsers do not support this! Uvm.
+    #[schema(nullable = false)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uvm: Option<bool>,
 }
 
 /// The inputs to the hmac secret if it was created during registration.
@@ -175,23 +197,13 @@ pub struct RequestAuthenticationExtensions {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct HmacGetSecretInput {
     /// Retrieve a symmetric secrets from the authenticator with this input.
-    pub output1: Base64UrlSafeData,
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    pub output1: String,
     /// Rotate the secret in the same operation.
-    pub output2: Option<Base64UrlSafeData>,
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output2: Option<String>,
 }
-
-/// Serde wrapper for Vec<u8> which always emits URL-safe, non-padded Base64, and accepts Base64
-/// and binary formats.
-///
-///   Serialisation always emits URL-safe, non-padded Base64 (per RFC 4648 §5).
-///
-///   Unlike HumanBinaryData, this happens regardless of whether the underlying serialisation
-///   format is human readable. If you’re serialising to non-human-readable formats, you should
-///   consider migrating to HumanBinaryData.
-///
-/// Otherwise, this type should work as much like a Vec<u8> as possible.
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
-pub struct Base64UrlSafeData(Vec<u8>);
 
 /// A client response to an authentication challenge. This contains all required information to
 /// asses and assert trust in a credentials legitimacy, followed by authentication to a user.
@@ -200,31 +212,36 @@ pub struct Base64UrlSafeData(Vec<u8>);
 /// the correctly handling function of Webauthn only.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct PasskeyAuthenticationFinishRequest {
-    /// The ID of the user.
-    pub user_id: String,
     /// The credential Id, likely base64.
     pub id: String,
-    /// The binary of the credential id.
-    pub raw_id: Base64UrlSafeData,
-    /// The authenticator response.
-    pub response: AuthenticatorAssertionResponseRaw,
     /// Unsigned Client processed extensions.
     pub extensions: AuthenticationExtensionsClientOutputs,
+    /// The binary of the credential id.
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    pub raw_id: String,
+    /// The authenticator response.
+    pub response: AuthenticatorAssertionResponseRaw,
     /// The authenticator type.
     pub type_: String,
+    /// The ID of the user.
+    pub user_id: String,
 }
 
 /// [AuthenticatorAssertionResponseRaw](https://w3c.github.io/webauthn/#authenticatorassertionresponse)
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct AuthenticatorAssertionResponseRaw {
     /// Raw authenticator data.
-    pub authenticator_data: Base64UrlSafeData,
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    pub authenticator_data: String,
     /// Signed client data.
-    pub client_data_json: Base64UrlSafeData,
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    pub client_data_json: String,
     /// Signature.
-    pub signature: Base64UrlSafeData,
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    pub signature: String,
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
     /// Optional userhandle.
-    pub user_handle: Option<Base64UrlSafeData>,
+    pub user_handle: Option<String>,
 }
 
 /// [AuthenticationExtensionsClientOutputs](https://w3c.github.io/webauthn/#dictdef-authenticationextensionsclientoutputs)
@@ -233,8 +250,12 @@ pub struct AuthenticatorAssertionResponseRaw {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct AuthenticationExtensionsClientOutputs {
     /// Indicates whether the client used the provided appid extension.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub appid: Option<bool>,
     /// The response to a hmac get secret request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub hmac_get_secret: Option<HmacGetSecretOutput>,
 }
 
@@ -242,7 +263,10 @@ pub struct AuthenticationExtensionsClientOutputs {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct HmacGetSecretOutput {
     /// Output of HMAC(Salt 1 || Client Secret).
-    pub output1: Base64UrlSafeData,
+    #[schema(value_type = String, format = Binary, content_encoding = "base64")]
+    pub output1: String,
     /// Output of HMAC(Salt 2 || Client Secret).
-    pub output2: Option<Base64UrlSafeData>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false, value_type = String, format = Binary, content_encoding = "base64")]
+    pub output2: Option<String>,
 }
