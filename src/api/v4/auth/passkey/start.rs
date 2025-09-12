@@ -50,12 +50,12 @@ pub(super) async fn start(
     state
         .provider
         .get_identity_provider()
-        .delete_user_passkey_authentication_state(&state.db, &req.user_id)
+        .delete_user_passkey_authentication_state(&state.db, &req.passkey.user_id)
         .await?;
     let allow_credentials: Vec<Passkey> = state
         .provider
         .get_identity_provider()
-        .list_user_passkeys(&state.db, &req.user_id)
+        .list_user_passkeys(&state.db, &req.passkey.user_id)
         .await?
         .into_iter()
         .collect();
@@ -67,9 +67,9 @@ pub(super) async fn start(
             state
                 .provider
                 .get_identity_provider()
-                .save_user_passkey_authentication_state(&state.db, &req.user_id, auth_state)
+                .save_user_passkey_authentication_state(&state.db, &req.passkey.user_id, auth_state)
                 .await?;
-            Json(rcr)
+            Json(PasskeyAuthenticationStartResponse::from(rcr))
         }
         Err(e) => {
             debug!("challenge_register -> {:?}", e);

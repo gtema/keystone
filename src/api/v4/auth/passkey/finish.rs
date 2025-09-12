@@ -22,7 +22,7 @@ use crate::api::v4::auth::passkey::types::{
 };
 use crate::api::{
     error::{KeystoneApiError, WebauthnError},
-    v4::auth::token::types::{Token as ApiToken, TokenResponse as ApiTokenResponse},
+    v4::auth::token::types::{Token as ApiResponseToken, TokenResponse},
 };
 use crate::auth::{AuthenticatedInfo, AuthenticationError, AuthzInfo};
 use crate::identity::IdentityApi;
@@ -39,7 +39,7 @@ use crate::token::TokenApi;
     operation_id = "/auth/passkey/finish:post",
     request_body = PasskeyAuthenticationFinishRequest,
     responses(
-        (status = OK, description = "Authentication Token object", body = ApiTokenResponse,
+        (status = OK, description = "Authentication Token object", body = TokenResponse,
         headers(
             ("x-subject-token" = String, description = "Keystone token"),
         )
@@ -109,7 +109,9 @@ pub(super) async fn finish(
         .get_token_provider()
         .issue_token(authed_info, AuthzInfo::Unscoped)?;
 
-    let api_token = ApiToken::from_provider_token(&state, &token).await?;
+    let mut api_token = TokenResponse {
+        token: ApiResponseToken::from_provider_token(&state, &token).await?,
+    };
     Ok((
         StatusCode::OK,
         [(
