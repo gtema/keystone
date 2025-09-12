@@ -13,10 +13,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use serde_json::Value;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use tracing::debug;
-use webauthn_rs::prelude::*;
 
+use crate::api::v4::auth::passkey::types::{
+    AuthenticationExtensionsClientOutputs, AuthenticatorAssertionResponseRaw, HmacGetSecretOutput,
+    PasskeyAuthenticationFinishRequest,
+};
 use crate::api::{
     error::{KeystoneApiError, WebauthnError},
     v4::auth::token::types::{Token as ApiToken, TokenResponse as ApiTokenResponse},
@@ -34,6 +37,7 @@ use crate::token::TokenApi;
     post,
     path = "/finish",
     operation_id = "/auth/passkey/finish:post",
+    request_body = PasskeyAuthenticationFinishRequest,
     responses(
         (status = OK, description = "Authentication Token object", body = ApiTokenResponse,
         headers(
@@ -50,13 +54,9 @@ use crate::token::TokenApi;
 )]
 pub(super) async fn finish(
     State(state): State<ServiceState>,
-    Json(req): Json<Value>,
+    Json(req): Json<PasskeyAuthenticationFinishRequest>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    let user_id = req
-        .get("user_id")
-        .and_then(|uid| uid.as_str())
-        .ok_or_else(|| KeystoneApiError::Unauthorized)?
-        .to_string();
+    let user_id = req.user_id.clone();
     // TODO: Wrap all errors into the Unauthorized, but log the error
     if let Some(s) = state
         .provider
@@ -66,8 +66,10 @@ pub(super) async fn finish(
     {
         // We explicitly try to deserealize the request data directly into the underlying
         // webauthn_rs type.
-        let v: PublicKeyCredential = serde_json::from_value(req)?;
-        match state.webauthn.finish_passkey_authentication(&v, &s) {
+        match state
+            .webauthn
+            .finish_passkey_authentication(&req.try_into()?, &s)
+        {
             Ok(_auth_result) => {
                 // Here should the DB update happen (last_used, ...)
             }
@@ -117,4 +119,61 @@ pub(super) async fn finish(
         Json(api_token),
     )
         .into_response())
+}
+
+impl TryFrom<HmacGetSecretOutput> for webauthn_rs_proto::extensions::HmacGetSecretOutput {
+    type Error = KeystoneApiError;
+    fn try_from(val: HmacGetSecretOutput) -> Result<Self, Self::Error> {
+        Ok(Self {
+            output1: URL_SAFE.decode(val.output1)?.into(),
+            output2: val
+                .output2
+                .map(|s2| URL_SAFE.decode(s2))
+                .transpose()?
+                .map(Into::into),
+        })
+    }
+}
+
+impl TryFrom<AuthenticationExtensionsClientOutputs>
+    for webauthn_rs_proto::extensions::AuthenticationExtensionsClientOutputs
+{
+    type Error = KeystoneApiError;
+    fn try_from(val: AuthenticationExtensionsClientOutputs) -> Result<Self, Self::Error> {
+        Ok(Self {
+            appid: val.appid,
+            hmac_get_secret: val.hmac_get_secret.map(TryInto::try_into).transpose()?,
+        })
+    }
+}
+
+impl TryFrom<AuthenticatorAssertionResponseRaw>
+    for webauthn_rs_proto::auth::AuthenticatorAssertionResponseRaw
+{
+    type Error = KeystoneApiError;
+    fn try_from(val: AuthenticatorAssertionResponseRaw) -> Result<Self, Self::Error> {
+        Ok(Self {
+            authenticator_data: URL_SAFE.decode(val.authenticator_data)?.into(),
+            client_data_json: URL_SAFE.decode(val.client_data_json)?.into(),
+            signature: URL_SAFE.decode(val.signature)?.into(),
+            user_handle: val
+                .user_handle
+                .map(|uh| URL_SAFE.decode(uh))
+                .transpose()?
+                .map(Into::into),
+        })
+    }
+}
+
+impl TryFrom<PasskeyAuthenticationFinishRequest> for webauthn_rs::prelude::PublicKeyCredential {
+    type Error = KeystoneApiError;
+    fn try_from(req: PasskeyAuthenticationFinishRequest) -> Result<Self, Self::Error> {
+        Ok(webauthn_rs::prelude::PublicKeyCredential {
+            id: req.id,
+            extensions: req.extensions.try_into()?,
+            raw_id: URL_SAFE.decode(req.raw_id)?.into(),
+            response: req.response.try_into()?,
+            type_: req.type_,
+        })
+    }
 }

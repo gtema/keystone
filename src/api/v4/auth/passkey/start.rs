@@ -13,6 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::{Json, extract::State, response::IntoResponse};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use tracing::debug;
 use webauthn_rs::prelude::*;
 
@@ -77,4 +78,123 @@ pub(super) async fn start(
     };
 
     Ok(res)
+}
+
+impl From<webauthn_rs_proto::extensions::HmacGetSecretInput> for HmacGetSecretInput {
+    fn from(val: webauthn_rs_proto::extensions::HmacGetSecretInput) -> Self {
+        Self {
+            output1: URL_SAFE.encode(val.output1),
+            output2: val.output2.map(|s2| URL_SAFE.encode(s2)),
+        }
+    }
+}
+
+impl From<webauthn_rs_proto::extensions::RequestAuthenticationExtensions>
+    for RequestAuthenticationExtensions
+{
+    fn from(val: webauthn_rs_proto::extensions::RequestAuthenticationExtensions) -> Self {
+        Self {
+            appid: val.appid,
+            hmac_get_secret: val.hmac_get_secret.map(Into::into),
+            uvm: val.uvm,
+        }
+    }
+}
+
+impl From<webauthn_rs_proto::options::AuthenticatorTransport> for AuthenticatorTransport {
+    fn from(val: webauthn_rs_proto::options::AuthenticatorTransport) -> Self {
+        match val {
+            webauthn_rs_proto::options::AuthenticatorTransport::Ble => AuthenticatorTransport::Ble,
+            webauthn_rs_proto::options::AuthenticatorTransport::Hybrid => {
+                AuthenticatorTransport::Hybrid
+            }
+            webauthn_rs_proto::options::AuthenticatorTransport::Internal => {
+                AuthenticatorTransport::Internal
+            }
+            webauthn_rs_proto::options::AuthenticatorTransport::Nfc => AuthenticatorTransport::Nfc,
+            webauthn_rs_proto::options::AuthenticatorTransport::Test => {
+                AuthenticatorTransport::Test
+            }
+            webauthn_rs_proto::options::AuthenticatorTransport::Unknown => {
+                AuthenticatorTransport::Unknown
+            }
+            webauthn_rs_proto::options::AuthenticatorTransport::Usb => AuthenticatorTransport::Usb,
+        }
+    }
+}
+impl From<webauthn_rs_proto::options::UserVerificationPolicy> for UserVerificationPolicy {
+    fn from(val: webauthn_rs_proto::options::UserVerificationPolicy) -> Self {
+        match val {
+            webauthn_rs_proto::options::UserVerificationPolicy::Required => {
+                UserVerificationPolicy::Required
+            }
+            webauthn_rs_proto::options::UserVerificationPolicy::Preferred => {
+                UserVerificationPolicy::Preferred
+            }
+            webauthn_rs_proto::options::UserVerificationPolicy::Discouraged_DO_NOT_USE => {
+                UserVerificationPolicy::DiscouragedDoNotUse
+            }
+        }
+    }
+}
+
+impl From<webauthn_rs_proto::options::PublicKeyCredentialHints> for PublicKeyCredentialHint {
+    fn from(val: webauthn_rs_proto::options::PublicKeyCredentialHints) -> Self {
+        match val {
+            webauthn_rs_proto::options::PublicKeyCredentialHints::ClientDevice => {
+                PublicKeyCredentialHint::ClientDevice
+            }
+            webauthn_rs_proto::options::PublicKeyCredentialHints::Hybrid => {
+                PublicKeyCredentialHint::Hybrid
+            }
+            webauthn_rs_proto::options::PublicKeyCredentialHints::SecurityKey => {
+                PublicKeyCredentialHint::SecurityKey
+            }
+        }
+    }
+}
+
+impl From<webauthn_rs_proto::options::AllowCredentials> for AllowCredentials {
+    fn from(val: webauthn_rs_proto::options::AllowCredentials) -> Self {
+        Self {
+            id: URL_SAFE.encode(val.id),
+            transports: val
+                .transports
+                .map(|tr| tr.into_iter().map(Into::into).collect::<Vec<_>>()),
+            type_: val.type_,
+        }
+    }
+}
+
+impl From<webauthn_rs_proto::auth::PublicKeyCredentialRequestOptions>
+    for PublicKeyCredentialRequestOptions
+{
+    fn from(val: webauthn_rs_proto::auth::PublicKeyCredentialRequestOptions) -> Self {
+        Self {
+            allow_credentials: val
+                .allow_credentials
+                .into_iter()
+                .map(Into::into)
+                .collect::<Vec<_>>(),
+            challenge: URL_SAFE.encode(val.challenge),
+            extensions: val.extensions.map(Into::into),
+            hints: val
+                .hints
+                .map(|hints| hints.into_iter().map(Into::into).collect::<Vec<_>>()),
+            rp_id: val.rp_id,
+            timeout: val.timeout,
+            user_verification: val.user_verification.into(),
+        }
+    }
+}
+
+impl From<webauthn_rs::prelude::RequestChallengeResponse> for PasskeyAuthenticationStartResponse {
+    fn from(val: webauthn_rs::prelude::RequestChallengeResponse) -> Self {
+        Self {
+            public_key: val.public_key.into(),
+            mediation: val.mediation.map(|med| match med {
+                webauthn_rs_proto::auth::Mediation::Conditional => Mediation::Conditional,
+            }),
+        }
+    }
 }

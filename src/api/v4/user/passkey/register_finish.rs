@@ -25,7 +25,8 @@ use tracing::debug;
 use crate::api::auth::Auth;
 use crate::api::error::{KeystoneApiError, WebauthnError};
 use crate::api::v4::user::types::passkey::{
-    AuthenticatorTransport, CredentialProtectionPolicy, UserPasskeyRegistrationFinishRequest,
+    AuthenticatorTransport, CredentialProtectionPolicy, PasskeyResponse,
+    UserPasskeyRegistrationFinishRequest,
 };
 use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
@@ -42,7 +43,7 @@ use crate::policy::Policy;
       ("user_id" = String, Path, description = "The ID of the user.")
     ),
     responses(
-        (status = CREATED, description = "Passkey successfully registered"),
+        (status = CREATED, description = "Passkey successfully registered", body = PasskeyResponse),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
     ),
     tags = ["users", "passkey"]
@@ -129,13 +130,13 @@ impl TryFrom<UserPasskeyRegistrationFinishRequest>
                 transports: val.response.transports.map(|i| {
                     i.into_iter()
                         .map(|t| match t {
-                            AuthenticatorTransport::Usb => webauthn_rs_proto::options::AuthenticatorTransport::Usb,
-                            AuthenticatorTransport::Nfc => webauthn_rs_proto::options::AuthenticatorTransport::Nfc,
                             AuthenticatorTransport::Ble => webauthn_rs_proto::options::AuthenticatorTransport::Ble,
-                            AuthenticatorTransport::Internal => webauthn_rs_proto::options::AuthenticatorTransport::Internal,
                             AuthenticatorTransport::Hybrid => webauthn_rs_proto::options::AuthenticatorTransport::Hybrid,
+                            AuthenticatorTransport::Internal => webauthn_rs_proto::options::AuthenticatorTransport::Internal,
+                            AuthenticatorTransport::Nfc => webauthn_rs_proto::options::AuthenticatorTransport::Nfc,
                             AuthenticatorTransport::Test => webauthn_rs_proto::options::AuthenticatorTransport::Test,
                             AuthenticatorTransport::Unknown => webauthn_rs_proto::options::AuthenticatorTransport::Unknown,
+                            AuthenticatorTransport::Usb => webauthn_rs_proto::options::AuthenticatorTransport::Usb,
 
                         })
                         .collect::<Vec<_>>()
