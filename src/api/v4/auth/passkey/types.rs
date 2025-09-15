@@ -20,6 +20,13 @@ use utoipa::ToSchema;
 /// Request for initialization of the passkey authentication.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct PasskeyAuthenticationStartRequest {
+    /// The user authentication data
+    pub passkey: PasskeyUserAuthenticationRequest,
+}
+
+/// Request for initialization of the passkey authentication.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct PasskeyUserAuthenticationRequest {
     /// The ID of the user that is authenticating.
     pub user_id: String,
 }
