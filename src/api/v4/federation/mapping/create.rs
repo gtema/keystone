@@ -28,7 +28,7 @@ use crate::policy::Policy;
 #[utoipa::path(
     post,
     path = "/",
-    operation_id = "/federation/identity_provider/mapping:create",
+    operation_id = "/federation/mapping:create",
     responses(
         (status = CREATED, description = "mapping object", body = MappingResponse),
     ),

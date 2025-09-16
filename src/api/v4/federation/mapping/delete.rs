@@ -31,7 +31,7 @@ use crate::policy::Policy;
 #[utoipa::path(
     delete,
     path = "/{id}",
-    operation_id = "/federation/identity_provider/mapping:delete",
+    operation_id = "/federation/mapping:delete",
     params(
       ("id" = String, Path, description = "The ID of the attribute mapping")
     ),

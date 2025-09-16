@@ -39,7 +39,7 @@ use crate::policy::Policy;
 #[utoipa::path(
     get,
     path = "/",
-    operation_id = "/federation/identity_provider/mapping:list",
+    operation_id = "/federation/mapping:list",
     params(MappingListParameters),
     responses(
         (status = OK, description = "List of mappings", body = MappingList),

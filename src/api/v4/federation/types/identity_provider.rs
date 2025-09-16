@@ -337,9 +337,11 @@ impl IntoResponse for IdentityProviderList {
 #[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
 pub struct IdentityProviderListParameters {
     /// Filters the response by IDP name.
+    #[param(nullable = false)]
     pub name: Option<String>,
 
     /// Filters the response by a domain ID.
+    #[param(nullable = false)]
     pub domain_id: Option<String>,
 }
 
