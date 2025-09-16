@@ -86,6 +86,7 @@ pub struct Mapping {
     /// Additional claims that must be present in the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(value_type = Object)]
     pub bound_claims: Option<Value>,
 
     /// List of OIDC scopes.
@@ -184,7 +185,7 @@ pub struct MappingCreate {
     /// Additional claims that must be present in the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(nullable = false)]
+    #[schema(nullable = false, value_type = Object)]
     pub bound_claims: Option<Value>,
 
     /// List of OIDC scopes.
@@ -236,6 +237,8 @@ pub struct MappingUpdate {
 
     /// Attribute mapping type ([oidc, jwt]).
     #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false)]
     pub r#type: Option<MappingType>,
 
     /// List of allowed redirect urls (only for `oidc` type).
@@ -275,6 +278,7 @@ pub struct MappingUpdate {
     /// Additional claims that must be present in the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[schema(nullable = false, value_type = Object)]
     pub bound_claims: Option<Value>,
 
     /// List of OIDC scopes.
@@ -448,15 +452,19 @@ impl IntoResponse for MappingList {
 #[derive(Clone, Debug, Default, Deserialize, Serialize, IntoParams)]
 pub struct MappingListParameters {
     /// Filters the response by IDP name.
+    #[param(nullable = false)]
     pub name: Option<String>,
 
     /// Filters the response by a domain ID.
+    #[param(nullable = false)]
     pub domain_id: Option<String>,
 
     /// Filters the response by a idp ID.
+    #[param(nullable = false)]
     pub idp_id: Option<String>,
 
     /// Filters the response by a mapping type.
+    #[param(nullable = false)]
     pub r#type: Option<MappingType>,
 }
 

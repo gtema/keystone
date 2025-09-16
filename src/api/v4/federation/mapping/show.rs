@@ -33,7 +33,7 @@ use crate::policy::Policy;
 #[utoipa::path(
     get,
     path = "/{id}",
-    operation_id = "/federation/identity_provider/mapping:show",
+    operation_id = "/federation/mapping:show",
     params(
       ("id" = String, Path, description = "The ID of the attribute mapping.")
     ),
