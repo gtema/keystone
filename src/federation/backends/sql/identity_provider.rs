@@ -21,7 +21,10 @@ use crate::db::entity::{
     federated_identity_provider as db_federated_identity_provider,
     federation_protocol as db_old_federation_protocol,
     identity_provider as db_old_identity_provider,
-    prelude::FederatedIdentityProvider as DbFederatedIdentityProvider,
+    prelude::{
+        FederatedIdentityProvider as DbFederatedIdentityProvider,
+        IdentityProvider as DbIdentityProvider,
+    },
 };
 use crate::federation::backends::error::FederationDatabaseError;
 use crate::federation::types::*;
@@ -192,6 +195,9 @@ pub async fn update<S: AsRef<str>>(
         if let Some(val) = idp.provider_config {
             entry.provider_config = Set(val.to_owned());
         }
+        if let Some(val) = idp.default_mapping_name {
+            entry.default_mapping_name = Set(val.to_owned());
+        }
 
         let db_entry: db_federated_identity_provider::Model = entry.update(db).await?;
         db_entry.try_into()
@@ -211,6 +217,9 @@ pub async fn delete<S: AsRef<str>>(
         .exec(db)
         .await?;
     if res.rows_affected == 1 {
+        DbIdentityProvider::delete_by_id(id.as_ref())
+            .exec(db)
+            .await?;
         Ok(())
     } else {
         Err(FederationDatabaseError::IdentityProviderNotFound(
@@ -498,7 +507,7 @@ mod tests {
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"UPDATE "federated_identity_provider" SET "name" = $1, "oidc_discovery_url" = $2, "oidc_client_id" = $3, "oidc_client_secret" = $4, "oidc_response_mode" = $5, "oidc_response_types" = $6, "jwks_url" = $7, "jwt_validation_pubkeys" = $8, "bound_issuer" = $9, "provider_config" = $10 WHERE "federated_identity_provider"."id" = $11 RETURNING "id", "name", "domain_id", "oidc_discovery_url", "oidc_client_id", "oidc_client_secret", "oidc_response_mode", "oidc_response_types", "jwks_url", "jwt_validation_pubkeys", "bound_issuer", "default_mapping_name", "provider_config""#,
+                    r#"UPDATE "federated_identity_provider" SET "name" = $1, "oidc_discovery_url" = $2, "oidc_client_id" = $3, "oidc_client_secret" = $4, "oidc_response_mode" = $5, "oidc_response_types" = $6, "jwks_url" = $7, "jwt_validation_pubkeys" = $8, "bound_issuer" = $9, "default_mapping_name" = $10, "provider_config" = $11 WHERE "federated_identity_provider"."id" = $12 RETURNING "id", "name", "domain_id", "oidc_discovery_url", "oidc_client_id", "oidc_client_secret", "oidc_response_mode", "oidc_response_types", "jwks_url", "jwt_validation_pubkeys", "bound_issuer", "default_mapping_name", "provider_config""#,
                     [
                         "idp".into(),
                         "url".into(),
@@ -509,6 +518,7 @@ mod tests {
                         "http://jwks".into(),
                         "jt1,jt2".into(),
                         "bi".into(),
+                        "dummy".into(),
                         json!({"foo": "bar"}).into(),
                         "1".into(),
                     ]
@@ -521,10 +531,16 @@ mod tests {
     async fn test_delete() {
         // Create MockDatabase with mock query results
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_exec_results([MockExecResult {
-                rows_affected: 1,
-                ..Default::default()
-            }])
+            .append_exec_results([
+                MockExecResult {
+                    rows_affected: 1,
+                    ..Default::default()
+                },
+                MockExecResult {
+                    rows_affected: 1,
+                    ..Default::default()
+                },
+            ])
             .into_connection();
         let config = Config::default();
 
@@ -532,11 +548,18 @@ mod tests {
         // Checking transaction log
         assert_eq!(
             db.into_transaction_log(),
-            [Transaction::from_sql_and_values(
-                DatabaseBackend::Postgres,
-                r#"DELETE FROM "federated_identity_provider" WHERE "federated_identity_provider"."id" = $1"#,
-                ["id".into()]
-            ),]
+            [
+                Transaction::from_sql_and_values(
+                    DatabaseBackend::Postgres,
+                    r#"DELETE FROM "federated_identity_provider" WHERE "federated_identity_provider"."id" = $1"#,
+                    ["id".into()]
+                ),
+                Transaction::from_sql_and_values(
+                    DatabaseBackend::Postgres,
+                    r#"DELETE FROM "identity_provider" WHERE "identity_provider"."id" = $1"#,
+                    ["id".into()]
+                ),
+            ]
         );
     }
 }

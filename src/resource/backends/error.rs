@@ -54,13 +54,13 @@ pub enum ResourceDatabaseError {
 
 impl From<sea_orm::DbErr> for ResourceDatabaseError {
     fn from(err: sea_orm::DbErr) -> Self {
-        match err.sql_err() {
-            Some(err) => match err {
+        err.sql_err().map_or_else(
+            || Self::Database { source: err },
+            |err| match err {
                 SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
                 SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
                 other => Self::Sql(other.to_string()),
             },
-            None => Self::Database { source: err },
-        }
+        )
     }
 }

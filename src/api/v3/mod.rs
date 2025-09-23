@@ -15,7 +15,7 @@
 //! v3 API
 
 use axum::{
-    extract::{OriginalUri, Request},
+    extract::{OriginalUri, Request, State},
     http::{HeaderMap, header},
     response::IntoResponse,
 };
@@ -55,15 +55,23 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
 async fn version(
     headers: HeaderMap,
     OriginalUri(uri): OriginalUri,
+    State(state): State<ServiceState>,
     _req: Request,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    let host = headers
-        .get(header::HOST)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or("localhost");
+    let host = state
+        .config
+        .default
+        .as_ref()
+        .and_then(|dflt| dflt.public_endpoint.clone())
+        .or_else(|| {
+            headers
+                .get(header::HOST)
+                .and_then(|header| header.to_str().map(|val| format!("http://{val}")).ok())
+        })
+        .unwrap_or_else(|| "http://localhost".to_string());
     let link = Link {
         rel: "self".into(),
-        href: format!("http://{}{}", host, uri.path()),
+        href: format!("{}{}", host, uri.path()),
     };
     let version = Version {
         id: "v3.14".into(),

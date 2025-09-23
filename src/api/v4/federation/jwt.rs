@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::str::FromStr;
-use tracing::{debug, warn};
+use tracing::warn;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use openidconnect::core::{
@@ -149,16 +149,20 @@ pub async fn login(
         .find(|m| *m == "openid")
         .ok_or(KeystoneApiError::AuthMethodNotSupported)?;
 
-    let jwt: String = headers
+    let jwt: String = match headers
         .get(AUTHORIZATION)
         .ok_or(KeystoneApiError::SubjectTokenMissing)?
         .to_str()
         .map_err(|_| KeystoneApiError::InvalidHeader)?
-        .to_string();
+        .split_once(' ')
+    {
+        Some(("bearer", token)) => token.to_string(),
+        _ => return Err(OidcError::BearerJwtTokenMissing.into()),
+    };
 
     let mapping: String = headers
         .get("openstack-mapping")
-        .ok_or(KeystoneApiError::SubjectTokenMissing)?
+        .ok_or(OidcError::MappingRequiredJwt)?
         .to_str()
         .map_err(|_| KeystoneApiError::InvalidHeader)?
         .to_string();
@@ -349,7 +353,6 @@ pub async fn login(
         .into();
     api_token.token.catalog = Some(catalog);
 
-    debug!("response is {:?}", api_token);
     Ok((
         StatusCode::OK,
         [(

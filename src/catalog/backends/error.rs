@@ -12,6 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use sea_orm::SqlErr;
 use thiserror::Error;
 
 use crate::catalog::types::*;
@@ -22,12 +23,6 @@ pub enum CatalogDatabaseError {
     Serde {
         #[from]
         source: serde_json::Error,
-    },
-
-    #[error("database data")]
-    Database {
-        #[from]
-        source: sea_orm::DbErr,
     },
 
     #[error(transparent)]
@@ -44,4 +39,29 @@ pub enum CatalogDatabaseError {
 
     #[error("service {0} not found")]
     ServiceNotFound(String),
+
+    /// Conflict
+    #[error("{0}")]
+    Conflict(String),
+
+    /// SqlError
+    #[error("{0}")]
+    Sql(String),
+
+    /// Database error
+    #[error(transparent)]
+    Database { source: sea_orm::DbErr },
+}
+
+impl From<sea_orm::DbErr> for CatalogDatabaseError {
+    fn from(err: sea_orm::DbErr) -> Self {
+        err.sql_err().map_or_else(
+            || Self::Database { source: err },
+            |err| match err {
+                SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
+                SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
+                other => Self::Sql(other.to_string()),
+            },
+        )
+    }
 }

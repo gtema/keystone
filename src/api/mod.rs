@@ -14,6 +14,7 @@
 //! Keystone API
 //!
 use axum::{
+    extract::State,
     http::{HeaderMap, header},
     response::IntoResponse,
 };
@@ -100,11 +101,22 @@ pub fn openapi_router() -> OpenApiRouter<ServiceState> {
     ),
     tag = "version"
 )]
-async fn version(headers: HeaderMap) -> Result<impl IntoResponse, KeystoneApiError> {
-    let host = headers
-        .get(header::HOST)
-        .and_then(|header| header.to_str().ok())
-        .unwrap_or("localhost");
+async fn version(
+    headers: HeaderMap,
+    State(state): State<ServiceState>,
+) -> Result<impl IntoResponse, KeystoneApiError> {
+    let host = state
+        .config
+        .default
+        .as_ref()
+        .and_then(|dflt| dflt.public_endpoint.clone())
+        .or_else(|| {
+            headers
+                .get(header::HOST)
+                .and_then(|header| header.to_str().map(|val| format!("http://{val}")).ok())
+            //.and_then(|header| format!("http://{}", header.to_str().ok()).into())
+        })
+        .unwrap_or_else(|| "http://localhost".to_string());
 
     let res = Versions {
         versions: Values {
@@ -112,14 +124,14 @@ async fn version(headers: HeaderMap) -> Result<impl IntoResponse, KeystoneApiErr
                 Version {
                     id: "v3.14".into(),
                     status: VersionStatus::Stable,
-                    links: Some(vec![Link::new(format!("http://{host}/v3"))]),
+                    links: Some(vec![Link::new(format!("{host}/v3"))]),
                     media_types: Some(vec![MediaType::default()]),
                     ..Default::default()
                 },
                 Version {
                     id: "v4.0".into(),
                     status: VersionStatus::Experimental,
-                    links: Some(vec![Link::new(format!("http://{host}/v4"))]),
+                    links: Some(vec![Link::new(format!("{host}/v4"))]),
                     media_types: Some(vec![MediaType::default()]),
                     ..Default::default()
                 },

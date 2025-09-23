@@ -325,7 +325,7 @@ impl TokenApi for TokenProvider {
             > token
                 .expires_at()
                 .checked_add_signed(TimeDelta::seconds(window_seconds.unwrap_or(0)))
-                .unwrap_or(*token.expires_at())
+                .unwrap_or_else(|| *token.expires_at())
             && !allow_expired.unwrap_or(false)
         {
             return Err(TokenProviderError::Expired);

@@ -42,88 +42,88 @@ pub enum Token {
 }
 
 impl Token {
-    pub fn user_id(&self) -> &String {
+    pub const fn user_id(&self) -> &String {
         match self {
-            Token::Unscoped(x) => &x.user_id,
-            Token::ProjectScope(x) => &x.user_id,
-            Token::DomainScope(x) => &x.user_id,
-            Token::FederationUnscoped(x) => &x.user_id,
-            Token::FederationProjectScope(x) => &x.user_id,
-            Token::FederationDomainScope(x) => &x.user_id,
-            Token::ApplicationCredential(x) => &x.user_id,
+            Self::Unscoped(x) => &x.user_id,
+            Self::ProjectScope(x) => &x.user_id,
+            Self::DomainScope(x) => &x.user_id,
+            Self::FederationUnscoped(x) => &x.user_id,
+            Self::FederationProjectScope(x) => &x.user_id,
+            Self::FederationDomainScope(x) => &x.user_id,
+            Self::ApplicationCredential(x) => &x.user_id,
         }
     }
 
-    pub fn user(&self) -> &Option<UserResponse> {
+    pub const fn user(&self) -> &Option<UserResponse> {
         match self {
-            Token::Unscoped(x) => &x.user,
-            Token::ProjectScope(x) => &x.user,
-            Token::DomainScope(x) => &x.user,
-            Token::FederationUnscoped(x) => &x.user,
-            Token::FederationProjectScope(x) => &x.user,
-            Token::FederationDomainScope(x) => &x.user,
-            Token::ApplicationCredential(x) => &x.user,
+            Self::Unscoped(x) => &x.user,
+            Self::ProjectScope(x) => &x.user,
+            Self::DomainScope(x) => &x.user,
+            Self::FederationUnscoped(x) => &x.user,
+            Self::FederationProjectScope(x) => &x.user,
+            Self::FederationDomainScope(x) => &x.user,
+            Self::ApplicationCredential(x) => &x.user,
         }
     }
 
-    pub fn expires_at(&self) -> &DateTime<Utc> {
+    pub const fn expires_at(&self) -> &DateTime<Utc> {
         match self {
-            Token::Unscoped(x) => &x.expires_at,
-            Token::ProjectScope(x) => &x.expires_at,
-            Token::DomainScope(x) => &x.expires_at,
-            Token::FederationUnscoped(x) => &x.expires_at,
-            Token::FederationProjectScope(x) => &x.expires_at,
-            Token::FederationDomainScope(x) => &x.expires_at,
-            Token::ApplicationCredential(x) => &x.expires_at,
+            Self::Unscoped(x) => &x.expires_at,
+            Self::ProjectScope(x) => &x.expires_at,
+            Self::DomainScope(x) => &x.expires_at,
+            Self::FederationUnscoped(x) => &x.expires_at,
+            Self::FederationProjectScope(x) => &x.expires_at,
+            Self::FederationDomainScope(x) => &x.expires_at,
+            Self::ApplicationCredential(x) => &x.expires_at,
         }
     }
 
-    pub fn methods(&self) -> &Vec<String> {
+    pub const fn methods(&self) -> &Vec<String> {
         match self {
-            Token::Unscoped(x) => &x.methods,
-            Token::ProjectScope(x) => &x.methods,
-            Token::DomainScope(x) => &x.methods,
-            Token::FederationUnscoped(x) => &x.methods,
-            Token::FederationProjectScope(x) => &x.methods,
-            Token::FederationDomainScope(x) => &x.methods,
-            Token::ApplicationCredential(x) => &x.methods,
+            Self::Unscoped(x) => &x.methods,
+            Self::ProjectScope(x) => &x.methods,
+            Self::DomainScope(x) => &x.methods,
+            Self::FederationUnscoped(x) => &x.methods,
+            Self::FederationProjectScope(x) => &x.methods,
+            Self::FederationDomainScope(x) => &x.methods,
+            Self::ApplicationCredential(x) => &x.methods,
         }
     }
 
-    pub fn audit_ids(&self) -> &Vec<String> {
+    pub const fn audit_ids(&self) -> &Vec<String> {
         match self {
-            Token::Unscoped(x) => &x.audit_ids,
-            Token::ProjectScope(x) => &x.audit_ids,
-            Token::DomainScope(x) => &x.audit_ids,
-            Token::FederationUnscoped(x) => &x.audit_ids,
-            Token::FederationProjectScope(x) => &x.audit_ids,
-            Token::FederationDomainScope(x) => &x.audit_ids,
-            Token::ApplicationCredential(x) => &x.audit_ids,
+            Self::Unscoped(x) => &x.audit_ids,
+            Self::ProjectScope(x) => &x.audit_ids,
+            Self::DomainScope(x) => &x.audit_ids,
+            Self::FederationUnscoped(x) => &x.audit_ids,
+            Self::FederationProjectScope(x) => &x.audit_ids,
+            Self::FederationDomainScope(x) => &x.audit_ids,
+            Self::ApplicationCredential(x) => &x.audit_ids,
         }
     }
 
-    pub fn project(&self) -> Option<&Project> {
+    pub const fn project(&self) -> Option<&Project> {
         match self {
-            Token::ProjectScope(x) => x.project.as_ref(),
-            Token::FederationProjectScope(x) => x.project.as_ref(),
+            Self::ProjectScope(x) => x.project.as_ref(),
+            Self::FederationProjectScope(x) => x.project.as_ref(),
             _ => None,
         }
     }
 
-    pub fn domain(&self) -> Option<&Domain> {
+    pub const fn domain(&self) -> Option<&Domain> {
         match self {
-            Token::DomainScope(x) => x.domain.as_ref(),
-            Token::FederationDomainScope(x) => x.domain.as_ref(),
+            Self::DomainScope(x) => x.domain.as_ref(),
+            Self::FederationDomainScope(x) => x.domain.as_ref(),
             _ => None,
         }
     }
 
-    pub fn roles(&self) -> Option<&Vec<Role>> {
+    pub const fn roles(&self) -> Option<&Vec<Role>> {
         match self {
-            Token::DomainScope(x) => x.roles.as_ref(),
-            Token::ProjectScope(x) => x.roles.as_ref(),
-            Token::FederationProjectScope(x) => x.roles.as_ref(),
-            Token::FederationDomainScope(x) => x.roles.as_ref(),
+            Self::DomainScope(x) => x.roles.as_ref(),
+            Self::ProjectScope(x) => x.roles.as_ref(),
+            Self::FederationProjectScope(x) => x.roles.as_ref(),
+            Self::FederationDomainScope(x) => x.roles.as_ref(),
             _ => None,
         }
     }

@@ -158,21 +158,21 @@ impl FernetTokenProvider {
                 data.assemble(&mut buf, &self.auth_map)?;
             }
             Token::FederationUnscoped(data) => {
-                write_array_len(&mut buf, 7)
+                write_array_len(&mut buf, 8)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 write_pfix(&mut buf, 4)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 data.assemble(&mut buf, &self.auth_map)?;
             }
             Token::FederationProjectScope(data) => {
-                write_array_len(&mut buf, 8)
+                write_array_len(&mut buf, 9)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 write_pfix(&mut buf, 5)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 data.assemble(&mut buf, &self.auth_map)?;
             }
             Token::FederationDomainScope(data) => {
-                write_array_len(&mut buf, 8)
+                write_array_len(&mut buf, 9)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 write_pfix(&mut buf, 6)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;

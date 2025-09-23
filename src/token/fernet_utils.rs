@@ -47,8 +47,13 @@ impl FernetUtils {
                 if let Ok(fname) = entry.file_name().into_string() {
                     if let Ok(key_order) = fname.parse::<i8>() {
                         // We are only interested in files named as integer (0, 1, 2, ...)
-                        trace!("Loading key from {:?}", entry.file_name());
-                        let key = fs::read_to_string(entry.path())?;
+                        trace!("Loading key {:?}", entry.file_name());
+                        let key = fs::read_to_string(entry.path()).map_err(|e| {
+                            TokenProviderError::FernetKeyRead {
+                                source: e,
+                                path: entry.path(),
+                            }
+                        })?;
                         keys.insert(key_order, key);
                     }
                 }
@@ -56,6 +61,7 @@ impl FernetUtils {
         }
         Ok(keys.into_values().rev())
     }
+
     pub async fn load_keys_async(
         &self,
     ) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
@@ -66,8 +72,13 @@ impl FernetUtils {
                 if let Ok(fname) = entry.file_name().into_string() {
                     if let Ok(key_order) = fname.parse::<i8>() {
                         // We are only interested in files named as integer (0, 1, 2, ...)
-                        trace!("Loading key from {:?}", entry.file_name());
-                        let key = fs_async::read_to_string(entry.path()).await?;
+                        trace!("Loading key {:?}", entry.file_name());
+                        let key = fs::read_to_string(entry.path()).map_err(|e| {
+                            TokenProviderError::FernetKeyRead {
+                                source: e,
+                                path: entry.path(),
+                            }
+                        })?;
                         keys.insert(key_order, key);
                     }
                 }
@@ -109,7 +120,6 @@ pub fn read_uuid(rd: &mut &[u8]) -> Result<String, TokenProviderError> {
                             .as_simple()
                             .to_string());
                     }
-                    println!("1");
                 }
                 Marker::False => {
                     // This is not uuid
@@ -141,7 +151,6 @@ pub fn read_uuid(rd: &mut &[u8]) -> Result<String, TokenProviderError> {
             return Err(TokenProviderError::InvalidTokenUuidMarker(other));
         }
     }
-    println!("here");
     Err(TokenProviderError::InvalidTokenUuid)
 }
 

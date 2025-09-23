@@ -94,10 +94,24 @@ pub fn get_federated_user_builder<
     opts: O,
 ) -> UserResponseBuilder {
     let mut user_builder: UserResponseBuilder = get_user_builder(user, opts);
+    let mut feds: Vec<Federation> = Vec::new();
     if let Some(first) = data.into_iter().next() {
         if let Some(name) = first.display_name {
             user_builder.name(name.clone());
         }
+
+        let mut fed = FederationBuilder::default();
+        fed.idp_id(first.idp_id.clone());
+        fed.unique_id(first.unique_id.clone());
+        let protocol = FederationProtocol {
+            protocol_id: first.protocol_id.clone(),
+            unique_id: first.unique_id.clone(),
+        };
+        fed.protocols(vec![protocol]);
+        if let Ok(fed_obj) = fed.build() {
+            feds.push(fed_obj);
+        }
     }
+    user_builder.federated(feds);
     user_builder
 }

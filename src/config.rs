@@ -13,7 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use config::{File, FileFormat};
-use eyre::Report;
+use eyre::{Report, WrapErr};
 use regex::Regex;
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
@@ -78,6 +78,8 @@ pub struct Config {
 pub struct DefaultSection {
     /// Debug logging
     pub debug: Option<bool>,
+    /// Public endpoint
+    pub public_endpoint: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
@@ -226,7 +228,11 @@ impl Config {
             builder = builder.add_source(File::from(path).format(FileFormat::Ini));
         }
 
-        Ok(builder.build()?.try_deserialize()?)
+        builder
+            .build()
+            .wrap_err("Failed to read configuration file")?
+            .try_deserialize()
+            .wrap_err("Failed to parse configuration file")
     }
 }
 

@@ -280,7 +280,7 @@ impl FederationApi for FederationProvider {
     ) -> Result<IdentityProvider, FederationProviderError> {
         let mut mod_idp = idp;
         if mod_idp.id.is_empty() {
-            mod_idp.id = Uuid::new_v4().into();
+            mod_idp.id = Uuid::new_v4().simple().to_string();
         }
 
         self.backend_driver

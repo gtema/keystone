@@ -75,12 +75,12 @@ impl ApplicationCredentialPayloadBuilder {
 
 impl From<ApplicationCredentialPayload> for Token {
     fn from(value: ApplicationCredentialPayload) -> Self {
-        Token::ApplicationCredential(value)
+        Self::ApplicationCredential(value)
     }
 }
 
 impl MsgPackToken for ApplicationCredentialPayload {
-    type Token = ApplicationCredentialPayload;
+    type Token = Self;
 
     fn assemble<W: Write>(
         &self,

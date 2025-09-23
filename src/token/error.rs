@@ -16,6 +16,7 @@ use std::num::TryFromIntError;
 
 use thiserror::Error;
 
+/// Token provider error.
 #[derive(Error, Debug)]
 pub enum TokenProviderError {
     /// IO error.
@@ -24,6 +25,15 @@ pub enum TokenProviderError {
         /// The source of the error.
         #[from]
         source: std::io::Error,
+    },
+
+    /// Fernet key read error.
+    #[error("fernet key read error: {}", source)]
+    FernetKeyRead {
+        /// The source of the error.
+        source: std::io::Error,
+        /// Key file name.
+        path: std::path::PathBuf,
     },
 
     /// Fernet Decryption

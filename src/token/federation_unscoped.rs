@@ -71,12 +71,12 @@ impl FederationUnscopedPayloadBuilder {
 
 impl From<FederationUnscopedPayload> for Token {
     fn from(value: FederationUnscopedPayload) -> Self {
-        Token::FederationUnscoped(value)
+        Self::FederationUnscoped(value)
     }
 }
 
 impl MsgPackToken for FederationUnscopedPayload {
-    type Token = FederationUnscopedPayload;
+    type Token = Self;
 
     fn assemble<W: Write>(
         &self,

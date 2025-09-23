@@ -67,12 +67,12 @@ impl UnscopedPayloadBuilder {
 
 impl From<UnscopedPayload> for Token {
     fn from(value: UnscopedPayload) -> Self {
-        Token::Unscoped(value)
+        Self::Unscoped(value)
     }
 }
 
 impl MsgPackToken for UnscopedPayload {
-    type Token = UnscopedPayload;
+    type Token = Self;
 
     fn assemble<W: Write>(
         &self,
