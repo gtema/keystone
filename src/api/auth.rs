@@ -17,6 +17,7 @@ use axum::{
     http::request::Parts,
 };
 use std::sync::Arc;
+use tracing::{debug, error};
 
 use crate::api::KeystoneApiError;
 use crate::keystone::ServiceState;
@@ -41,6 +42,7 @@ where
         let auth_header = if let Some(auth_header) = auth_header {
             auth_header
         } else {
+            debug!("No supported information has been provided.");
             return Err(KeystoneApiError::Unauthorized)?;
         };
 
@@ -51,6 +53,7 @@ where
             .get_token_provider()
             .validate_token(auth_header, Some(false), None)
             .await
+            .inspect_err(|e| error!("{:#?}", e))
             .map_err(|_| KeystoneApiError::Unauthorized)?;
 
         // Expand the information (user, project, roles, etc) about the user when a token is valid

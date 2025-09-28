@@ -104,35 +104,23 @@ impl From<webauthn_rs_proto::extensions::RequestAuthenticationExtensions>
 impl From<webauthn_rs_proto::options::AuthenticatorTransport> for AuthenticatorTransport {
     fn from(val: webauthn_rs_proto::options::AuthenticatorTransport) -> Self {
         match val {
-            webauthn_rs_proto::options::AuthenticatorTransport::Ble => AuthenticatorTransport::Ble,
-            webauthn_rs_proto::options::AuthenticatorTransport::Hybrid => {
-                AuthenticatorTransport::Hybrid
-            }
-            webauthn_rs_proto::options::AuthenticatorTransport::Internal => {
-                AuthenticatorTransport::Internal
-            }
-            webauthn_rs_proto::options::AuthenticatorTransport::Nfc => AuthenticatorTransport::Nfc,
-            webauthn_rs_proto::options::AuthenticatorTransport::Test => {
-                AuthenticatorTransport::Test
-            }
-            webauthn_rs_proto::options::AuthenticatorTransport::Unknown => {
-                AuthenticatorTransport::Unknown
-            }
-            webauthn_rs_proto::options::AuthenticatorTransport::Usb => AuthenticatorTransport::Usb,
+            webauthn_rs_proto::options::AuthenticatorTransport::Ble => Self::Ble,
+            webauthn_rs_proto::options::AuthenticatorTransport::Hybrid => Self::Hybrid,
+            webauthn_rs_proto::options::AuthenticatorTransport::Internal => Self::Internal,
+            webauthn_rs_proto::options::AuthenticatorTransport::Nfc => Self::Nfc,
+            webauthn_rs_proto::options::AuthenticatorTransport::Test => Self::Test,
+            webauthn_rs_proto::options::AuthenticatorTransport::Unknown => Self::Unknown,
+            webauthn_rs_proto::options::AuthenticatorTransport::Usb => Self::Usb,
         }
     }
 }
 impl From<webauthn_rs_proto::options::UserVerificationPolicy> for UserVerificationPolicy {
     fn from(val: webauthn_rs_proto::options::UserVerificationPolicy) -> Self {
         match val {
-            webauthn_rs_proto::options::UserVerificationPolicy::Required => {
-                UserVerificationPolicy::Required
-            }
-            webauthn_rs_proto::options::UserVerificationPolicy::Preferred => {
-                UserVerificationPolicy::Preferred
-            }
+            webauthn_rs_proto::options::UserVerificationPolicy::Required => Self::Required,
+            webauthn_rs_proto::options::UserVerificationPolicy::Preferred => Self::Preferred,
             webauthn_rs_proto::options::UserVerificationPolicy::Discouraged_DO_NOT_USE => {
-                UserVerificationPolicy::DiscouragedDoNotUse
+                Self::DiscouragedDoNotUse
             }
         }
     }
@@ -142,14 +130,10 @@ impl From<webauthn_rs_proto::options::PublicKeyCredentialHints> for PublicKeyCre
     fn from(val: webauthn_rs_proto::options::PublicKeyCredentialHints) -> Self {
         match val {
             webauthn_rs_proto::options::PublicKeyCredentialHints::ClientDevice => {
-                PublicKeyCredentialHint::ClientDevice
+                Self::ClientDevice
             }
-            webauthn_rs_proto::options::PublicKeyCredentialHints::Hybrid => {
-                PublicKeyCredentialHint::Hybrid
-            }
-            webauthn_rs_proto::options::PublicKeyCredentialHints::SecurityKey => {
-                PublicKeyCredentialHint::SecurityKey
-            }
+            webauthn_rs_proto::options::PublicKeyCredentialHints::Hybrid => Self::Hybrid,
+            webauthn_rs_proto::options::PublicKeyCredentialHints::SecurityKey => Self::SecurityKey,
         }
     }
 }

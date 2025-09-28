@@ -74,12 +74,12 @@ impl ProjectScopePayloadBuilder {
 
 impl From<ProjectScopePayload> for Token {
     fn from(value: ProjectScopePayload) -> Self {
-        Token::ProjectScope(value)
+        Self::ProjectScope(value)
     }
 }
 
 impl MsgPackToken for ProjectScopePayload {
-    type Token = ProjectScopePayload;
+    type Token = Self;
 
     fn assemble<W: Write>(
         &self,

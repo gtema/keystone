@@ -74,12 +74,12 @@ impl DomainScopePayloadBuilder {
 
 impl From<DomainScopePayload> for Token {
     fn from(value: DomainScopePayload) -> Self {
-        Token::DomainScope(value)
+        Self::DomainScope(value)
     }
 }
 
 impl MsgPackToken for DomainScopePayload {
-    type Token = DomainScopePayload;
+    type Token = Self;
 
     fn assemble<W: Write>(
         &self,

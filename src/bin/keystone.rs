@@ -35,7 +35,10 @@ use tower_http::{
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::{Level, debug, error, info, info_span, trace};
-use tracing_subscriber::{filter::*, prelude::*};
+use tracing_subscriber::{
+    filter::{LevelFilter, Targets},
+    prelude::*,
+};
 use utoipa::OpenApi;
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_swagger_ui::SwaggerUi;
@@ -50,9 +53,9 @@ use openstack_keystone::plugin_manager::PluginManager;
 use openstack_keystone::policy::PolicyFactory;
 use openstack_keystone::provider::Provider;
 
-/// OpenStack Keystone.
+/// `OpenStack` Keystone.
 ///
-/// Keystone is an OpenStack service that provides API client authentication, service discovery,
+/// Keystone is an `OpenStack` service that provides API client authentication, service discovery,
 /// and distributed multi-tenant authorization by implementing OpenStack’s Identity API.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -65,7 +68,7 @@ struct Args {
     #[arg(short, long, global=true, action = clap::ArgAction::Count, display_order = 920)]
     pub verbose: u8,
 
-    /// Print the OpenAPI schema json instead of running the Keystone.
+    /// Print the `OpenAPI` schema json instead of running the Keystone.
     #[arg(long)]
     pub dump_openapi: Option<OpenApiFormat>,
 }
@@ -140,7 +143,7 @@ async fn main() -> Result<(), Report> {
 
     let cfg = Config::new(args.config)?;
     let db_url = cfg.database.get_connection();
-    let mut opt = ConnectOptions::new(db_url.to_owned());
+    let mut opt = ConnectOptions::new(db_url.clone());
     if args.verbose < 2 {
         opt.sqlx_logging(false);
     }
@@ -241,7 +244,7 @@ async fn cleanup(cancel: CancellationToken, state: ServiceState) {
                     error!("Error during cleanup job: {}", e);
                 }
             },
-            _ = cancel.cancelled() => {
+            () = cancel.cancelled() => {
                 info!("Cancellation requested. Stopping cleanup task.");
                 break; // Exit the loop
             }
@@ -268,7 +271,7 @@ async fn shutdown_signal(state: ServiceState) {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {state.terminate().await.unwrap();},
-        _ = terminate => {state.terminate().await.unwrap();},
+        () = ctrl_c => {state.terminate().await.unwrap();},
+        () = terminate => {state.terminate().await.unwrap();},
     }
 }

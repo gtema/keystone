@@ -37,7 +37,7 @@ async fn test_login_jwt() {
             "{}/v4/federation/identity_providers/{}/jwt",
             keystone_url, idp.identity_provider.id
         ))
-        .header(AUTHORIZATION, jwt)
+        .header(AUTHORIZATION, format!("bearer {jwt}"))
         .header("openstack-mapping", mapping.mapping.name)
         .send()
         .await

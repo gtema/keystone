@@ -38,11 +38,11 @@ pub enum FederationProviderError {
     MappingNotFound(String),
 
     /// Use of token_user_id requires domain_id to be set.
-    #[error("`mapping.token_user_id` must be set")]
+    #[error("`mapping.domain_id` must be set")]
     MappingTokenUserDomainUnset,
 
     /// Use of token_project_id requires domain_id to be set.
-    #[error("`mapping.token_project_id` must be set")]
+    #[error("`mapping.domain_id` must be set")]
     MappingTokenProjectDomainUnset,
 
     /// Conflict.

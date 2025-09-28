@@ -16,7 +16,10 @@ use color_eyre::Report;
 use std::io;
 use std::path::PathBuf;
 use tracing::info;
-use tracing_subscriber::{filter::*, prelude::*};
+use tracing_subscriber::{
+    filter::{LevelFilter, Targets},
+    prelude::*,
+};
 
 use sea_orm::ConnectOptions;
 use sea_orm::Database;
@@ -84,7 +87,7 @@ async fn main() -> Result<(), Report> {
     tracing_subscriber::registry().with(log_layer).init();
     let cfg = Config::new(cli.config)?;
     let db_url = cfg.database.get_connection();
-    let mut opt = ConnectOptions::new(db_url.to_owned());
+    let mut opt = ConnectOptions::new(db_url.clone());
 
     if cli.verbose < 2 {
         opt.sqlx_logging(false);
@@ -104,14 +107,14 @@ async fn main() -> Result<(), Report> {
         }
         Commands::Status => {
             let migrations = Migrator::get_pending_migrations(&conn).await?;
-            if !migrations.is_empty() {
+            if migrations.is_empty() {
+                println!("No pending migrations!");
+            } else {
                 println!("Pending migrations:");
                 for mig in migrations {
                     println!("{}", mig.name());
                 }
-            } else {
-                println!("No pending migrations!")
-            };
+            }
             let migrations = Migrator::get_applied_migrations(&conn).await?;
             println!("Applied migrations:");
             for mig in migrations {

@@ -109,7 +109,7 @@ pub(super) async fn finish(
         .get_token_provider()
         .issue_token(authed_info, AuthzInfo::Unscoped)?;
 
-    let mut api_token = TokenResponse {
+    let api_token = TokenResponse {
         token: ApiResponseToken::from_provider_token(&state, &token).await?,
     };
     Ok((

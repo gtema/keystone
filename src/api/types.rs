@@ -103,7 +103,7 @@ impl Default for MediaType {
     }
 }
 
-/// A catalog object
+/// A catalog object.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct Catalog(Vec<CatalogService>);
 
@@ -113,7 +113,7 @@ impl IntoResponse for Catalog {
     }
 }
 
-/// A catalog object
+/// A catalog object.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct CatalogService {
@@ -134,7 +134,7 @@ impl From<(Service, Vec<ProviderEndpoint>)> for CatalogService {
     }
 }
 
-/// A Catalog Endpoint
+/// A Catalog Endpoint.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(strip_option, into))]
 pub struct Endpoint {
@@ -168,63 +168,64 @@ impl From<Vec<(Service, Vec<ProviderEndpoint>)>> for Catalog {
     }
 }
 
-/// The authorization scope, including the system (Since v3.10), a project, or a domain (Since
-/// v3.4). If multiple scopes are specified in the same request (e.g. project and domain or domain
-/// and system) an HTTP 400 Bad Request will be returned, as a token cannot be simultaneously
-/// scoped to multiple authorization targets. An ID is sufficient to uniquely identify a project
-/// but if a project is specified by name, then the domain of the project must also be specified in
-/// order to uniquely identify the project by name. A domain scope may be specified by either the
-/// domain’s ID or name with equivalent results.
+/// The authorization scope, including the system, a project, or a domain.
+///
+/// If multiple scopes are specified in the same request (e.g. project and domain or domain and
+/// system) an HTTP 400 Bad Request will be returned, as a token cannot be simultaneously scoped to
+/// multiple authorization targets. An ID is sufficient to uniquely identify a project but if a
+/// project is specified by name, then the domain of the project must also be specified in order to
+/// uniquely identify the project by name. A domain scope may be specified by either the domain’s
+/// ID or name with equivalent results.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Scope {
-    /// Project scope
+    /// Project scope.
     Project(ProjectScope),
-    /// Domain scope
+    /// Domain scope.
     Domain(Domain),
-    /// System scope
+    /// System scope.
     System(System),
 }
 
-/// Project scope information
+/// Project scope information.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct ProjectScope {
-    /// Project ID
+    /// Project ID.
     pub id: Option<String>,
-    /// Project Name
+    /// Project Name.
     pub name: Option<String>,
-    /// project domain
+    /// project domain.
     pub domain: Option<Domain>,
 }
 
-/// Domain information
+/// Domain information.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(into))]
 pub struct Domain {
-    /// Domain ID
+    /// Domain ID.
     #[builder(default)]
     pub id: Option<String>,
-    /// Domain Name
+    /// Domain Name.
     #[builder(default)]
     pub name: Option<String>,
 }
 
-/// Project information
+/// Project information.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct Project {
-    /// Project ID
+    /// Project ID.
     pub id: String,
-    /// Project Name
+    /// Project Name.
     pub name: String,
-    /// project domain
+    /// project domain.
     pub domain: Domain,
 }
 
-/// System scope
+/// System scope.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
 #[builder(setter(into))]
 pub struct System {
-    /// system scope
+    /// All systems access.
     #[builder(default)]
     pub all: Option<bool>,
 }

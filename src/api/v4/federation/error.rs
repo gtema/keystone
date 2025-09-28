@@ -31,6 +31,12 @@ pub enum OidcError {
     )]
     MappingRequired,
 
+    #[error("JWT login requires `openstack-mapping` header to be present.")]
+    MappingRequiredJwt,
+
+    #[error("`bearer` authorization token is missing.")]
+    BearerJwtTokenMissing,
+
     #[error("mapping id or mapping name with idp id must be specified")]
     MappingIdOrNameWithIdp,
 
@@ -145,6 +151,12 @@ impl From<OidcError> for KeystoneApiError {
             }
             OidcError::MappingRequired => {
                 KeystoneApiError::BadRequest("Federated authentication requires mapping being specified in the payload or default set on the identity provider.".to_string())
+            }
+            OidcError::MappingRequiredJwt => {
+                KeystoneApiError::BadRequest("JWT authentication requires `openstack-mapping` header to be provided.".to_string())
+            }
+            OidcError::BearerJwtTokenMissing => {
+                KeystoneApiError::BadRequest("`bearer` token is missing in the `Authorization` header.".to_string())
             }
             OidcError::MappingIdOrNameWithIdp => {
                 KeystoneApiError::BadRequest("Federated authentication requires mapping being specified in the payload either with ID or name with identity provider id.".to_string())

@@ -57,13 +57,13 @@ Following tables are added:
 - federated_identity_provider
 
 ```rust
-{{#rustdoc_include ../../src/db/entity/federated_identity_provider.rs:9:21}}
+{{#rustdoc_include ../../src/db/entity/federated_identity_provider.rs:9:22}}
 ```
 
 - federated_mapping
 
 ```rust
-{{#include ../../src/db/entity/federated_mapping.rs:9:24}}
+{{#include ../../src/db/entity/federated_mapping.rs:10:26}}
 ```
 
 - federated_auth_state
@@ -81,8 +81,8 @@ it certain compatibility steps are implemented:
 - Identity provider is "mirrored" into the existing identity_provider with the
   subset of attributes
 
-- For every identity provider "oidc" protocol entry in the federation_protocol
-  table is created pointing to the "<<null>>" mapping.
+- For every identity provider "oidc" and "jwt" protocol entries in the
+  federation_protocol table is created pointing to the "\<\<null\>\>" mapping.
 
 ## Testing
 
