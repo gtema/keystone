@@ -6,6 +6,12 @@ import data.identity
 
 default allow := false
 
+default can_see_other_domain_resources := false
+
+can_see_other_domain_resources := true if {
+	"admin" in input.credentials.roles
+}
+
 allow if {
 	identity.own_idp
 	"reader" in input.credentials.roles

@@ -135,7 +135,7 @@ mod tests {
                 })
             });
 
-        let state = get_mocked_state(federation_mock, true);
+        let state = get_mocked_state(federation_mock, true, None);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())

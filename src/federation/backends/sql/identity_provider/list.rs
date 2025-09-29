@@ -35,8 +35,18 @@ pub async fn list(
         select = select.filter(db_federated_identity_provider::Column::Name.eq(val));
     }
 
-    if let Some(val) = &params.domain_id {
-        select = select.filter(db_federated_identity_provider::Column::DomainId.eq(val));
+    if let Some(val) = &params.domain_ids {
+        let filter =
+            db_federated_identity_provider::Column::DomainId.is_in(val.iter().flatten());
+        select = if val.contains(&None) {
+            select.filter(
+                Condition::any()
+                    .add(filter)
+                    .add(db_federated_identity_provider::Column::DomainId.is_null()),
+            )
+        } else {
+            select.filter(filter)
+        };
     }
 
     let db_entities: Vec<db_federated_identity_provider::Model> = select.all(db).await?;
@@ -51,6 +61,7 @@ pub async fn list(
 #[cfg(test)]
 mod tests {
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
+    use std::collections::HashSet;
 
     use crate::config::Config;
 
@@ -75,7 +86,7 @@ mod tests {
                 &db,
                 &IdentityProviderListParameters {
                     name: Some("idp_name".into()),
-                    domain_id: Some("did".into()),
+                    domain_ids: Some(HashSet::from([Some("did".into())])),
                 }
             )
             .await
@@ -99,10 +110,66 @@ mod tests {
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT "federated_identity_provider"."id", "federated_identity_provider"."name", "federated_identity_provider"."domain_id", "federated_identity_provider"."oidc_discovery_url", "federated_identity_provider"."oidc_client_id", "federated_identity_provider"."oidc_client_secret", "federated_identity_provider"."oidc_response_mode", "federated_identity_provider"."oidc_response_types", "federated_identity_provider"."jwks_url", "federated_identity_provider"."jwt_validation_pubkeys", "federated_identity_provider"."bound_issuer", "federated_identity_provider"."default_mapping_name", "federated_identity_provider"."provider_config" FROM "federated_identity_provider" WHERE "federated_identity_provider"."name" = $1 AND "federated_identity_provider"."domain_id" = $2"#,
+                    r#"SELECT "federated_identity_provider"."id", "federated_identity_provider"."name", "federated_identity_provider"."domain_id", "federated_identity_provider"."oidc_discovery_url", "federated_identity_provider"."oidc_client_id", "federated_identity_provider"."oidc_client_secret", "federated_identity_provider"."oidc_response_mode", "federated_identity_provider"."oidc_response_types", "federated_identity_provider"."jwks_url", "federated_identity_provider"."jwt_validation_pubkeys", "federated_identity_provider"."bound_issuer", "federated_identity_provider"."default_mapping_name", "federated_identity_provider"."provider_config" FROM "federated_identity_provider" WHERE "federated_identity_provider"."name" = $1 AND "federated_identity_provider"."domain_id" IN ($2)"#,
                     ["idp_name".into(), "did".into()]
                 ),
             ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_with_null_domain_id() {
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([vec![get_idp_mock("1")]])
+            .into_connection();
+        let config = Config::default();
+        list(
+            &config,
+            &db,
+            &IdentityProviderListParameters {
+                name: Some("idp_name".into()),
+                domain_ids: Some(HashSet::from([None, Some("did".into())])),
+            },
+        )
+        .await
+        .unwrap();
+
+        // Checking transaction log
+        assert_eq!(
+            db.into_transaction_log(),
+            [Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"SELECT "federated_identity_provider"."id", "federated_identity_provider"."name", "federated_identity_provider"."domain_id", "federated_identity_provider"."oidc_discovery_url", "federated_identity_provider"."oidc_client_id", "federated_identity_provider"."oidc_client_secret", "federated_identity_provider"."oidc_response_mode", "federated_identity_provider"."oidc_response_types", "federated_identity_provider"."jwks_url", "federated_identity_provider"."jwt_validation_pubkeys", "federated_identity_provider"."bound_issuer", "federated_identity_provider"."default_mapping_name", "federated_identity_provider"."provider_config" FROM "federated_identity_provider" WHERE "federated_identity_provider"."name" = $1 AND ("federated_identity_provider"."domain_id" IN ($2) OR "federated_identity_provider"."domain_id" IS NULL)"#,
+                ["idp_name".into(), "did".into()]
+            ),]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_without_domain_id() {
+        let db = MockDatabase::new(DatabaseBackend::Postgres)
+            .append_query_results([vec![get_idp_mock("1")]])
+            .into_connection();
+        let config = Config::default();
+        list(
+            &config,
+            &db,
+            &IdentityProviderListParameters {
+                name: Some("idp_name".into()),
+                domain_ids: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        // Checking transaction log
+        assert_eq!(
+            db.into_transaction_log(),
+            [Transaction::from_sql_and_values(
+                DatabaseBackend::Postgres,
+                r#"SELECT "federated_identity_provider"."id", "federated_identity_provider"."name", "federated_identity_provider"."domain_id", "federated_identity_provider"."oidc_discovery_url", "federated_identity_provider"."oidc_client_id", "federated_identity_provider"."oidc_client_secret", "federated_identity_provider"."oidc_response_mode", "federated_identity_provider"."oidc_response_types", "federated_identity_provider"."jwks_url", "federated_identity_provider"."jwt_validation_pubkeys", "federated_identity_provider"."bound_issuer", "federated_identity_provider"."default_mapping_name", "federated_identity_provider"."provider_config" FROM "federated_identity_provider" WHERE "federated_identity_provider"."name" = $1"#,
+                ["idp_name".into()]
+            ),]
         );
     }
 }

@@ -296,6 +296,7 @@ impl Policy {
             debug!("not enforcing policy due to the absence of initialized WASM data");
             PolicyEvaluationResult {
                 allow: true,
+                can_see_other_domain_resources: None,
                 violations: None,
             }
         };
@@ -326,7 +327,12 @@ pub struct OpaResponse {
 /// The result of a policy evaluation.
 #[derive(Clone, Deserialize, Debug, Serialize)]
 pub struct PolicyEvaluationResult {
+    /// Whether the user is allowed to perform the request or not.
     pub allow: bool,
+    /// Whether the user is allowed to see resources of other domains.
+    #[serde(default)]
+    pub can_see_other_domain_resources: Option<bool>,
+    /// List of violations.
     #[serde(rename = "violation")]
     pub violations: Option<Vec<Violation>>,
 }
@@ -367,6 +373,16 @@ impl PolicyEvaluationResult {
     pub fn allowed() -> Self {
         Self {
             allow: true,
+            can_see_other_domain_resources: None,
+            violations: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn allowed_admin() -> Self {
+        Self {
+            allow: true,
+            can_see_other_domain_resources: Some(true),
             violations: None,
         }
     }
@@ -375,6 +391,7 @@ impl PolicyEvaluationResult {
     pub fn forbidden() -> Self {
         Self {
             allow: false,
+            can_see_other_domain_resources: Some(false),
             violations: None,
         }
     }

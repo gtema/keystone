@@ -19,11 +19,14 @@ use axum::{
 };
 use mockall_double::double;
 use serde_json::to_value;
+use std::collections::HashSet;
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::api::v4::federation::types::*;
-use crate::federation::FederationApi;
+use crate::federation::{
+    FederationApi, types::IdentityProviderListParameters as ProviderIdentityProviderListParameters,
+};
 use crate::keystone::ServiceState;
 #[double]
 use crate::policy::Policy;
@@ -59,7 +62,7 @@ pub(super) async fn list(
     Query(query): Query<IdentityProviderListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
-    policy
+    let res = policy
         .enforce(
             "identity/identity_provider_list",
             &user_auth,
@@ -68,10 +71,27 @@ pub(super) async fn list(
         )
         .await?;
 
+    let mut provider_list_params = ProviderIdentityProviderListParameters {
+        name: query.name,
+        ..Default::default()
+    };
+    if query.domain_id.as_ref().is_none() {
+        if !res.can_see_other_domain_resources.is_some_and(|x| x) {
+            let domain_ids: HashSet<Option<String>> = HashSet::from([
+                None,
+                // TODO: perhaps we should first look at the domain_scope and than user domain.
+                user_auth.user().as_ref().map(|val| val.domain_id.clone()),
+            ]);
+            provider_list_params.domain_ids = Some(domain_ids);
+        }
+    } else {
+        provider_list_params.domain_ids = Some(HashSet::from([query.domain_id]));
+    }
+
     let identity_providers: Vec<IdentityProvider> = state
         .provider
         .get_federation_provider()
-        .list_identity_providers(&state.db, &query.try_into()?)
+        .list_identity_providers(&state.db, &provider_list_params)
         .await
         .map_err(KeystoneApiError::federation)?
         .into_iter()
@@ -88,6 +108,7 @@ mod tests {
     };
     use http_body_util::BodyExt; // for `collect`
     use sea_orm::DatabaseConnection;
+    use std::collections::HashSet;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
@@ -117,7 +138,7 @@ mod tests {
                     ..Default::default()
                 }])
             });
-        let state = get_mocked_state(federation_mock, true);
+        let state = get_mocked_state(federation_mock, true, None);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -168,7 +189,7 @@ mod tests {
                 |_: &DatabaseConnection, qp: &provider_types::IdentityProviderListParameters| {
                     provider_types::IdentityProviderListParameters {
                         name: Some("name".into()),
-                        domain_id: Some("did".into()),
+                        domain_ids: Some(HashSet::from([Some("did".into())])),
                     } == *qp
                 },
             )
@@ -181,7 +202,7 @@ mod tests {
                 }])
             });
 
-        let state = get_mocked_state(federation_mock, true);
+        let state = get_mocked_state(federation_mock, true, None);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -223,7 +244,7 @@ mod tests {
                     ..Default::default()
                 }])
             });
-        let state = get_mocked_state(federation_mock, false);
+        let state = get_mocked_state(federation_mock, false, None);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -242,5 +263,101 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    #[traced_test]
+    async fn test_list_shared_and_own() {
+        let mut federation_mock = MockFederationProvider::default();
+        federation_mock
+            .expect_list_identity_providers()
+            .withf(
+                |_: &DatabaseConnection, qp: &provider_types::IdentityProviderListParameters| {
+                    provider_types::IdentityProviderListParameters {
+                        name: Some("name".into()),
+                        domain_ids: Some(HashSet::from([None, Some("udid".into())])),
+                    } == *qp
+                },
+            )
+            .returning(|_, _| {
+                Ok(vec![provider_types::IdentityProvider {
+                    id: "id".into(),
+                    name: "name".into(),
+                    domain_id: Some("did".into()),
+                    ..Default::default()
+                }])
+            });
+
+        let state = get_mocked_state(federation_mock, true, Some(false));
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
+
+        let response = api
+            .as_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/?name=name")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let _res: IdentityProviderList = serde_json::from_slice(&body).unwrap();
+    }
+
+    #[tokio::test]
+    #[traced_test]
+    async fn test_list_all() {
+        // Test listing ALL idps when the user does not specify the domain_id and is allowed to see
+        // IDP of other domains (admin)
+        let mut federation_mock = MockFederationProvider::default();
+        federation_mock
+            .expect_list_identity_providers()
+            .withf(
+                |_: &DatabaseConnection, qp: &provider_types::IdentityProviderListParameters| {
+                    provider_types::IdentityProviderListParameters {
+                        name: Some("name".into()),
+                        domain_ids: None,
+                    } == *qp
+                },
+            )
+            .returning(|_, _| {
+                Ok(vec![provider_types::IdentityProvider {
+                    id: "id".into(),
+                    name: "name".into(),
+                    domain_id: Some("did".into()),
+                    ..Default::default()
+                }])
+            });
+
+        let state = get_mocked_state(federation_mock, true, Some(true));
+
+        let mut api = openapi_router()
+            .layer(TraceLayer::new_for_http())
+            .with_state(state);
+
+        let response = api
+            .as_service()
+            .oneshot(
+                Request::builder()
+                    .uri("/?name=name")
+                    .header("x-auth-token", "foo")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let _res: IdentityProviderList = serde_json::from_slice(&body).unwrap();
     }
 }
