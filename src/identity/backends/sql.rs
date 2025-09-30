@@ -16,6 +16,7 @@ use async_trait::async_trait;
 use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
+use std::collections::HashSet;
 use webauthn_rs::prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration};
 
 mod common;
@@ -26,6 +27,7 @@ mod passkey;
 mod passkey_state;
 mod password;
 mod user;
+mod user_group;
 mod user_option;
 
 use super::super::types::*;
@@ -38,7 +40,7 @@ use crate::db::entity::{
     user as db_user, user_option as db_user_option,
 };
 use crate::identity::IdentityProviderError;
-use crate::identity::backends::error::IdentityDatabaseError;
+use crate::identity::backends::error::{IdentityDatabaseError, db_err};
 use crate::identity::password_hashing;
 
 #[derive(Clone, Debug, Default)]
@@ -197,14 +199,68 @@ impl IdentityBackend for SqlBackend {
         Ok(group::delete(&self.config, db, group_id).await?)
     }
 
-    /// List groups a user is member of
+    /// List groups a user is member of.
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn list_groups_for_user<'a>(
+    async fn list_groups_of_user<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Vec<Group>, IdentityProviderError> {
-        Ok(group::list_for_user(&self.config, db, user_id).await?)
+        Ok(user_group::list_user_groups(db, user_id).await?)
+    }
+
+    /// Add the user into the group.
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn add_user_to_group<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_id: &'a str,
+    ) -> Result<(), IdentityProviderError> {
+        Ok(user_group::add_user_to_group(db, user_id, group_id).await?)
+    }
+
+    /// Add user group membership relations.
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn add_users_to_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        memberships: Vec<(&'a str, &'a str)>,
+    ) -> Result<(), IdentityProviderError> {
+        Ok(user_group::add_users_to_groups(db, memberships).await?)
+    }
+
+    /// Remove the user from the group.
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn remove_user_from_group<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_id: &'a str,
+    ) -> Result<(), IdentityProviderError> {
+        Ok(user_group::remove_user_from_group(db, user_id, group_id).await?)
+    }
+
+    /// Remove the user from multiple groups.
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn remove_user_from_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_ids: HashSet<&'a str>,
+    ) -> Result<(), IdentityProviderError> {
+        Ok(user_group::remove_user_from_groups(db, user_id, group_ids).await?)
+    }
+
+    /// Set group memberships of the user.
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn set_user_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_ids: HashSet<&'a str>,
+    ) -> Result<(), IdentityProviderError> {
+        Ok(user_group::set_user_groups(db, user_id, group_ids).await?)
     }
 
     /// Create passkey

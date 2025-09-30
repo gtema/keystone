@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{error, warn};
 
-use crate::identity::types as identity_provider_types;
+use crate::identity::types::{Group, UserResponse};
 use crate::resource::types::{Domain, Project};
 
 #[derive(Error, Debug)]
@@ -54,11 +54,15 @@ pub struct AuthenticatedInfo {
 
     /// Resolved user object
     #[builder(default)]
-    pub user: Option<identity_provider_types::UserResponse>,
+    pub user: Option<UserResponse>,
 
     /// Resolved user domain information
     #[builder(default)]
     pub user_domain: Option<Domain>,
+
+    /// Resolved user object
+    #[builder(default)]
+    pub user_groups: Vec<Group>,
 
     /// Authentication methods
     #[builder(default)]

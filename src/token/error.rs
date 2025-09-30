@@ -182,4 +182,7 @@ pub enum TokenProviderError {
 
     #[error("user cannot be found: {0}")]
     UserNotFound(String),
+
+    #[error("unsupported authentication methods in token payload")]
+    UnsupportedAuthMethods,
 }

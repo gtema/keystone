@@ -16,6 +16,7 @@ use async_trait::async_trait;
 #[cfg(test)]
 use mockall::mock;
 use sea_orm::DatabaseConnection;
+use std::collections::HashSet;
 use uuid::Uuid;
 use webauthn_rs::prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration};
 
@@ -105,11 +106,51 @@ pub trait IdentityApi: Send + Sync + Clone {
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 
-    async fn list_groups_for_user<'a>(
+    /// List groups the user is a member of.
+    async fn list_groups_of_user<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError>;
+
+    /// Add the user to the single group.
+    async fn add_user_to_group<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_id: &'a str,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Add user group memberships as specified by (uid, gid) tuples.
+    async fn add_users_to_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        memberships: Vec<(&'a str, &'a str)>,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Remove the user from the single group.
+    async fn remove_user_from_group<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_id: &'a str,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Remove the user from specified groups.
+    async fn remove_user_from_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_ids: HashSet<&'a str>,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Set group memberships of the user.
+    async fn set_user_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_ids: HashSet<&'a str>,
+    ) -> Result<(), IdentityProviderError>;
 
     async fn list_user_passkeys<'a>(
         &self,
@@ -117,7 +158,7 @@ pub trait IdentityApi: Send + Sync + Clone {
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Passkey>, IdentityProviderError>;
 
-    /// Create passkey
+    /// Create passkey.
     async fn create_user_passkey<'a>(
         &self,
         db: &DatabaseConnection,
@@ -236,11 +277,45 @@ mock! {
             group_id: &'a str,
         ) -> Result<(), IdentityProviderError>;
 
-        async fn list_groups_for_user<'a>(
+        async fn list_groups_of_user<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
         ) -> Result<Vec<Group>, IdentityProviderError>;
+
+        async fn add_user_to_group<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+            group_id: &'a str,
+        ) -> Result<(), IdentityProviderError>;
+
+        async fn add_users_to_groups<'a>(
+            &self,
+            db: &DatabaseConnection,
+            memberships: Vec<(&'a str, &'a str)>
+        ) -> Result<(), IdentityProviderError>;
+
+        async fn remove_user_from_group<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+            group_id: &'a str,
+        ) -> Result<(), IdentityProviderError>;
+
+        async fn remove_user_from_groups<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+            group_ids: HashSet<&'a str>,
+        ) -> Result<(), IdentityProviderError>;
+
+        async fn set_user_groups<'a>(
+            &self,
+            db: &DatabaseConnection,
+            user_id: &'a str,
+            group_ids: HashSet<&'a str>,
+        ) -> Result<(), IdentityProviderError>;
 
         async fn list_user_passkeys<'a>(
             &self,
@@ -459,14 +534,73 @@ impl IdentityApi for IdentityProvider {
         self.backend_driver.delete_group(db, group_id).await
     }
 
-    /// List groups a user is a member of
+    /// List groups a user is a member of.
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn list_groups_for_user<'a>(
+    async fn list_groups_of_user<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError> {
-        self.backend_driver.list_groups_for_user(db, user_id).await
+        self.backend_driver.list_groups_of_user(db, user_id).await
+    }
+
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn add_user_to_group<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_id: &'a str,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .add_user_to_group(db, user_id, group_id)
+            .await
+    }
+
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn add_users_to_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        memberships: Vec<(&'a str, &'a str)>,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .add_users_to_groups(db, memberships)
+            .await
+    }
+
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn remove_user_from_group<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_id: &'a str,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .remove_user_from_group(db, user_id, group_id)
+            .await
+    }
+
+    #[tracing::instrument(level = "info", skip(self, db))]
+    async fn remove_user_from_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_ids: HashSet<&'a str>,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .remove_user_from_groups(db, user_id, group_ids)
+            .await
+    }
+
+    #[tracing::instrument(level = "debug", skip(self, db))]
+    async fn set_user_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_ids: HashSet<&'a str>,
+    ) -> Result<(), IdentityProviderError> {
+        self.backend_driver
+            .set_user_groups(db, user_id, group_ids)
+            .await
     }
 
     /// List user passkeys

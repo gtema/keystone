@@ -91,7 +91,7 @@ impl MsgPackToken for FederationUnscopedPayload {
         .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
         fernet_utils::write_list_of_uuids(wd, self.group_ids.iter())?;
         fernet_utils::write_uuid(wd, &self.idp_id)?;
-        fernet_utils::write_uuid(wd, &self.protocol_id)?;
+        fernet_utils::write_str(wd, &self.protocol_id)?;
         fernet_utils::write_time(wd, self.expires_at)?;
         fernet_utils::write_audit_ids(wd, self.audit_ids.clone())?;
 
@@ -109,7 +109,7 @@ impl MsgPackToken for FederationUnscopedPayload {
             .collect();
         let group_ids = fernet_utils::read_list_of_uuids(rd)?;
         let idp_id = fernet_utils::read_uuid(rd)?;
-        let protocol_id = fernet_utils::read_uuid(rd)?;
+        let protocol_id = fernet_utils::read_str(rd)?;
         let expires_at = fernet_utils::read_time(rd)?;
         let audit_ids: Vec<String> = fernet_utils::read_audit_ids(rd)?.into_iter().collect();
         Ok(Self {

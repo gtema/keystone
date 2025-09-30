@@ -36,8 +36,7 @@ pub async fn list(
     }
 
     if let Some(val) = &params.domain_ids {
-        let filter =
-            db_federated_identity_provider::Column::DomainId.is_in(val.iter().flatten());
+        let filter = db_federated_identity_provider::Column::DomainId.is_in(val.iter().flatten());
         select = if val.contains(&None) {
             select.filter(
                 Condition::any()
