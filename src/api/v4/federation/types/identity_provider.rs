@@ -357,7 +357,7 @@ impl TryFrom<IdentityProviderListParameters> for types::IdentityProviderListPara
     fn try_from(value: IdentityProviderListParameters) -> Result<Self, Self::Error> {
         Ok(Self {
             name: value.name,
-            domain_id: value.domain_id,
+            domain_ids: None, //value.domain_id,
         })
     }
 }

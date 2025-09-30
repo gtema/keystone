@@ -39,6 +39,7 @@ use crate::assignment::{
 };
 use crate::auth::{AuthenticatedInfo, AuthenticationError, AuthzInfo};
 use crate::config::{Config, TokenProvider as TokenProviderType};
+use crate::identity::IdentityApi;
 use crate::provider::Provider;
 use crate::resource::{
     ResourceApi,
@@ -244,6 +245,44 @@ impl TokenProvider {
             Err(TokenProviderError::FederatedPayloadMissingData)
         }
     }
+
+    async fn expand_user_information(
+        &self,
+        token: &mut Token,
+        db: &DatabaseConnection,
+        provider: &Provider,
+    ) -> Result<(), TokenProviderError> {
+        if token.user().is_none() {
+            let user = provider
+                .get_identity_provider()
+                .get_user(db, token.user_id())
+                .await?;
+            match token {
+                Token::ApplicationCredential(data) => {
+                    data.user = user;
+                }
+                Token::Unscoped(data) => {
+                    data.user = user;
+                }
+                Token::ProjectScope(data) => {
+                    data.user = user;
+                }
+                Token::DomainScope(data) => {
+                    data.user = user;
+                }
+                Token::FederationUnscoped(data) => {
+                    data.user = user;
+                }
+                Token::FederationProjectScope(data) => {
+                    data.user = user;
+                }
+                Token::FederationDomainScope(data) => {
+                    data.user = user;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -330,6 +369,7 @@ impl TokenApi for TokenProvider {
         {
             return Err(TokenProviderError::Expired);
         }
+
         Ok(token)
     }
 
@@ -536,6 +576,8 @@ impl TokenApi for TokenProvider {
 
             _ => {}
         };
+        self.expand_user_information(&mut new_token, db, provider)
+            .await?;
         self.populate_role_assignments(&mut new_token, db, provider)
             .await?;
         Ok(new_token)

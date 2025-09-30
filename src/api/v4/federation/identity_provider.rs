@@ -51,6 +51,7 @@ mod tests {
 
     use crate::config::Config;
     use crate::federation::MockFederationProvider;
+    use crate::identity::types::UserResponse;
     use crate::keystone::{Service, ServiceState};
     use crate::policy::{MockPolicy, MockPolicyFactory, PolicyError, PolicyEvaluationResult};
     use crate::provider::Provider;
@@ -59,6 +60,7 @@ mod tests {
     pub(crate) fn get_mocked_state(
         federation_mock: MockFederationProvider,
         policy_allowed: bool,
+        policy_allowed_see_other_domains: Option<bool>,
     ) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
         token_mock.expect_validate_token().returning(|_, _, _| {
@@ -72,6 +74,11 @@ mod tests {
             .returning(|_, _, _| {
                 Ok(Token::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
+                    user: Some(UserResponse {
+                        id: "bar".into(),
+                        domain_id: "udid".into(),
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 }))
             });
@@ -84,11 +91,17 @@ mod tests {
 
         let mut policy_factory_mock = MockPolicyFactory::default();
         if policy_allowed {
-            policy_factory_mock.expect_instantiate().returning(|| {
+            policy_factory_mock.expect_instantiate().returning(move || {
                 let mut policy_mock = MockPolicy::default();
-                policy_mock
-                    .expect_enforce()
-                    .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+                if policy_allowed_see_other_domains.is_some_and(|x| x) {
+                    policy_mock
+                        .expect_enforce()
+                        .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed_admin()));
+                } else {
+                    policy_mock
+                        .expect_enforce()
+                        .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+                }
                 Ok(policy_mock)
             });
         } else {

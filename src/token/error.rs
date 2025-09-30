@@ -161,6 +161,13 @@ pub enum TokenProviderError {
     },
 
     #[error(transparent)]
+    IndentityProvider {
+        /// The source of the error.
+        #[from]
+        source: crate::identity::error::IdentityProviderError,
+    },
+
+    #[error(transparent)]
     ResourceProvider {
         /// The source of the error.
         #[from]
