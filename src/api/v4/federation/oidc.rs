@@ -16,75 +16,38 @@
 use axum::{Json, debug_handler, extract::State, http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use eyre::WrapErr;
-use serde_json::Value;
-use tracing::debug;
+use std::collections::{HashMap, HashSet};
+use tracing::{debug, trace};
 use url::Url;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use openidconnect::core::{CoreGenderClaim, CoreProviderMetadata};
+use openidconnect::core::CoreProviderMetadata;
 use openidconnect::reqwest;
 use openidconnect::{
-    AuthorizationCode, ClientId, ClientSecret, IdTokenClaims, IssuerUrl, Nonce, PkceCodeVerifier,
-    RedirectUrl, TokenResponse,
+    AuthorizationCode, ClientId, ClientSecret, IssuerUrl, Nonce, PkceCodeVerifier, RedirectUrl,
+    TokenResponse,
 };
 
-use crate::api::common::{find_project_from_scope, get_domain};
 use crate::api::v4::auth::token::types::{
     Token as ApiResponseToken, TokenResponse as KeystoneTokenResponse,
 };
 use crate::api::v4::federation::error::OidcError;
 use crate::api::v4::federation::types::*;
 use crate::api::{Catalog, error::KeystoneApiError};
-use crate::auth::{AuthenticatedInfo, AuthenticationError, AuthzInfo};
+use crate::auth::{AuthenticatedInfo, AuthenticationError};
 use crate::catalog::CatalogApi;
 use crate::federation::FederationApi;
-use crate::federation::types::{
-    Scope as ProviderScope, identity_provider::IdentityProvider as ProviderIdentityProvider,
-    mapping::Mapping as ProviderMapping,
-};
 use crate::identity::IdentityApi;
 use crate::identity::error::IdentityProviderError;
 use crate::identity::types::{FederationBuilder, FederationProtocol, UserCreateBuilder};
+use crate::identity::types::{Group, GroupCreate, GroupListParameters};
 use crate::keystone::ServiceState;
 use crate::token::TokenApi;
 
+use super::common::{get_authz_info, map_user_data, validate_bound_claims};
+
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new().routes(routes!(callback))
-}
-
-/// Extract AuthZ information from the saved scope
-///
-/// # Arguments
-/// * `state`: The service state
-/// * `scope`: The scope to extract the AuthZ information from
-///
-/// # Returns
-/// * `AuthzInfo`: The AuthZ information
-/// * `KeystoneApiError`: An error if the scope is not valid
-async fn get_authz_info(
-    state: &ServiceState,
-    scope: Option<&ProviderScope>,
-) -> Result<AuthzInfo, KeystoneApiError> {
-    let authz_info = match scope {
-        Some(ProviderScope::Project(scope)) => {
-            if let Some(project) = find_project_from_scope(state, &scope.into()).await? {
-                AuthzInfo::Project(project)
-            } else {
-                return Err(KeystoneApiError::Unauthorized);
-            }
-        }
-        Some(ProviderScope::Domain(scope)) => {
-            if let Ok(domain) = get_domain(state, scope.id.as_ref(), scope.name.as_ref()).await {
-                AuthzInfo::Domain(domain)
-            } else {
-                return Err(KeystoneApiError::Unauthorized);
-            }
-        }
-        Some(ProviderScope::System(_scope)) => todo!(),
-        None => AuthzInfo::Unscoped,
-    };
-    authz_info.validate()?;
-    Ok(authz_info)
 }
 
 /// Authentication callback.
@@ -209,9 +172,11 @@ pub async fn callback(
     }
 
     let claims_as_json = serde_json::to_value(claims)?;
+    debug!("Claims data {claims_as_json}");
 
     validate_bound_claims(&mapping, claims, &claims_as_json)?;
-    let mapped_user_data = map_user_data(&idp, &mapping, &claims_as_json)?;
+    let mapped_user_data = map_user_data(&state, &idp, &mapping, &claims_as_json).await?;
+    debug!("Mapped user is {mapped_user_data:?}");
 
     let user = if let Some(existing_user) = state
         .provider
@@ -250,19 +215,78 @@ pub async fn callback(
             )
             .await?
     };
+
+    if let Some(necessary_group_names) = mapped_user_data.group_names {
+        let current_domain_groups: HashMap<String, String> = HashMap::from_iter(
+            state
+                .provider
+                .get_identity_provider()
+                .list_groups(
+                    &state.db,
+                    &GroupListParameters {
+                        domain_id: Some(user.domain_id.clone()),
+                        ..Default::default()
+                    },
+                )
+                .await?
+                .into_iter()
+                .map(|group| (group.name, group.id)),
+        );
+        let mut group_ids: HashSet<String> = HashSet::new();
+        for group_name in necessary_group_names {
+            group_ids.insert(
+                if let Some(grp_id) = current_domain_groups.get(&group_name) {
+                    grp_id.clone()
+                } else {
+                    state
+                        .provider
+                        .get_identity_provider()
+                        .create_group(
+                            &state.db,
+                            GroupCreate {
+                                domain_id: user.domain_id.clone(),
+                                name: group_name.clone(),
+                                ..Default::default()
+                            },
+                        )
+                        .await?
+                        .id
+                },
+            );
+        }
+        if !group_ids.is_empty() {
+            state
+                .provider
+                .get_identity_provider()
+                .set_user_groups(
+                    &state.db,
+                    &user.id,
+                    HashSet::from_iter(group_ids.iter().map(|i| i.as_str())),
+                )
+                .await?;
+        }
+    }
+    let user_groups: Vec<Group> = Vec::from_iter(
+        state
+            .provider
+            .get_identity_provider()
+            .list_groups_of_user(&state.db, &user.id)
+            .await?,
+    );
+
     let authed_info = AuthenticatedInfo::builder()
         .user_id(user.id.clone())
         .user(user.clone())
-        .methods(vec!["oidc".into()])
+        .methods(vec!["openid".into()])
         .idp_id(idp.id.clone())
         .protocol_id("oidc".to_string())
+        .user_groups(user_groups)
         .build()
         .map_err(AuthenticationError::from)?;
     authed_info.validate()?;
 
-    // TODO: Persist group memberships
-
     let authz_info = get_authz_info(&state, auth_state.scope.as_ref()).await?;
+    trace!("Granting the scope: {:?}", authz_info);
 
     let mut token = state
         .provider
@@ -287,7 +311,7 @@ pub async fn callback(
         .into();
     api_token.token.catalog = Some(catalog);
 
-    debug!("response is {:?}", api_token);
+    trace!("Token response is {:?}", api_token);
     Ok((
         StatusCode::OK,
         [(
@@ -297,119 +321,4 @@ pub async fn callback(
         Json(api_token),
     )
         .into_response())
-}
-
-/// Validate bound claims in the token
-///
-/// # Arguments
-///
-/// * `mapping` - The mapping to validate against
-/// * `claims` - The claims to validate
-/// * `claims_as_json` - The claims as json to validate
-///
-/// # Returns
-///
-/// * `Result<(), OidcError>`
-fn validate_bound_claims(
-    mapping: &ProviderMapping,
-    claims: &IdTokenClaims<AllOtherClaims, CoreGenderClaim>,
-    claims_as_json: &Value,
-) -> Result<(), OidcError> {
-    if let Some(bound_subject) = &mapping.bound_subject {
-        if bound_subject != claims.subject().as_str() {
-            return Err(OidcError::BoundSubjectMismatch {
-                expected: bound_subject.to_string(),
-                found: claims.subject().as_str().into(),
-            });
-        }
-    }
-    if let Some(bound_audiences) = &mapping.bound_audiences {
-        let mut bound_audiences_match: bool = false;
-        for claim_audience in claims.audiences() {
-            if bound_audiences.iter().any(|x| x == claim_audience.as_str()) {
-                bound_audiences_match = true;
-            }
-        }
-        if !bound_audiences_match {
-            return Err(OidcError::BoundAudiencesMismatch {
-                expected: bound_audiences.join(","),
-                found: claims
-                    .audiences()
-                    .iter()
-                    .map(|x| x.as_str())
-                    .collect::<Vec<_>>()
-                    .join(","),
-            });
-        }
-    }
-    if let Some(bound_claims) = &mapping.bound_claims {
-        if let Some(required_claims) = bound_claims.as_object() {
-            for (claim, value) in required_claims.iter() {
-                if !claims_as_json
-                    .get(claim)
-                    .map(|x| x == value)
-                    .is_some_and(|val| val)
-                {
-                    return Err(OidcError::BoundClaimsMismatch {
-                        claim: claim.to_string(),
-                        expected: value.to_string(),
-                        found: claims_as_json
-                            .get(claim)
-                            .map(|x| x.to_string())
-                            .unwrap_or_default(),
-                    });
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Map the user data using the referred mapping
-///
-/// # Arguments
-/// * `idp` - The identity provider
-/// * `mapping` - The mapping to use
-/// * `claims_as_json` - The claims as json
-///
-/// # Returns
-/// The mapped user data
-fn map_user_data(
-    idp: &ProviderIdentityProvider,
-    mapping: &ProviderMapping,
-    claims_as_json: &Value,
-) -> Result<MappedUserData, OidcError> {
-    let mut builder = MappedUserDataBuilder::default();
-    builder.unique_id(
-        claims_as_json
-            .get(&mapping.user_id_claim)
-            .and_then(|x| x.as_str())
-            .ok_or_else(|| OidcError::UserIdClaimRequired(mapping.user_id_claim.clone()))?,
-    );
-
-    builder.user_name(
-        claims_as_json
-            .get(&mapping.user_name_claim)
-            .and_then(|x| x.as_str())
-            .ok_or_else(|| OidcError::UserNameClaimRequired(mapping.user_name_claim.clone()))?,
-    );
-
-    builder.domain_id(
-        mapping
-            .domain_id
-            .as_ref()
-            .or(idp.domain_id.as_ref())
-            .or(mapping
-                .domain_id_claim
-                .as_ref()
-                .and_then(|claim| {
-                    claims_as_json
-                        .get(claim)
-                        .and_then(|x| x.as_str().map(|v| v.to_string()))
-                })
-                .as_ref())
-            .ok_or(OidcError::UserDomainUnbound)?,
-    );
-
-    Ok(builder.build()?)
 }

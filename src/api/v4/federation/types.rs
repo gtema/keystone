@@ -78,10 +78,12 @@ impl AdditionalClaims for AllOtherClaims {}
 pub(super) struct ExtraFields(HashMap<String, serde_json::Value>);
 impl ExtraTokenFields for ExtraFields {}
 
-#[derive(Builder, Clone)]
+#[derive(Builder, Debug, Clone)]
 #[builder(setter(into))]
 pub(super) struct MappedUserData {
     pub(super) unique_id: String,
     pub(super) user_name: String,
     pub(super) domain_id: String,
+    #[builder(default)]
+    pub(super) group_names: Option<Vec<String>>,
 }

@@ -12,6 +12,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashSet;
+
 pub mod group;
 pub mod user;
 
@@ -108,12 +110,51 @@ pub trait IdentityBackend: DynClone + Send + Sync + std::fmt::Debug {
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 
-    /// List groups a user is member of
-    async fn list_groups_for_user<'a>(
+    /// List groups a user is member of.
+    async fn list_groups_of_user<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Vec<Group>, IdentityProviderError>;
+
+    /// Add the user to the group.
+    async fn add_user_to_group<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_id: &'a str,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Add user group membership relations.
+    async fn add_users_to_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        memberships: Vec<(&'a str, &'a str)>,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Remove the user from the group
+    async fn remove_user_from_group<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_id: &'a str,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Remove the user from multiple groups.
+    async fn remove_user_from_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_ids: HashSet<&'a str>,
+    ) -> Result<(), IdentityProviderError>;
+
+    /// Set group memberships for the user.
+    async fn set_user_groups<'a>(
+        &self,
+        db: &DatabaseConnection,
+        user_id: &'a str,
+        group_ids: HashSet<&'a str>,
+    ) -> Result<(), IdentityProviderError>;
 
     /// List user passkeys
     async fn list_user_passkeys<'a>(

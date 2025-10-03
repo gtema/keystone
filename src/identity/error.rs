@@ -98,7 +98,7 @@ pub enum IdentityProviderError {
 impl From<IdentityDatabaseError> for IdentityProviderError {
     fn from(source: IdentityDatabaseError) -> Self {
         match source {
-            IdentityDatabaseError::Conflict(x) => Self::Conflict(x),
+            IdentityDatabaseError::Conflict { message, .. } => Self::Conflict(message),
             IdentityDatabaseError::UserNotFound(x) => Self::UserNotFound(x),
             IdentityDatabaseError::GroupNotFound(x) => Self::GroupNotFound(x),
             IdentityDatabaseError::Serde { source } => Self::Serde { source },

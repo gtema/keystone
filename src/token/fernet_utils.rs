@@ -14,7 +14,11 @@
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{DateTime, Utc};
-use rmp::{Marker, decode::*, encode::*};
+use rmp::{
+    Marker,
+    decode::*,
+    encode::{self, *},
+};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
@@ -98,9 +102,32 @@ pub fn read_bin_data<R: Read>(len: u32, rd: &mut R) -> Result<Vec<u8>, io::Error
     Ok(buf)
 }
 
-/// Read string data
+/// Read string data.
 pub fn read_str_data<R: Read>(len: u32, rd: &mut R) -> Result<String, io::Error> {
     Ok(String::from_utf8_lossy(&read_bin_data(len, rd)?).into_owned())
+}
+
+/// Write string.
+pub fn write_str<W: RmpWrite>(wd: &mut W, data: &str) -> Result<(), TokenProviderError> {
+    encode::write_str(wd, data).map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+    Ok(())
+}
+
+/// Read bytes as string.
+pub fn read_str<R: Read>(rd: &mut R) -> Result<String, TokenProviderError> {
+    match read_marker(rd).map_err(ValueReadError::from)? {
+        Marker::Bin8 => {
+            Ok(
+                String::from_utf8_lossy(&read_bin_data(read_pfix(rd)?.into(), rd)?).to_string(),
+            )
+        }
+        Marker::FixStr(len) => {
+            Ok(read_str_data(len.into(), rd)?)
+        }
+        other => {
+            Err(TokenProviderError::InvalidTokenUuidMarker(other))
+        }
+    }
 }
 
 /// Read the UUID from the payload

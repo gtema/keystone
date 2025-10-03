@@ -48,15 +48,18 @@ pub enum IdentityDatabaseError {
     },
 
     /// Conflict
-    #[error("{0}")]
-    Conflict(String),
+    #[error("{message}")]
+    Conflict { message: String, context: String },
 
     /// SqlError
-    #[error("{0}")]
-    Sql(String),
+    #[error("{message}")]
+    Sql { message: String, context: String },
 
-    #[error(transparent)]
-    Database { source: sea_orm::DbErr },
+    #[error("Database error while {context}")]
+    Database {
+        source: sea_orm::DbErr,
+        context: String,
+    },
 
     #[error("password hashing error")]
     PasswordHash {
@@ -68,15 +71,32 @@ pub enum IdentityDatabaseError {
     UserIdOrNameWithDomain,
 }
 
+/// Convert the DB error into the IdentityDatabaseError with the context information.
+pub fn db_err(e: sea_orm::DbErr, context: &str) -> IdentityDatabaseError {
+    e.sql_err().map_or_else(
+        || IdentityDatabaseError::Database {
+            source: e,
+            context: context.to_string(),
+        },
+        |err| match err {
+            SqlErr::UniqueConstraintViolation(descr) => IdentityDatabaseError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
+            },
+            SqlErr::ForeignKeyConstraintViolation(descr) => IdentityDatabaseError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
+            },
+            other => IdentityDatabaseError::Sql {
+                message: other.to_string(),
+                context: context.to_string(),
+            },
+        },
+    )
+}
+
 impl From<sea_orm::DbErr> for IdentityDatabaseError {
     fn from(err: sea_orm::DbErr) -> Self {
-        err.sql_err().map_or_else(
-            || Self::Database { source: err },
-            |err| match err {
-                SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
-                SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
-                other => Self::Sql(other.to_string()),
-            },
-        )
+        db_err(err, "unknown")
     }
 }

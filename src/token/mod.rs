@@ -202,7 +202,14 @@ impl TokenProvider {
                     )
                     .idp_id(idp_id)
                     .protocol_id(protocol_id)
-                    .group_ids(vec![])
+                    .group_ids(
+                        authentication_info
+                            .user_groups
+                            .clone()
+                            .iter()
+                            .map(|grp| grp.id.clone())
+                            .collect::<Vec<_>>(),
+                    )
                     .project_id(project.id.clone())
                     .project(project.clone())
                     .build()?,
@@ -237,6 +244,14 @@ impl TokenProvider {
                     )
                     .idp_id(idp_id)
                     .protocol_id(protocol_id)
+                    .group_ids(
+                        authentication_info
+                            .user_groups
+                            .clone()
+                            .iter()
+                            .map(|grp| grp.id.clone())
+                            .collect::<Vec<_>>(),
+                    )
                     .domain_id(domain.id.clone())
                     .domain(domain.clone())
                     .build()?,
@@ -360,6 +375,7 @@ impl TokenApi for TokenProvider {
         window_seconds: Option<i64>,
     ) -> Result<Token, TokenProviderError> {
         let token = self.backend_driver.decode(credential)?;
+        tracing::debug!("Token is {:?}", token);
         if Local::now().to_utc()
             > token
                 .expires_at()
@@ -373,6 +389,7 @@ impl TokenApi for TokenProvider {
         Ok(token)
     }
 
+    #[tracing::instrument(level = "debug", skip(self))]
     fn issue_token(
         &self,
         authentication_info: AuthenticatedInfo,
@@ -506,6 +523,62 @@ impl TokenApi for TokenProvider {
                     })
                     .collect();
                 if data.roles.is_empty() {
+                    return Err(TokenProviderError::ActorHasNoRolesOnTarget);
+                }
+            }
+            Token::FederationProjectScope(data) => {
+                data.roles = Some(
+                    provider
+                        .get_assignment_provider()
+                        .list_role_assignments(
+                            db,
+                            provider,
+                            &RoleAssignmentListParametersBuilder::default()
+                                .user_id(&data.user_id)
+                                .project_id(&data.project_id)
+                                .include_names(true)
+                                .effective(true)
+                                .build()
+                                .map_err(AssignmentProviderError::from)?,
+                        )
+                        .await?
+                        .into_iter()
+                        .map(|x| Role {
+                            id: x.role_id.clone(),
+                            name: x.role_name.clone().unwrap_or_default(),
+                            ..Default::default()
+                        })
+                        .collect(),
+                );
+                if data.roles.as_ref().is_none_or(|roles| roles.is_empty()) {
+                    return Err(TokenProviderError::ActorHasNoRolesOnTarget);
+                }
+            }
+            Token::FederationDomainScope(data) => {
+                data.roles = Some(
+                    provider
+                        .get_assignment_provider()
+                        .list_role_assignments(
+                            db,
+                            provider,
+                            &RoleAssignmentListParametersBuilder::default()
+                                .user_id(&data.user_id)
+                                .domain_id(&data.domain_id)
+                                .include_names(true)
+                                .effective(true)
+                                .build()
+                                .map_err(AssignmentProviderError::from)?,
+                        )
+                        .await?
+                        .into_iter()
+                        .map(|x| Role {
+                            id: x.role_id.clone(),
+                            name: x.role_name.clone().unwrap_or_default(),
+                            ..Default::default()
+                        })
+                        .collect(),
+                );
+                if data.roles.as_ref().is_none_or(|roles| roles.is_empty()) {
                     return Err(TokenProviderError::ActorHasNoRolesOnTarget);
                 }
             }

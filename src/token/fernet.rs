@@ -110,6 +110,11 @@ pub(crate) fn encode_auth_methods<I: IntoIterator<Item = String>>(
     let res = auth_map
         .iter()
         .fold(0, |acc, (k, v)| acc + if me.contains(v) { *k } else { 0 });
+
+    // TODO: Improve unit tests to ensure unsupporte auth method immediately raises error.
+    if res == 0 {
+        return Err(TokenProviderError::UnsupportedAuthMethods);
+    }
     Ok(res)
 }
 

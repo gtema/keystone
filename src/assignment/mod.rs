@@ -1,7 +1,6 @@
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-//
 //     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
@@ -163,7 +162,7 @@ impl AssignmentApi for AssignmentProvider {
                 if let Some(uid) = &params.user_id {
                     let users = provider
                         .get_identity_provider()
-                        .list_groups_for_user(db, uid)
+                        .list_groups_of_user(db, uid)
                         .await?;
                     actors.extend(users.into_iter().map(|x| x.id));
                 };

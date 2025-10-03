@@ -14,12 +14,13 @@
 
 use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
+use sea_orm::sea_query::OnConflict;
 
 use crate::config::Config;
 use crate::db::entity::{
     federated_identity_provider as db_federated_identity_provider,
     federation_protocol as db_old_federation_protocol,
-    identity_provider as db_old_identity_provider,
+    identity_provider as db_old_identity_provider, mapping as db_old_mapping,
 };
 use crate::federation::backends::error::FederationDatabaseError;
 use crate::federation::types::*;
@@ -85,7 +86,7 @@ pub async fn create(
     // constraints working
     db_old_identity_provider::ActiveModel {
         id: Set(idp.id.clone()),
-        enabled: Set(false),
+        enabled: Set(true),
         description: Set(Some(idp.name.clone())),
         domain_id: Set(idp.domain_id.clone().unwrap_or("<<null>>".into())),
         authorization_ttl: NotSet,
@@ -96,7 +97,7 @@ pub async fn create(
     db_old_federation_protocol::ActiveModel {
         id: Set("oidc".into()),
         idp_id: Set(idp.id.clone()),
-        mapping_id: Set("<<null>>".into()),
+        mapping_id: Set("dummy".into()),
         remote_id_attribute: NotSet,
     }
     .insert(db)
@@ -105,10 +106,26 @@ pub async fn create(
     db_old_federation_protocol::ActiveModel {
         id: Set("jwt".into()),
         idp_id: Set(idp.id.clone()),
-        mapping_id: Set("<<null>>".into()),
+        mapping_id: Set("dummy".into()),
         remote_id_attribute: NotSet,
     }
     .insert(db)
+    .await?;
+
+    db_old_mapping::Entity::insert(db_old_mapping::ActiveModel {
+        id: Set("dummy".into()),
+        rules: Set(Some("\"[]\"".into())),
+        schema_version: Set("1.0".into()),
+    })
+    .on_conflict(
+        OnConflict::column(db_old_mapping::Column::Id)
+            // Special handling for
+            // [mysql](https://docs.rs/sea-query/0.32.7/sea_query/query/struct.OnConflict.html#method.do_nothing_on)
+            .do_nothing_on([db_old_mapping::Column::Id])
+            .to_owned(),
+    )
+    .on_empty_do_nothing()
+    .exec(db)
     .await?;
 
     db_entry.try_into()
@@ -116,7 +133,7 @@ pub async fn create(
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
+    use sea_orm::{DatabaseBackend, MockDatabase, MockExecResult, Transaction};
     use serde_json::json;
 
     use crate::config::Config;
@@ -132,6 +149,10 @@ mod tests {
             .append_query_results([vec![get_old_idp_mock("1")]])
             .append_query_results([vec![get_old_proto_mock("1")]])
             .append_query_results([vec![get_old_proto_mock("2")]])
+            .append_exec_results([MockExecResult {
+                rows_affected: 1,
+                ..Default::default()
+            }])
             .into_connection();
         let config = Config::default();
 
@@ -181,17 +202,22 @@ mod tests {
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
                     r#"INSERT INTO "identity_provider" ("id", "enabled", "description", "domain_id") VALUES ($1, $2, $3, $4) RETURNING "id", "enabled", "description", "domain_id", "authorization_ttl""#,
-                    ["1".into(), false.into(), "idp".into(), "foo_domain".into(),]
+                    ["1".into(), true.into(), "idp".into(), "foo_domain".into(),]
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
                     r#"INSERT INTO "federation_protocol" ("id", "idp_id", "mapping_id") VALUES ($1, $2, $3) RETURNING "id", "idp_id", "mapping_id", "remote_id_attribute""#,
-                    ["oidc".into(), "1".into(), "<<null>>".into()]
+                    ["oidc".into(), "1".into(), "dummy".into()]
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
                     r#"INSERT INTO "federation_protocol" ("id", "idp_id", "mapping_id") VALUES ($1, $2, $3) RETURNING "id", "idp_id", "mapping_id", "remote_id_attribute""#,
-                    ["jwt".into(), "1".into(), "<<null>>".into()]
+                    ["jwt".into(), "1".into(), "dummy".into()]
+                ),
+                Transaction::from_sql_and_values(
+                    DatabaseBackend::Postgres,
+                    r#"INSERT INTO "mapping" ("id", "rules", "schema_version") VALUES ($1, $2, $3) ON CONFLICT ("id") DO NOTHING RETURNING "id""#,
+                    ["dummy".into(), "\"[]\"".into(), "1.0".into()]
                 ),
             ]
         );

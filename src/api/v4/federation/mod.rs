@@ -22,6 +22,7 @@ use utoipa_axum::router::OpenApiRouter;
 use crate::keystone::ServiceState;
 
 pub mod auth;
+mod common;
 pub mod error;
 pub mod identity_provider;
 pub mod jwt;

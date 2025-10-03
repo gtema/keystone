@@ -169,7 +169,7 @@ async fn groups(
     let groups: Vec<Group> = state
         .provider
         .get_identity_provider()
-        .list_groups_for_user(&state.db, &user_id)
+        .list_groups_of_user(&state.db, &user_id)
         .await
         .map_err(KeystoneApiError::identity)?
         .into_iter()
@@ -477,7 +477,7 @@ mod tests {
     async fn test_groups() {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
-            .expect_list_groups_for_user()
+            .expect_list_groups_of_user()
             .withf(|_: &DatabaseConnection, uid: &str| uid == "foo")
             .returning(|_, _| {
                 Ok(vec![Group {

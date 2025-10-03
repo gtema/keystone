@@ -40,6 +40,9 @@ pub enum OidcError {
     #[error("mapping id or mapping name with idp id must be specified")]
     MappingIdOrNameWithIdp,
 
+    #[error("groups claim must be an array of strings")]
+    GroupsClaimNotArrayOfStrings,
+
     #[error("request token error")]
     RequestToken { msg: String },
 
@@ -108,7 +111,7 @@ pub enum OidcError {
     },
 
     /// Authentication expired.
-    #[error("Authentication expired")]
+    #[error("authentication expired")]
     AuthStateExpired,
 
     /// Cannot use OIDC attribute mapping for JWT login.
@@ -160,6 +163,9 @@ impl From<OidcError> for KeystoneApiError {
             }
             OidcError::MappingIdOrNameWithIdp => {
                 KeystoneApiError::BadRequest("Federated authentication requires mapping being specified in the payload either with ID or name with identity provider id.".to_string())
+            }
+            OidcError::GroupsClaimNotArrayOfStrings => {
+                KeystoneApiError::BadRequest("Groups claim must be an array of strings representing group names.".to_string())
             }
             OidcError::RequestToken { msg } => {
                 KeystoneApiError::BadRequest(format!("Error exchanging authorization code for the authorization token: {msg}"))

@@ -210,7 +210,7 @@ async fn post(
     tag="auth"
 )]
 #[tracing::instrument(
-    name = "api::token_get",
+    name = "api::v3::token_get",
     level = "debug",
     skip(state, headers, user_auth, policy)
 )]
