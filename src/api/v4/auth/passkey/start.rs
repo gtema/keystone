@@ -38,7 +38,7 @@ use crate::keystone::ServiceState;
     tags = ["passkey", "auth"]
 )]
 #[tracing::instrument(
-    name = "api::user_passkey_authentication_start",
+    name = "api::user_webauthn_credential_authentication_start",
     level = "debug",
     skip(state)
 )]
@@ -50,12 +50,12 @@ pub(super) async fn start(
     state
         .provider
         .get_identity_provider()
-        .delete_user_passkey_authentication_state(&state.db, &req.passkey.user_id)
+        .delete_user_webauthn_credential_authentication_state(&state.db, &req.passkey.user_id)
         .await?;
     let allow_credentials: Vec<Passkey> = state
         .provider
         .get_identity_provider()
-        .list_user_passkeys(&state.db, &req.passkey.user_id)
+        .list_user_webauthn_credentials(&state.db, &req.passkey.user_id)
         .await?
         .into_iter()
         .collect();
@@ -67,7 +67,11 @@ pub(super) async fn start(
             state
                 .provider
                 .get_identity_provider()
-                .save_user_passkey_authentication_state(&state.db, &req.passkey.user_id, auth_state)
+                .save_user_webauthn_credential_authentication_state(
+                    &state.db,
+                    &req.passkey.user_id,
+                    auth_state,
+                )
                 .await?;
             Json(PasskeyAuthenticationStartResponse::from(rcr))
         }

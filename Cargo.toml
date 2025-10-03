@@ -63,9 +63,10 @@ utoipa-axum = { version = "0.2" }
 utoipa-swagger-ui = { version = "9.0", features = ["axum", "vendored"], default-features = false }
 uuid = { version = "1.18", features = ["v4"] }
 webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
-webauthn-rs-proto = "0.5.2"
+webauthn-rs-proto = { version = "0.5" }
 
 [dev-dependencies]
+base64urlsafedata = "0.5"
 criterion = { version = "0.7", features = ["async_tokio"] }
 http-body-util = "0.1"
 hyper = { version = "1.7", features = ["http1"] }
@@ -79,6 +80,7 @@ tempfile = { version = "3.22" }
 thirtyfour = "0.36"
 tracing-test = { version = "0.2" }
 url = { version = "2.5" }
+webauthn-rs = { version = "0.5", features = ["danger-credential-internals"] }
 
 [features]
 default = []

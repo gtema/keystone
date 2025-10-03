@@ -23,12 +23,11 @@ mod common;
 mod federated_user;
 mod group;
 mod local_user;
-mod passkey;
-mod passkey_state;
 mod password;
 mod user;
 mod user_group;
 mod user_option;
+mod webauthn;
 
 use super::super::types::*;
 use crate::auth::{AuthenticatedInfo, AuthenticationError};
@@ -263,87 +262,88 @@ impl IdentityBackend for SqlBackend {
         Ok(user_group::set_user_groups(db, user_id, group_ids).await?)
     }
 
-    /// Create passkey
+    /// Create webauthn credential for the user.
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn create_user_passkey<'a>(
+    async fn create_user_webauthn_credential<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
-        passkey: Passkey,
-    ) -> Result<(), IdentityProviderError> {
-        Ok(passkey::create(db, user_id, passkey).await?)
+        credential: &Passkey,
+        description: Option<&'a str>,
+    ) -> Result<WebauthnCredential, IdentityProviderError> {
+        Ok(webauthn::credential::create(db, user_id, credential, description, None).await?)
     }
 
-    /// List user passkeys
+    /// List user webauthn credentials.
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn list_user_passkeys<'a>(
+    async fn list_user_webauthn_credentials<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Vec<Passkey>, IdentityProviderError> {
-        Ok(passkey::list(db, user_id).await?)
+        Ok(webauthn::credential::list(db, user_id).await?)
     }
 
-    /// Save passkey registration state
+    /// Save webauthn credential registration state.
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn create_user_passkey_registration_state<'a>(
+    async fn create_user_webauthn_credential_registration_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
         state: PasskeyRegistration,
     ) -> Result<(), IdentityProviderError> {
-        Ok(passkey_state::create_register(db, user_id, state).await?)
+        Ok(webauthn::state::create_register(db, user_id, state).await?)
     }
 
-    /// Save passkey auth state
+    /// Save webauthn credential auth state.
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn create_user_passkey_authentication_state<'a>(
+    async fn create_user_webauthn_credential_authentication_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
         state: PasskeyAuthentication,
     ) -> Result<(), IdentityProviderError> {
-        Ok(passkey_state::create_auth(db, user_id, state).await?)
+        Ok(webauthn::state::create_auth(db, user_id, state).await?)
     }
 
-    /// Get passkey registration state
+    /// Get webauthn credential registration state.
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn get_user_passkey_registration_state<'a>(
+    async fn get_user_webauthn_credential_registration_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Option<PasskeyRegistration>, IdentityProviderError> {
-        Ok(passkey_state::get_register(db, user_id).await?)
+        Ok(webauthn::state::get_register(db, user_id).await?)
     }
 
-    /// Get passkey auth state
+    /// Get webauthn credential auth state.
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn get_user_passkey_authentication_state<'a>(
+    async fn get_user_webauthn_credential_authentication_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError> {
-        Ok(passkey_state::get_auth(db, user_id).await?)
+        Ok(webauthn::state::get_auth(db, user_id).await?)
     }
 
-    /// Delete passkey registration state for a user
+    /// Delete webauthn credential registration state for the user.
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn delete_user_passkey_registration_state<'a>(
+    async fn delete_user_webauthn_credential_registration_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        Ok(passkey_state::delete(db, user_id).await?)
+        Ok(webauthn::state::delete(db, user_id).await?)
     }
 
-    /// Delete passkey auth state for a user
+    /// Delete webauthn credential auth state for a user.
     #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn delete_user_passkey_authentication_state<'a>(
+    async fn delete_user_webauthn_credential_authentication_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        Ok(passkey_state::delete(db, user_id).await?)
+        Ok(webauthn::state::delete(db, user_id).await?)
     }
 }
 

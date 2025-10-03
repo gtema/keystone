@@ -161,7 +161,7 @@ pub enum TokenProviderError {
     },
 
     #[error(transparent)]
-    IndentityProvider {
+    IdentityProvider {
         /// The source of the error.
         #[from]
         source: crate::identity::error::IdentityProviderError,

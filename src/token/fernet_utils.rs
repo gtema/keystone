@@ -117,16 +117,10 @@ pub fn write_str<W: RmpWrite>(wd: &mut W, data: &str) -> Result<(), TokenProvide
 pub fn read_str<R: Read>(rd: &mut R) -> Result<String, TokenProviderError> {
     match read_marker(rd).map_err(ValueReadError::from)? {
         Marker::Bin8 => {
-            Ok(
-                String::from_utf8_lossy(&read_bin_data(read_pfix(rd)?.into(), rd)?).to_string(),
-            )
+            Ok(String::from_utf8_lossy(&read_bin_data(read_pfix(rd)?.into(), rd)?).to_string())
         }
-        Marker::FixStr(len) => {
-            Ok(read_str_data(len.into(), rd)?)
-        }
-        other => {
-            Err(TokenProviderError::InvalidTokenUuidMarker(other))
-        }
+        Marker::FixStr(len) => Ok(read_str_data(len.into(), rd)?),
+        other => Err(TokenProviderError::InvalidTokenUuidMarker(other)),
     }
 }
 

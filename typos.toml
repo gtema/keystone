@@ -40,6 +40,7 @@ wher = "wher"
 [type.rust.extend-words]
 ro = "ro"
 ser = "ser"
+COSE = "COSE"
 
 [type.lock]
 extend-glob = []

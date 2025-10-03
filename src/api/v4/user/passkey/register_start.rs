@@ -57,7 +57,7 @@ use crate::policy::Policy;
     tags = ["users", "passkey"]
 )]
 #[tracing::instrument(
-    name = "api::user_passkey_register_start",
+    name = "api::user_webauthn_credential_register_start",
     level = "debug",
     skip(state, policy),
     err(Debug)
@@ -93,7 +93,7 @@ pub(super) async fn start(
     state
         .provider
         .get_identity_provider()
-        .delete_user_passkey_registration_state(&state.db, &user_id)
+        .delete_user_webauthn_credential_registration_state(&state.db, &user_id)
         .await?;
     let res = match state.webauthn.start_passkey_registration(
         Uuid::parse_str(&user_id)?,
@@ -104,11 +104,10 @@ pub(super) async fn start(
         None,
     ) {
         Ok((ccr, reg_state)) => {
-            //println!("The data is {:?}", serde_json::to_string(&ccr));
             state
                 .provider
                 .get_identity_provider()
-                .save_user_passkey_registration_state(&state.db, &user_id, reg_state)
+                .save_user_webauthn_credential_registration_state(&state.db, &user_id, reg_state)
                 .await?;
             Json(UserPasskeyRegistrationStartResponse::try_from(ccr)?)
         }
