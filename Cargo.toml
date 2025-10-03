@@ -71,12 +71,12 @@ criterion = { version = "0.7", features = ["async_tokio"] }
 http-body-util = "0.1"
 hyper = { version = "1.7", features = ["http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "http1"] }
-keycloak = { version = "26.2" }
+keycloak = { version = "26.3" }
 mockall = { version = "0.13" }
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 sea-orm = { version = "1.1", features = ["mock"]}
 serde_urlencoded = { version = "0.7" }
-tempfile = { version = "3.22" }
+tempfile = { version = "3.23" }
 thirtyfour = "0.36"
 tracing-test = { version = "0.2" }
 url = { version = "2.5" }
