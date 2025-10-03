@@ -49,7 +49,7 @@ use crate::policy::Policy;
     tags = ["users", "passkey"]
 )]
 #[tracing::instrument(
-    name = "api::user_passkey_register_finish",
+    name = "api::user_webauthn_credential_register_finish",
     level = "debug",
     skip(state, policy, req),
     err(Debug)
@@ -85,10 +85,11 @@ pub(super) async fn finish(
     if let Some(s) = state
         .provider
         .get_identity_provider()
-        .get_user_passkey_registration_state(&state.db, &user_id)
+        .get_user_webauthn_credential_registration_state(&state.db, &user_id)
         .await?
     {
-        match state
+        let credential_description = req.description.clone();
+        let passkey = match state
             .webauthn
             .finish_passkey_registration(&req.try_into()?, &s)
         {
@@ -96,8 +97,13 @@ pub(super) async fn finish(
                 state
                     .provider
                     .get_identity_provider()
-                    .create_user_passkey(&state.db, &user_id, sk)
-                    .await?;
+                    .create_user_webauthn_credential(
+                        &state.db,
+                        &user_id,
+                        &sk,
+                        credential_description.as_deref(),
+                    )
+                    .await?
             }
             Err(e) => {
                 debug!("challenge_register -> {:?}", e);
@@ -107,12 +113,12 @@ pub(super) async fn finish(
         state
             .provider
             .get_identity_provider()
-            .delete_user_passkey_registration_state(&state.db, &user_id)
+            .delete_user_webauthn_credential_registration_state(&state.db, &user_id)
             .await?;
+        Ok((StatusCode::CREATED, Json(PasskeyResponse::from(passkey))).into_response())
     } else {
         return Err(WebauthnError::Unknown)?;
     }
-    Ok((StatusCode::CREATED).into_response())
 }
 
 impl TryFrom<UserPasskeyRegistrationFinishRequest>

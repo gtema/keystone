@@ -31,7 +31,7 @@ use crate::identity::backends::sql::SqlBackend;
 use crate::identity::error::IdentityProviderError;
 use crate::identity::types::{
     Group, GroupCreate, GroupListParameters, IdentityBackend, UserCreate, UserListParameters,
-    UserPasswordAuthRequest, UserResponse,
+    UserPasswordAuthRequest, UserResponse, WebauthnCredential,
 };
 use crate::plugin_manager::PluginManager;
 use crate::provider::Provider;
@@ -152,55 +152,56 @@ pub trait IdentityApi: Send + Sync + Clone {
         group_ids: HashSet<&'a str>,
     ) -> Result<(), IdentityProviderError>;
 
-    async fn list_user_passkeys<'a>(
+    async fn list_user_webauthn_credentials<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Passkey>, IdentityProviderError>;
 
     /// Create passkey.
-    async fn create_user_passkey<'a>(
+    async fn create_user_webauthn_credential<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
-        passkey: Passkey,
-    ) -> Result<(), IdentityProviderError>;
+        passkey: &Passkey,
+        description: Option<&'a str>,
+    ) -> Result<WebauthnCredential, IdentityProviderError>;
 
-    async fn save_user_passkey_registration_state<'a>(
+    async fn save_user_webauthn_credential_registration_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
         state: PasskeyRegistration,
     ) -> Result<(), IdentityProviderError>;
 
-    async fn save_user_passkey_authentication_state<'a>(
+    async fn save_user_webauthn_credential_authentication_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
         state: PasskeyAuthentication,
     ) -> Result<(), IdentityProviderError>;
 
-    async fn get_user_passkey_registration_state<'a>(
+    async fn get_user_webauthn_credential_registration_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Option<PasskeyRegistration>, IdentityProviderError>;
 
-    async fn get_user_passkey_authentication_state<'a>(
+    async fn get_user_webauthn_credential_authentication_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError>;
 
     /// Delete passkey registration state of a user
-    async fn delete_user_passkey_registration_state<'a>(
+    async fn delete_user_webauthn_credential_registration_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 
     /// Delete passkey registration state of a user
-    async fn delete_user_passkey_authentication_state<'a>(
+    async fn delete_user_webauthn_credential_authentication_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
@@ -317,52 +318,53 @@ mock! {
             group_ids: HashSet<&'a str>,
         ) -> Result<(), IdentityProviderError>;
 
-        async fn list_user_passkeys<'a>(
+        async fn list_user_webauthn_credentials<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
         ) -> Result<Vec<Passkey>, IdentityProviderError>;
 
-        async fn create_user_passkey<'a>(
+        async fn create_user_webauthn_credential<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
-            passkey: Passkey,
-        ) -> Result<(), IdentityProviderError>;
+            passkey: &Passkey,
+            description: Option<&'a str>
+        ) -> Result<WebauthnCredential, IdentityProviderError>;
 
-        async fn save_user_passkey_registration_state<'a>(
+        async fn save_user_webauthn_credential_registration_state<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
             state: PasskeyRegistration,
         ) -> Result<(), IdentityProviderError>;
 
-        async fn save_user_passkey_authentication_state<'a>(
+        async fn save_user_webauthn_credential_authentication_state<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
             state: PasskeyAuthentication,
         ) -> Result<(), IdentityProviderError>;
 
-        async fn get_user_passkey_registration_state<'a>(
+        async fn get_user_webauthn_credential_registration_state<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
         ) -> Result<Option<PasskeyRegistration>, IdentityProviderError>;
 
-        async fn get_user_passkey_authentication_state<'a>(
+        async fn get_user_webauthn_credential_authentication_state<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
         ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError>;
 
-        async fn delete_user_passkey_registration_state<'a>(
+        async fn delete_user_webauthn_credential_registration_state<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
         ) -> Result<(), IdentityProviderError>;
 
-        async fn delete_user_passkey_authentication_state<'a>(
+        async fn delete_user_webauthn_credential_authentication_state<'a>(
             &self,
             db: &DatabaseConnection,
             user_id: &'a str,
@@ -603,100 +605,103 @@ impl IdentityApi for IdentityProvider {
             .await
     }
 
-    /// List user passkeys
+    /// List user passkeys.
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn list_user_passkeys<'a>(
+    async fn list_user_webauthn_credentials<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Passkey>, IdentityProviderError> {
-        self.backend_driver.list_user_passkeys(db, user_id).await
+        self.backend_driver
+            .list_user_webauthn_credentials(db, user_id)
+            .await
     }
 
-    /// Create passkey
+    /// Create passkey.
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn create_user_passkey<'a>(
+    async fn create_user_webauthn_credential<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
-        passkey: Passkey,
-    ) -> Result<(), IdentityProviderError> {
+        credential: &Passkey,
+        description: Option<&'a str>,
+    ) -> Result<WebauthnCredential, IdentityProviderError> {
         self.backend_driver
-            .create_user_passkey(db, user_id, passkey)
+            .create_user_webauthn_credential(db, user_id, credential, description)
             .await
     }
 
     /// Save passkey registration state
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn save_user_passkey_registration_state<'a>(
+    async fn save_user_webauthn_credential_registration_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
         state: PasskeyRegistration,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .create_user_passkey_registration_state(db, user_id, state)
+            .create_user_webauthn_credential_registration_state(db, user_id, state)
             .await
     }
 
     /// Save passkey authentication state
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn save_user_passkey_authentication_state<'a>(
+    async fn save_user_webauthn_credential_authentication_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
         state: PasskeyAuthentication,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .create_user_passkey_authentication_state(db, user_id, state)
+            .create_user_webauthn_credential_authentication_state(db, user_id, state)
             .await
     }
 
     /// Get passkey registration state
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn get_user_passkey_registration_state<'a>(
+    async fn get_user_webauthn_credential_registration_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Option<PasskeyRegistration>, IdentityProviderError> {
         self.backend_driver
-            .get_user_passkey_registration_state(db, user_id)
+            .get_user_webauthn_credential_registration_state(db, user_id)
             .await
     }
 
     /// Get passkey authentication state
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn get_user_passkey_authentication_state<'a>(
+    async fn get_user_webauthn_credential_authentication_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError> {
         self.backend_driver
-            .get_user_passkey_authentication_state(db, user_id)
+            .get_user_webauthn_credential_authentication_state(db, user_id)
             .await
     }
 
     /// Delete passkey registration state of a user
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn delete_user_passkey_registration_state<'a>(
+    async fn delete_user_webauthn_credential_registration_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .delete_user_passkey_authentication_state(db, user_id)
+            .delete_user_webauthn_credential_authentication_state(db, user_id)
             .await
     }
 
     /// Delete passkey authentication state of a user
     #[tracing::instrument(level = "info", skip(self, db))]
-    async fn delete_user_passkey_authentication_state<'a>(
+    async fn delete_user_webauthn_credential_authentication_state<'a>(
         &self,
         db: &DatabaseConnection,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .delete_user_passkey_authentication_state(db, user_id)
+            .delete_user_webauthn_credential_authentication_state(db, user_id)
             .await
     }
 }

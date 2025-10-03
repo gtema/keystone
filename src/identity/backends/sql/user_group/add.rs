@@ -37,7 +37,7 @@ pub async fn add_user_to_group<U: AsRef<str>, G: AsRef<str>>(
     Ok(())
 }
 
-/// Add group user relations as speified by the tuples (user_id, group_id) iterator.
+/// Add group user relations as specified by the tuples (user_id, group_id) iterator.
 pub async fn add_users_to_groups<I, U, G>(
     db: &DatabaseConnection,
     iter: I,

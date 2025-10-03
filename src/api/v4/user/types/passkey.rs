@@ -29,7 +29,7 @@ pub struct UserPasskeyRegistrationStartRequest {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct PasskeyCreate {
     /// Passkey description
-    #[schema(nullable = false)]
+    #[schema(nullable = false, max_length = 64)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
@@ -416,6 +416,10 @@ pub enum UserVerificationPolicy {
 /// https://w3c.github.io/webauthn/#iface-pkcredential
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserPasskeyRegistrationFinishRequest {
+    /// Optional credential description.
+    #[schema(nullable = false, max_length = 64)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// The id of the PublicKey credential, likely in base64.
     ///
     /// This is NEVER actually used in a real registration, because the true credential ID is taken
@@ -486,4 +490,21 @@ pub struct CredProps {
     ///
     /// Note that this extension is UNSIGNED and may have been altered by page javascript.
     pub rk: bool,
+}
+
+impl From<crate::identity::types::WebauthnCredential> for PasskeyResponse {
+    fn from(value: crate::identity::types::WebauthnCredential) -> Self {
+        Self {
+            passkey: value.into(),
+        }
+    }
+}
+
+impl From<crate::identity::types::WebauthnCredential> for Passkey {
+    fn from(value: crate::identity::types::WebauthnCredential) -> Self {
+        Self {
+            credential_id: value.credential_id,
+            description: value.description,
+        }
+    }
 }

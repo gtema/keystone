@@ -9,6 +9,7 @@ pub struct Model {
     pub id: i32,
     pub user_id: String,
     pub credential_id: String,
+    pub description: Option<String>,
     pub passkey: String,
     pub r#type: String,
     pub aaguid: Option<String>,
