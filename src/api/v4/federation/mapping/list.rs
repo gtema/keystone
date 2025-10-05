@@ -153,9 +153,8 @@ mod tests {
                 bound_subject: None,
                 bound_claims: None,
                 oidc_scopes: None,
-                token_user_id: None,
-                token_role_ids: None,
-                token_project_id: None
+                token_project_id: None,
+                token_restriction_id: None
             }],
             res.mappings
         );
@@ -193,9 +192,8 @@ mod tests {
                     bound_subject: None,
                     bound_claims: None,
                     oidc_scopes: None,
-                    token_user_id: None,
-                    token_role_ids: None,
                     token_project_id: None,
+                    token_restriction_id: None,
                 }])
             });
 

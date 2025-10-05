@@ -12,6 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use sea_orm::SqlErr;
 use std::num::TryFromIntError;
 
 use thiserror::Error;
@@ -148,6 +149,13 @@ pub enum TokenProviderError {
     },
 
     #[error(transparent)]
+    RestrictedBuilder {
+        /// The source of the error.
+        #[from]
+        source: crate::token::restricted::RestrictedPayloadBuilderError,
+    },
+
+    #[error(transparent)]
     AssignmentProvider {
         /// The source of the error.
         #[from]
@@ -185,4 +193,48 @@ pub enum TokenProviderError {
 
     #[error("unsupported authentication methods in token payload")]
     UnsupportedAuthMethods,
+
+    #[error("token with restrictions can be only project scoped")]
+    RestrictedTokenNotProjectScoped,
+
+    #[error("token restriction {0} not found")]
+    TokenRestrictionNotFound(String),
+
+    /// Conflict
+    #[error("{message}")]
+    Conflict { message: String, context: String },
+
+    /// SqlError
+    #[error("{message}")]
+    Sql { message: String, context: String },
+
+    #[error("Database error while {context}")]
+    Database {
+        source: sea_orm::DbErr,
+        context: String,
+    },
+}
+
+/// Convert the DB error into the TokenProviderError with the context information.
+pub fn db_err(e: sea_orm::DbErr, context: &str) -> TokenProviderError {
+    e.sql_err().map_or_else(
+        || TokenProviderError::Database {
+            source: e,
+            context: context.to_string(),
+        },
+        |err| match err {
+            SqlErr::UniqueConstraintViolation(descr) => TokenProviderError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
+            },
+            SqlErr::ForeignKeyConstraintViolation(descr) => TokenProviderError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
+            },
+            other => TokenProviderError::Sql {
+                message: other.to_string(),
+                context: context.to_string(),
+            },
+        },
+    )
 }

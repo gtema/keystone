@@ -161,6 +161,17 @@ pub async fn login(
         })?
         .to_owned();
 
+    tracing::debug!("Mapping is {:?}", mapping);
+    let token_restriction = if let Some(tr_id) = &mapping.token_restriction_id {
+        state
+            .provider
+            .get_token_provider()
+            .get_token_restriction(&state.db, tr_id, true)
+            .await?
+    } else {
+        None
+    };
+
     //if !matches!(mapping.r#type, ProviderMappingType::Jwt) {
     //    // need to log helping message, since the error is wrapped
     //    // to prevent existence exposure.
@@ -294,10 +305,11 @@ pub async fn login(
     )
     .await?;
 
-    let mut token = state
-        .provider
-        .get_token_provider()
-        .issue_token(authed_info, authz_info)?;
+    let mut token = state.provider.get_token_provider().issue_token(
+        authed_info,
+        authz_info,
+        token_restriction.as_ref(),
+    )?;
 
     // TODO: roles should be granted for the jwt login already
 

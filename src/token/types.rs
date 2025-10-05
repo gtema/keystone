@@ -13,8 +13,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use chrono::{DateTime, Utc};
+use derive_builder::Builder;
 use dyn_clone::DynClone;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::assignment::types::Role;
 use crate::config::Config;
@@ -27,6 +28,7 @@ use crate::token::federation_domain_scoped::FederationDomainScopePayload;
 use crate::token::federation_project_scoped::FederationProjectScopePayload;
 use crate::token::federation_unscoped::FederationUnscopedPayload;
 use crate::token::project_scoped::ProjectScopePayload;
+use crate::token::restricted::RestrictedPayload;
 use crate::token::unscoped::UnscopedPayload;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -39,6 +41,7 @@ pub enum Token {
     FederationProjectScope(FederationProjectScopePayload),
     FederationDomainScope(FederationDomainScopePayload),
     ApplicationCredential(ApplicationCredentialPayload),
+    Restricted(RestrictedPayload),
 }
 
 impl Token {
@@ -51,6 +54,7 @@ impl Token {
             Self::FederationProjectScope(x) => &x.user_id,
             Self::FederationDomainScope(x) => &x.user_id,
             Self::ApplicationCredential(x) => &x.user_id,
+            Self::Restricted(x) => &x.user_id,
         }
     }
 
@@ -63,6 +67,7 @@ impl Token {
             Self::FederationProjectScope(x) => &x.user,
             Self::FederationDomainScope(x) => &x.user,
             Self::ApplicationCredential(x) => &x.user,
+            Self::Restricted(x) => &x.user,
         }
     }
 
@@ -75,6 +80,7 @@ impl Token {
             Self::FederationProjectScope(x) => &x.expires_at,
             Self::FederationDomainScope(x) => &x.expires_at,
             Self::ApplicationCredential(x) => &x.expires_at,
+            Self::Restricted(x) => &x.expires_at,
         }
     }
 
@@ -87,6 +93,7 @@ impl Token {
             Self::FederationProjectScope(x) => &x.methods,
             Self::FederationDomainScope(x) => &x.methods,
             Self::ApplicationCredential(x) => &x.methods,
+            Self::Restricted(x) => &x.methods,
         }
     }
 
@@ -99,6 +106,7 @@ impl Token {
             Self::FederationProjectScope(x) => &x.audit_ids,
             Self::FederationDomainScope(x) => &x.audit_ids,
             Self::ApplicationCredential(x) => &x.audit_ids,
+            Self::Restricted(x) => &x.audit_ids,
         }
     }
 
@@ -106,6 +114,7 @@ impl Token {
         match self {
             Self::ProjectScope(x) => x.project.as_ref(),
             Self::FederationProjectScope(x) => x.project.as_ref(),
+            Self::Restricted(x) => x.project.as_ref(),
             _ => None,
         }
     }
@@ -124,9 +133,29 @@ impl Token {
             Self::ProjectScope(x) => x.roles.as_ref(),
             Self::FederationProjectScope(x) => x.roles.as_ref(),
             Self::FederationDomainScope(x) => x.roles.as_ref(),
+            Self::Restricted(x) => x.roles.as_ref(),
             _ => None,
         }
     }
+}
+
+/// Token restriction information.
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct TokenRestriction {
+    /// Whether the restriction allows to rescope the token.
+    pub allow_rescope: bool,
+    /// Whether it is allowed to renew the token with this restriction.
+    pub allow_renew: bool,
+    /// Id.
+    pub id: String,
+    /// Optional project ID to be used with this restriction.
+    pub project_id: Option<String>,
+    /// Roles bound to the restriction.
+    pub role_ids: Vec<String>,
+    /// Optional list of full Role information.
+    pub roles: Option<Vec<crate::assignment::types::Role>>,
+    /// User id
+    pub user_id: Option<String>,
 }
 
 pub trait TokenBackend: DynClone + Send + Sync + std::fmt::Debug {

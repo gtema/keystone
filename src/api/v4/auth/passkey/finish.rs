@@ -105,10 +105,11 @@ pub(super) async fn finish(
         .map_err(AuthenticationError::from)?;
     authed_info.validate()?;
 
-    let token = state
-        .provider
-        .get_token_provider()
-        .issue_token(authed_info, AuthzInfo::Unscoped)?;
+    let token =
+        state
+            .provider
+            .get_token_provider()
+            .issue_token(authed_info, AuthzInfo::Unscoped, None)?;
 
     let api_token = TokenResponse {
         token: ApiResponseToken::from_provider_token(&state, &token).await?,

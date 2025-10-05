@@ -74,17 +74,13 @@ pub struct Mapping {
 
     //#[builder(default)]
     //pub claim_mappings: Option<Value>,
-    /// Fixed `user_id` of the token to issue for successful authentication.
-    #[builder(default)]
-    pub token_user_id: Option<String>,
-
-    /// List of fixed role ids of the token to issue for successful authentication.
-    #[builder(default)]
-    pub token_role_ids: Option<Vec<String>>,
-
     /// Fixed `project_id` scope of the token to issue for successful authentication.
     #[builder(default)]
     pub token_project_id: Option<String>,
+
+    /// ID of the token restrictions.
+    #[builder(default)]
+    pub token_restriction_id: Option<String>,
 }
 
 /// Update attribute mapping data.
@@ -138,17 +134,13 @@ pub struct MappingUpdate {
     #[builder(default)]
     pub oidc_scopes: Option<Option<Vec<String>>>,
 
-    /// Fixed `user_id` of the token to issue for successful authentication.
-    #[builder(default)]
-    pub token_user_id: Option<Option<String>>,
-
-    /// List of fixed role ids of the token to issue for successful authentication.
-    #[builder(default)]
-    pub token_role_ids: Option<Option<Vec<String>>>,
-
     /// Fixed `project_id` scope of the token to issue for successful authentication.
     #[builder(default)]
     pub token_project_id: Option<Option<String>>,
+
+    /// ID of the token restrictions.
+    #[builder(default)]
+    pub token_restriction_id: Option<String>,
 }
 
 /// Attribute mapping type.

@@ -43,42 +43,50 @@ pub enum AuthenticationError {
     /// User is disabled
     #[error("The account is disabled for user: {0}")]
     UserDisabled(String),
+
+    /// Token renewal is forbidden
+    #[error("Token renewal (getting token from token) is prohibited.")]
+    TokenRenewalForbidden,
 }
 
 /// Information about successful authentication
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[builder(setter(into, strip_option))]
 pub struct AuthenticatedInfo {
-    /// User id
+    /// User id.
     pub user_id: String,
 
-    /// Resolved user object
+    /// Resolved user object.
     #[builder(default)]
     pub user: Option<UserResponse>,
 
-    /// Resolved user domain information
+    /// Resolved user domain information.
     #[builder(default)]
     pub user_domain: Option<Domain>,
 
-    /// Resolved user object
+    /// Resolved user object.
     #[builder(default)]
     pub user_groups: Vec<Group>,
 
-    /// Authentication methods
+    /// Authentication methods.
     #[builder(default)]
     pub methods: Vec<String>,
 
-    /// Audit IDs
+    /// Audit IDs.
     #[builder(default)]
     pub audit_ids: Vec<String>,
 
-    /// Federated IDP id
+    /// Federated IDP id.
     #[builder(default)]
     pub idp_id: Option<String>,
 
-    /// Federated protocol id
+    /// Federated protocol id.
     #[builder(default)]
     pub protocol_id: Option<String>,
+
+    /// Token restriction.
+    #[builder(default)]
+    pub token_restriction_id: Option<String>,
 }
 
 impl AuthenticatedInfo {

@@ -275,6 +275,7 @@ enum FederatedMapping {
     TokenRoleIds,
     TokenProjectId,
 }
+
 #[derive(DeriveIden)]
 enum FederatedMappingType {
     FederatedMappingType,

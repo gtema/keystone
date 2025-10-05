@@ -29,6 +29,8 @@ pub mod federation_unscoped;
 pub mod fernet;
 pub mod fernet_utils;
 pub mod project_scoped;
+pub mod restricted;
+mod token_restriction;
 pub mod types;
 pub mod unscoped;
 
@@ -58,7 +60,8 @@ pub use federation_project_scoped::{
 };
 pub use federation_unscoped::{FederationUnscopedPayload, FederationUnscopedPayloadBuilder};
 pub use project_scoped::{ProjectScopePayload, ProjectScopePayloadBuilder};
-pub use types::Token;
+pub use restricted::{RestrictedPayload, RestrictedPayloadBuilder};
+pub use types::{Token, TokenRestriction};
 pub use unscoped::{UnscopedPayload, UnscopedPayloadBuilder};
 
 #[derive(Clone, Debug)]
@@ -261,6 +264,47 @@ impl TokenProvider {
         }
     }
 
+    /// Create token with the specified restrictions.
+    fn create_restricted_token(
+        &self,
+        authentication_info: &AuthenticatedInfo,
+        authz_info: &AuthzInfo,
+        restriction: &TokenRestriction,
+    ) -> Result<Token, TokenProviderError> {
+        Ok(Token::Restricted(
+            RestrictedPayloadBuilder::default()
+                .user_id(
+                    restriction
+                        .user_id
+                        .as_ref()
+                        .unwrap_or(&authentication_info.user_id.clone()),
+                )
+                .user(authentication_info.user.clone())
+                .methods(authentication_info.methods.clone().iter())
+                .audit_ids(authentication_info.audit_ids.clone().iter())
+                .expires_at(
+                    Local::now()
+                        .to_utc()
+                        .checked_add_signed(TimeDelta::seconds(self.config.token.expiration as i64))
+                        .ok_or(TokenProviderError::ExpiryCalculation)?,
+                )
+                .token_restriction_id(restriction.id.clone())
+                .project_id(
+                    restriction
+                        .project_id
+                        .as_ref()
+                        .or(match authz_info {
+                            AuthzInfo::Project(project) => Some(&project.id),
+                            _ => None,
+                        })
+                        .ok_or_else(|| TokenProviderError::RestrictedTokenNotProjectScoped)?,
+                )
+                .allow_renew(restriction.allow_renew)
+                .allow_rescope(restriction.allow_rescope)
+                .roles(restriction.roles.clone())
+                .build()?,
+        ))
+    }
     async fn expand_user_information(
         &self,
         token: &mut Token,
@@ -294,6 +338,9 @@ impl TokenProvider {
                 Token::FederationDomainScope(data) => {
                     data.user = user;
                 }
+                Token::Restricted(data) => {
+                    data.user = user;
+                }
             }
         }
         Ok(())
@@ -322,6 +369,7 @@ pub trait TokenApi: Send + Sync + Clone {
         &self,
         authentication_info: AuthenticatedInfo,
         authz_info: AuthzInfo,
+        token_restriction: Option<&TokenRestriction>,
     ) -> Result<Token, TokenProviderError>;
 
     /// Encode the token into the X-SubjectToken String
@@ -343,6 +391,14 @@ pub trait TokenApi: Send + Sync + Clone {
         db: &DatabaseConnection,
         provider: &Provider,
     ) -> Result<Token, TokenProviderError>;
+
+    /// Get the token restriction by the ID.
+    async fn get_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+        expand_roles: bool,
+    ) -> Result<Option<TokenRestriction>, TokenProviderError>;
 }
 
 #[async_trait]
@@ -358,10 +414,20 @@ impl TokenApi for TokenProvider {
         let token = self
             .validate_token(credential, allow_expired, window_seconds)
             .await?;
-        Ok(AuthenticatedInfo::builder()
-            .user_id(token.user_id())
-            .methods(token.methods().clone())
-            .audit_ids(token.audit_ids().clone())
+        tracing::debug!("The token is {:?}", token);
+        if let Token::Restricted(restriction) = &token {
+            if !restriction.allow_renew {
+                return Err(AuthenticationError::TokenRenewalForbidden)?;
+            }
+        }
+        let mut auth_info_builder = AuthenticatedInfo::builder();
+        auth_info_builder.user_id(token.user_id());
+        auth_info_builder.methods(token.methods().clone());
+        auth_info_builder.audit_ids(token.audit_ids().clone());
+        if let Token::Restricted(restriction) = &token {
+            auth_info_builder.token_restriction_id(restriction.token_restriction_id.clone());
+        }
+        Ok(auth_info_builder
             .build()
             .map_err(AuthenticationError::from)?)
     }
@@ -393,6 +459,7 @@ impl TokenApi for TokenProvider {
         &self,
         authentication_info: AuthenticatedInfo,
         authz_info: AuthzInfo,
+        token_restrictions: Option<&TokenRestriction>,
     ) -> Result<Token, TokenProviderError> {
         // This should be executed already, but let's better repeat it as last line of defence.
         // It is also necessary to call this before to stop before we start to resolve authz info.
@@ -407,7 +474,10 @@ impl TokenApi for TokenProvider {
                 .trim_end_matches('=')
                 .to_string(),
         );
-        if authentication_info.idp_id.is_some() && authentication_info.protocol_id.is_some() {
+        if let Some(token_restrictions) = &token_restrictions {
+            self.create_restricted_token(&authentication_info, &authz_info, token_restrictions)
+        } else if authentication_info.idp_id.is_some() && authentication_info.protocol_id.is_some()
+        {
             match &authz_info {
                 AuthzInfo::Project(project) => {
                     self.create_federated_project_scope_token(&authentication_info, project)
@@ -581,6 +651,16 @@ impl TokenApi for TokenProvider {
                     return Err(TokenProviderError::ActorHasNoRolesOnTarget);
                 }
             }
+            Token::Restricted(data) => {
+                if data.roles.is_none() {
+                    self.get_token_restriction(db, &data.token_restriction_id, true)
+                        .await?
+                        .inspect(|restrictions| data.roles = restrictions.roles.clone())
+                        .ok_or(TokenProviderError::TokenRestrictionNotFound(
+                            data.token_restriction_id.clone(),
+                        ))?;
+                }
+            }
             _ => {}
         }
 
@@ -645,6 +725,16 @@ impl TokenApi for TokenProvider {
                     data.domain = domain;
                 }
             }
+            Token::Restricted(ref mut data) => {
+                if data.project.is_none() {
+                    let project = provider
+                        .get_resource_provider()
+                        .get_project(db, &data.project_id)
+                        .await?;
+
+                    data.project = project;
+                }
+            }
 
             _ => {}
         };
@@ -653,6 +743,16 @@ impl TokenApi for TokenProvider {
         self.populate_role_assignments(&mut new_token, db, provider)
             .await?;
         Ok(new_token)
+    }
+
+    /// Get the token restriction by the ID.
+    async fn get_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+        expand_roles: bool,
+    ) -> Result<Option<TokenRestriction>, TokenProviderError> {
+        token_restriction::get(db, id, expand_roles).await
     }
 }
 
@@ -683,6 +783,7 @@ mock! {
             &self,
             authentication_info: AuthenticatedInfo,
             authz_info: AuthzInfo,
+            token_restriction: Option<&TokenRestriction>
         ) -> Result<Token, TokenProviderError>;
 
         fn encode_token(&self, token: &Token) -> Result<String, TokenProviderError>;
@@ -700,6 +801,13 @@ mock! {
             db: &DatabaseConnection,
             provider: &Provider,
         ) -> Result<Token, TokenProviderError>;
+
+        async fn get_token_restriction<'a>(
+            &self,
+            db: &DatabaseConnection,
+            id: &'a str,
+            expand_roles: bool,
+        ) -> Result<Option<TokenRestriction>, TokenProviderError>;
 
     }
 

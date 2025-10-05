@@ -26,7 +26,6 @@ use crate::federation::types::{
     Scope as ProviderScope, identity_provider::IdentityProvider as ProviderIdentityProvider,
     mapping::Mapping as ProviderMapping,
 };
-use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
 
 /// Convert ProviderScope to AuthZ information
@@ -140,41 +139,41 @@ pub(super) fn validate_bound_claims(
 /// # Returns
 /// The mapped user data
 pub(super) async fn map_user_data(
-    state: &ServiceState,
+    _state: &ServiceState,
     idp: &ProviderIdentityProvider,
     mapping: &ProviderMapping,
     claims_as_json: &Value,
 ) -> Result<MappedUserData, OidcError> {
     let mut builder = MappedUserDataBuilder::default();
-    if let Some(token_user_id) = &mapping.token_user_id {
-        // TODO: How to check that the user belongs to the right domain)
-        if let Ok(Some(user)) = state
-            .provider
-            .get_identity_provider()
-            .get_user(&state.db, token_user_id)
-            .await
-        {
-            builder.unique_id(token_user_id.clone());
-            builder.user_name(user.name.clone());
-        } else {
-            return Err(OidcError::UserNotFound(token_user_id.clone()))?;
-        }
-    } else {
-        builder.unique_id(
-            claims_as_json
-                .get(&mapping.user_id_claim)
-                .and_then(|x| x.as_str())
-                .ok_or_else(|| OidcError::UserIdClaimRequired(mapping.user_id_claim.clone()))?
-                .to_string(),
-        );
+    //if let Some(token_user_id) = &mapping.token_user_id {
+    //    // TODO: How to check that the user belongs to the right domain)
+    //    if let Ok(Some(user)) = state
+    //        .provider
+    //        .get_identity_provider()
+    //        .get_user(&state.db, token_user_id)
+    //        .await
+    //    {
+    //        builder.unique_id(token_user_id.clone());
+    //        builder.user_name(user.name.clone());
+    //    } else {
+    //        return Err(OidcError::UserNotFound(token_user_id.clone()))?;
+    //    }
+    //} else {
+    builder.unique_id(
+        claims_as_json
+            .get(&mapping.user_id_claim)
+            .and_then(|x| x.as_str())
+            .ok_or_else(|| OidcError::UserIdClaimRequired(mapping.user_id_claim.clone()))?
+            .to_string(),
+    );
 
-        builder.user_name(
-            claims_as_json
-                .get(&mapping.user_name_claim)
-                .and_then(|x| x.as_str())
-                .ok_or_else(|| OidcError::UserNameClaimRequired(mapping.user_name_claim.clone()))?,
-        );
-    }
+    builder.user_name(
+        claims_as_json
+            .get(&mapping.user_name_claim)
+            .and_then(|x| x.as_str())
+            .ok_or_else(|| OidcError::UserNameClaimRequired(mapping.user_name_claim.clone()))?,
+    );
+    //}
 
     builder.domain_id(
         mapping

@@ -61,6 +61,8 @@ pub use super::service::Entity as Service;
 pub use super::service_provider::Entity as ServiceProvider;
 pub use super::system_assignment::Entity as SystemAssignment;
 pub use super::token::Entity as Token;
+pub use super::token_restriction::Entity as TokenRestriction;
+pub use super::token_restriction_role_association::Entity as TokenRestrictionRoleAssociation;
 pub use super::trust::Entity as Trust;
 pub use super::trust_role::Entity as TrustRole;
 pub use super::user::Entity as User;

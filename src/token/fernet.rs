@@ -30,7 +30,8 @@ use crate::token::{
     domain_scoped::DomainScopePayload, federation_domain_scoped::FederationDomainScopePayload,
     federation_project_scoped::FederationProjectScopePayload,
     federation_unscoped::FederationUnscopedPayload, fernet_utils::FernetUtils,
-    project_scoped::ProjectScopePayload, types::*, unscoped::UnscopedPayload,
+    project_scoped::ProjectScopePayload, restricted::RestrictedPayload, types::*,
+    unscoped::UnscopedPayload,
 };
 
 #[derive(Default, Clone)]
@@ -130,6 +131,7 @@ impl FernetTokenProvider {
                 5 => Ok(FederationProjectScopePayload::disassemble(rd, &self.auth_map)?.into()),
                 6 => Ok(FederationDomainScopePayload::disassemble(rd, &self.auth_map)?.into()),
                 9 => Ok(ApplicationCredentialPayload::disassemble(rd, &self.auth_map)?.into()),
+                11 => Ok(RestrictedPayload::disassemble(rd, &self.auth_map)?.into()),
                 other => Err(TokenProviderError::InvalidTokenType(other)),
             }
         } else {
@@ -187,6 +189,13 @@ impl FernetTokenProvider {
                 write_array_len(&mut buf, 7)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 write_pfix(&mut buf, 9)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                data.assemble(&mut buf, &self.auth_map)?;
+            }
+            Token::Restricted(data) => {
+                write_array_len(&mut buf, 9)
+                    .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+                write_pfix(&mut buf, 11)
                     .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
                 data.assemble(&mut buf, &self.auth_map)?;
             }
@@ -617,6 +626,30 @@ pub(super) mod tests {
             methods: vec!["application_credential".into()],
             project_id: Uuid::new_v4().simple().to_string(),
             application_credential_id: Uuid::new_v4().simple().to_string(),
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: Local::now().trunc_subsecs(0).into(),
+            ..Default::default()
+        });
+
+        let mut backend = FernetTokenProvider::default();
+        let config = crate::tests::token::setup_config();
+        backend.set_config(config);
+        backend.load_keys().unwrap();
+
+        let encrypted = backend.encrypt(&token).unwrap();
+        let dec_token = backend.decrypt(&encrypted).unwrap();
+        assert_eq!(token, dec_token);
+    }
+
+    #[tokio::test]
+    async fn test_restricted_roundtrip() {
+        let token = Token::Restricted(RestrictedPayload {
+            user_id: Uuid::new_v4().simple().to_string(),
+            methods: vec!["password".into()],
+            token_restriction_id: Uuid::new_v4().simple().to_string(),
+            project_id: Uuid::new_v4().simple().to_string(),
+            allow_renew: true,
+            allow_rescope: true,
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
             ..Default::default()

@@ -102,10 +102,7 @@ pub enum KeystoneApiError {
     //        source: OidcError,
     //    },
     #[error(transparent)]
-    IdentityError {
-        #[from]
-        source: IdentityProviderError,
-    },
+    IdentityError { source: IdentityProviderError },
 
     #[error(transparent)]
     Policy {
@@ -120,10 +117,7 @@ pub enum KeystoneApiError {
     },
 
     #[error(transparent)]
-    TokenError {
-        #[from]
-        source: TokenProviderError,
-    },
+    TokenError { source: TokenProviderError },
 
     #[error(transparent)]
     WebAuthN {
@@ -159,8 +153,16 @@ pub enum KeystoneApiError {
     #[error(transparent)]
     JsonExtractorRejection(#[from] JsonRejection),
 
-    #[error("The account is disabled for user: {0}")]
+    #[error("the account is disabled for user: {0}")]
     UserDisabled(String),
+
+    /// Selected authentication is forbidden.
+    #[error("selected authentication is forbidden")]
+    SelectedAuthenticationForbidden,
+
+    /// Selected authentication is forbidden.
+    #[error("changing current authentication scope is forbidden")]
+    AuthenticationRescopeForbidden,
 
     /// Others.
     #[error(transparent)]
@@ -180,6 +182,8 @@ impl IntoResponse for KeystoneApiError {
             //            KeystoneApiError::AuthenticationInfo { .. } => StatusCode::UNAUTHORIZED,
             KeystoneApiError::Forbidden => StatusCode::FORBIDDEN,
             KeystoneApiError::Policy { .. } => StatusCode::FORBIDDEN,
+            KeystoneApiError::SelectedAuthenticationForbidden
+            | KeystoneApiError::AuthenticationRescopeForbidden => StatusCode::BAD_REQUEST,
             KeystoneApiError::InternalError(_)
             | KeystoneApiError::IdentityError { .. }
             | KeystoneApiError::ResourceError { .. }
@@ -209,7 +213,7 @@ impl KeystoneApiError {
                 resource: "role".into(),
                 identifier: x,
             },
-            _ => Self::AssignmentError { source },
+            _ => source.into(),
         }
     }
     pub fn federation(source: FederationProviderError) -> Self {
@@ -223,7 +227,7 @@ impl KeystoneApiError {
                 identifier: x,
             },
             FederationProviderError::Conflict(x) => Self::Conflict(x),
-            _ => Self::Federation { source },
+            _ => source.into(),
         }
     }
     pub fn identity(source: IdentityProviderError) -> Self {
@@ -236,7 +240,7 @@ impl KeystoneApiError {
                 resource: "group".into(),
                 identifier: x,
             },
-            _ => Self::IdentityError { source },
+            _ => source.into(),
         }
     }
     pub fn resource(source: ResourceProviderError) -> Self {
@@ -245,7 +249,7 @@ impl KeystoneApiError {
                 resource: "domain".into(),
                 identifier: x,
             },
-            _ => Self::ResourceError { source },
+            _ => source.into(),
         }
     }
 }
@@ -330,7 +334,28 @@ impl From<AuthenticationError> for KeystoneApiError {
                 KeystoneApiError::InternalError(source.to_string())
             }
             AuthenticationError::UserDisabled(data) => KeystoneApiError::UserDisabled(data),
+            AuthenticationError::TokenRenewalForbidden => {
+                KeystoneApiError::SelectedAuthenticationForbidden
+            }
             AuthenticationError::Unauthorized => KeystoneApiError::Unauthorized,
+        }
+    }
+}
+
+impl From<IdentityProviderError> for KeystoneApiError {
+    fn from(value: IdentityProviderError) -> Self {
+        match value {
+            IdentityProviderError::AuthenticationInfo { source } => source.into(),
+            _ => Self::IdentityError { source: value },
+        }
+    }
+}
+
+impl From<TokenProviderError> for KeystoneApiError {
+    fn from(value: TokenProviderError) -> Self {
+        match value {
+            TokenProviderError::AuthenticationInfo { source } => source.into(),
+            _ => Self::TokenError { source: value },
         }
     }
 }

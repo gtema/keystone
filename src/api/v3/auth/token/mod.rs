@@ -144,7 +144,7 @@ async fn get_authz_info(
     Ok(authz_info)
 }
 
-/// Authenticate user issuing a new token
+/// Authenticate user issuing a new token.
 #[utoipa::path(
     post,
     path = "/",
@@ -163,11 +163,25 @@ async fn post(
 ) -> Result<impl IntoResponse, KeystoneApiError> {
     let authed_info = authenticate_request(&state, &req).await?;
     let authz_info = get_authz_info(&state, &req).await?;
+    if let Some(restriction_id) = &authed_info.token_restriction_id {
+        let restriction = state
+            .provider
+            .get_token_provider()
+            .get_token_restriction(&state.db, restriction_id, true)
+            .await?
+            .ok_or(KeystoneApiError::InternalError(
+                "token restriction {restriction_id} not found".to_string(),
+            ))?;
+        if !restriction.allow_rescope && req.auth.scope.is_some() {
+            return Err(KeystoneApiError::AuthenticationRescopeForbidden);
+        }
+    }
 
-    let mut token = state
-        .provider
-        .get_token_provider()
-        .issue_token(authed_info, authz_info)?;
+    let mut token =
+        state
+            .provider
+            .get_token_provider()
+            .issue_token(authed_info, authz_info, None)?;
 
     token = state
         .provider
@@ -839,7 +853,7 @@ mod tests {
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "pdid")
             .returning(move |_, _| Ok(Some(project_domain.clone())));
         let mut token_mock = MockTokenProvider::default();
-        token_mock.expect_issue_token().returning(|_, _| {
+        token_mock.expect_issue_token().returning(|_, _, _| {
             Ok(ProviderToken::ProjectScope(ProjectScopePayload {
                 user_id: "bar".into(),
                 methods: Vec::from(["password".to_string()]),

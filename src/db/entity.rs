@@ -63,6 +63,8 @@ pub mod service;
 pub mod service_provider;
 pub mod system_assignment;
 pub mod token;
+pub mod token_restriction;
+pub mod token_restriction_role_association;
 pub mod trust;
 pub mod trust_role;
 pub mod user;

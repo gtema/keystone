@@ -94,20 +94,15 @@ pub struct Mapping {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc_scopes: Option<Vec<String>>,
 
-    /// Fixed user_id for which the keystone token would be issued.
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_user_id: Option<String>,
-
-    /// List of fixed roles that would be included in the token.
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_role_ids: Option<Vec<String>>,
-
     /// Fixed project_id for the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_project_id: Option<String>,
+
+    /// Token restrictions to be applied to the granted token.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_restriction_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
@@ -194,23 +189,16 @@ pub struct MappingCreate {
     #[schema(nullable = false)]
     pub oidc_scopes: Option<Vec<String>>,
 
-    /// Fixed user_id for which the keystone token would be issued.
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(nullable = false)]
-    pub token_user_id: Option<String>,
-
-    /// List of fixed roles that would be included in the token.
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[schema(nullable = false)]
-    pub token_role_ids: Option<Vec<String>>,
-
     /// Fixed project_id for the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[schema(nullable = false)]
     pub token_project_id: Option<String>,
+
+    /// Token restrictions to be applied to the granted token.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_restriction_id: Option<String>,
 }
 
 /// OIDC/JWT attribute mapping update data.
@@ -286,20 +274,15 @@ pub struct MappingUpdate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc_scopes: Option<Option<Vec<String>>>,
 
-    /// Fixed user_id for which the keystone token would be issued.
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_user_id: Option<Option<String>>,
-
-    /// List of fixed roles that would be included in the token.
-    #[builder(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_role_ids: Option<Option<Vec<String>>>,
-
     /// Fixed project_id for the token.
     #[builder(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_project_id: Option<Option<String>>,
+
+    /// Token restrictions to be applied to the granted token.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_restriction_id: Option<String>,
 }
 
 /// OIDC/JWT attribute mapping create request.
@@ -335,9 +318,8 @@ impl From<types::Mapping> for Mapping {
             bound_subject: value.bound_subject,
             bound_claims: value.bound_claims,
             oidc_scopes: value.oidc_scopes,
-            token_user_id: value.token_user_id,
-            token_role_ids: value.token_role_ids,
             token_project_id: value.token_project_id,
+            token_restriction_id: value.token_restriction_id,
         }
     }
 }
@@ -359,9 +341,8 @@ impl From<MappingCreateRequest> for types::Mapping {
             bound_subject: value.mapping.bound_subject,
             bound_claims: value.mapping.bound_claims,
             oidc_scopes: value.mapping.oidc_scopes,
-            token_user_id: value.mapping.token_user_id,
-            token_role_ids: value.mapping.token_role_ids,
             token_project_id: value.mapping.token_project_id,
+            token_restriction_id: value.mapping.token_restriction_id,
         }
     }
 }
@@ -381,9 +362,8 @@ impl From<MappingUpdateRequest> for types::MappingUpdate {
             bound_subject: value.mapping.bound_subject,
             bound_claims: value.mapping.bound_claims,
             oidc_scopes: value.mapping.oidc_scopes,
-            token_user_id: value.mapping.token_user_id,
-            token_role_ids: value.mapping.token_role_ids,
             token_project_id: value.mapping.token_project_id,
+            token_restriction_id: value.mapping.token_restriction_id,
         }
     }
 }
