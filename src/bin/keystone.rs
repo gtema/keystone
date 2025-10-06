@@ -230,7 +230,7 @@ async fn main() -> Result<(), Report> {
     Ok(())
 }
 
-/// Priodic cleanup job
+/// Periodic cleanup job
 async fn cleanup(cancel: CancellationToken, state: ServiceState) {
     let mut interval = time::interval(Duration::from_secs(60));
     interval.tick().await;

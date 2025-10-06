@@ -83,7 +83,7 @@ the ORM itself and not by the keystone-ng code.
 
 keystone-ng relies on the OPA for policy enforcement. Default policies are
 provided with the project and can be passed directly to the OPA process or
-compilied into the bundle.
+compiled into the bundle.
 
 ```console
 

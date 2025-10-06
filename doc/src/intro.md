@@ -32,7 +32,7 @@ server level.
 
 ## Database
 
-Adding new features most certanly require having database changes. It is not
+Adding new features most certainly require having database changes. It is not
 expected that such changes interfere with the Python implementation to ensure
 it is working correctly.
 
