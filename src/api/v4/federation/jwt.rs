@@ -227,7 +227,6 @@ pub async fn login(
         .map_err(OidcError::from)?;
 
     let claims_as_json = serde_json::to_value(&claims)?;
-    tracing::debug!("Claims data {claims_as_json}");
 
     validate_bound_claims(&mapping, &claims, &claims_as_json)?;
     let mapped_user_data = map_user_data(&state, &idp, &mapping, &claims_as_json).await?;

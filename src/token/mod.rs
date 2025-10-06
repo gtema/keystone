@@ -375,7 +375,6 @@ impl TokenApi for TokenProvider {
         window_seconds: Option<i64>,
     ) -> Result<Token, TokenProviderError> {
         let token = self.backend_driver.decode(credential)?;
-        tracing::debug!("Token is {:?}", token);
         if Local::now().to_utc()
             > token
                 .expires_at()
