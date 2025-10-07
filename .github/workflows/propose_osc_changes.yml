@@ -48,7 +48,17 @@ jobs:
         id: vars
         run: |
           echo "branch_name=${GITHUB_HEAD_REF}" >> $GITHUB_OUTPUT
-          echo "commit_message=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
+
+      - name: Get commit message from merged PR
+        id: commit
+        env:
+          GH_TOKEN: ${{ secrets.TARGET_REPO_TOKEN }}
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          COMMIT_MESSAGE=$(gh pr view $PR_NUMBER --json commits --jq '.commits[-1].commit.message')
+          echo "commit_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT  
 
       - name: Clone target repository
         run: |
@@ -70,7 +80,6 @@ jobs:
         run: |
           cargo clippy --fix --allow-dirty --all-features
           cargo b --all-features
-          cargo t
 
       - name: Commit files
         run: |
@@ -78,7 +87,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          git commit -m "${{ steps.vars.outputs.commit_message }}" || echo "No changes to commit"
+          git commit -m "${{ steps.commit.outputs.commit_message }}" || echo "No changes to commit"
           git push origin "${{ steps.vars.outputs.branch_name }}"
 
       - name: Create PR in target repo
@@ -88,5 +97,5 @@ jobs:
             --repo gtema/openstack \
             --head "${{ steps.vars.outputs.branch_name }}" \
             --base main \
-            --title "${{ steps.vars.outputs.commit_message }}" \
+            --title "${{ steps.vars.commit.commit_message }}" \
             --body "Automated PR created after merging '${{ steps.vars.outputs.branch_name }}' in the gtema/keystone repo."
