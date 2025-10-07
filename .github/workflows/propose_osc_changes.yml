@@ -68,7 +68,7 @@ jobs:
       - name: Try to compile the target repo
         working-directory: target-repo
         run: |
-          cargo clippy --allow-dirty --all-features
+          cargo clippy --fix --allow-dirty --all-features
           cargo b --all-features
           cargo t
 
