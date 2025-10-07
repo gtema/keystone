@@ -1,0 +1,92 @@
+name: Propose PR to the `openstack` repo
+
+on:
+  pull_request:
+    types: ["closed"]
+
+jobs:
+  generate:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Get the codegenerator
+        run: git clone https://opendev.org/openstack/codegenerator
+
+      - name: Prepare the work dir
+        run: mkdir -p codegenerator/wrk/openapi_specs/identity
+
+      - name: Get the fresh openapi for the codegenerator
+        run: curl https://gtema.github.io/keystone/openapi.yaml -o codegenerator/wrk/openapi_specs/identity/keystone_rust.yaml
+
+      - name: Set up Python
+        working-directory: codegenerator
+        run: uv python install
+
+      - name: Install the codegenerator
+        working-directory: codegenerator
+        run: uv sync
+
+      - name: Generate the code
+        working-directory: codegenerator
+        run: |
+          for resource in "federation/identity_provider" "federation/mapping" "user/passkey"; do
+            uv run openstack-codegenerator --work-dir wrk --target rust-sdk --metadata metadata/identity_metadata.yaml --service identity --resource ${resource}
+            uv run openstack-codegenerator --work-dir wrk --target rust-types --metadata metadata/identity_metadata.yaml --service identity --resource ${resource}
+            uv run openstack-codegenerator --work-dir wrk --target rust-cli --metadata metadata/identity_metadata.yaml --service identity --resource ${resource}
+            uv run openstack-codegenerator --work-dir wrk --target rust-tui --metadata metadata/identity_metadata.yaml --service identity --resource ${resource}
+          done;
+
+      - name: Set variables
+        id: vars
+        run: |
+          echo "branch_name=${GITHUB_HEAD_REF}" >> $GITHUB_OUTPUT
+          echo "commit_message=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
+
+      - name: Clone target repository
+        run: |
+          git clone https://x-access-token:${{ secrets.OPENSTACK_REPO_TOKEN }}@github.com/gtema/openstack.git target-repo
+          cd target-repo
+          git checkout -b "${{ steps.vars.outputs.branch_name }}" || git checkout "${{ steps.vars.outputs.branch_name }}"
+
+      - name: Copy files to target repo
+        run: |
+          cp -R ./codegenerator/wrk/rust/* ./target-repo/
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev
+
+      - name: Try to compile the target repo
+        working-directory: target-repo
+        run: |
+          cargo clippy --allow-dirty --all-features
+          cargo b --all-features
+          cargo t
+
+      - name: Commit files
+        run: |
+          cd target-repo
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "${{ steps.vars.outputs.commit_message }}" || echo "No changes to commit"
+          git push origin "${{ steps.vars.outputs.branch_name }}"
+
+      - name: Create PR in target repo
+        run: |
+          gh auth login --with-token <<< "${{ secrets.OPENSTACK_REPO_TOKEN }}"
+          gh pr create \
+            --repo gtema/openstack \
+            --head "${{ steps.vars.outputs.branch_name }}" \
+            --base main \
+            --title "${{ steps.vars.outputs.commit_message }}" \
+            --body "Automated PR created after merging '${{ steps.vars.outputs.branch_name }}' in the gtema/keystone repo."
