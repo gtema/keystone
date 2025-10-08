@@ -146,5 +146,5 @@ jobs:
             --repo gtema/openstack \
             --head "${{ steps.vars.outputs.branch_name }}" \
             --base main \
-            --title "${{ steps.commit.commit_message }}" \
+            --title "${{ steps.commit.outputs.commit_message }}" \
             --body "Automated PR created after merging '${{ steps.vars.outputs.branch_name }}' in the gtema/keystone repo."
