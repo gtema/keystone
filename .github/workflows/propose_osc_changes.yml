@@ -17,21 +17,24 @@ jobs:
         with:
           egress-policy: audit
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - name: Checkout source repo
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0  # get all commits
 
       - name: Get the codegenerator
         run: git clone https://opendev.org/openstack/codegenerator
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@eb1897b8dc4b5d5bfe39a428a8f2304605e0983c # v7.0.0
+        with:
+          working-directory: codegenerator
 
       - name: Prepare the work dir
         run: mkdir -p codegenerator/wrk/openapi_specs/identity
 
       - name: Get the fresh openapi for the codegenerator
         run: curl https://gtema.github.io/keystone/openapi.yaml -o codegenerator/wrk/openapi_specs/identity/keystone_rust.yaml
-
-      - name: Set up Python
-        working-directory: codegenerator
-        run: uv python install
 
       - name: Install the codegenerator
         working-directory: codegenerator
