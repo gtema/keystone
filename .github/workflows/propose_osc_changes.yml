@@ -68,7 +68,7 @@ jobs:
           set -euo pipefail
           # helper to emit multi-line output
           set_output() {
-              echo "commit_message<<'EOF'" >> $GITHUB_OUTPUT
+              echo "commit_message<<EOF" >> $GITHUB_OUTPUT
               printf "%s\n" "$1" >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
           }
