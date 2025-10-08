@@ -13,12 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911  # v2.13.0
         with:
           egress-policy: audit
 
       - name: Checkout source repo
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
         with:
           fetch-depth: 0  # get all commits
 
@@ -26,7 +26,7 @@ jobs:
         run: git clone https://opendev.org/openstack/codegenerator
 
       - name: Install uv
-        uses: astral-sh/setup-uv@eb1897b8dc4b5d5bfe39a428a8f2304605e0983c # v7.0.0
+        uses: astral-sh/setup-uv@eb1897b8dc4b5d5bfe39a428a8f2304605e0983c  # v7.0.0
         with:
           working-directory: codegenerator
 
@@ -50,63 +50,63 @@ jobs:
             uv run openstack-codegenerator --work-dir wrk --target rust-tui --metadata metadata/identity_metadata.yaml --service identity --resource ${resource}
           done;
 
-        - name: Set PR variables 
-          id: vars
-          run: |
-            echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-            echo "branch_name=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
-            echo "merge_sha=${{ github.event.pull_request.merge_commit_sha }}" >> $GITHUB_OUTPUT
+      - name: Set PR variables
+        id: vars
+        run: |
+          echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          echo "branch_name=${{ github.event.pull_request.head.ref }}" >> $GITHUB_OUTPUT
+          echo "merge_sha=${{ github.event.pull_request.merge_commit_sha }}" >> $GITHUB_OUTPUT
 
-        - name: Resolve best commit message for the merged PR
-          id: commit
-          env:
-            GITHUB_TOKEN: ${{ github.token }}
-            PR_NUMBER: ${{ steps.vars.outputs.pr_number }}
-            REPO: ${{ github.repository }}
-            MERGE_SHA: ${{ steps.vars.outputs.merge_sha }}
-          run: |
-            set -euo pipefail
-            # helper to emit multi-line output
-            set_output() {
-                echo "commit_message<<'EOF'" >> $GITHUB_OUTPUT
-                printf "%s\n" "$1" >> $GITHUB_OUTPUT
-                echo "EOF" >> $GITHUB_OUTPUT
-            }
+      - name: Resolve best commit message for the merged PR
+        id: commit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.vars.outputs.pr_number }}
+          REPO: ${{ github.repository }}
+          MERGE_SHA: ${{ steps.vars.outputs.merge_sha }}
+        run: |
+          set -euo pipefail
+          # helper to emit multi-line output
+          set_output() {
+              echo "commit_message<<'EOF'" >> $GITHUB_OUTPUT
+              printf "%s\n" "$1" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+          }
 
-            COMMIT_MSG=""
-            # 1) If merge_commit_sha exists, try to fetch that commit (works for merge & squash)
-            if [ -n "$MERGE_SHA" ] && [ "$MERGE_SHA" != "null" ]; then
-                echo "Attempting to fetch merge commit message for SHA: $MERGE_SHA"
-                RESP=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                    "https://api.github.com/repos/$REPO/commits/$MERGE_SHA")
-                COMMIT_MSG=$(echo "$RESP" | jq -r '.commit.message // empty' | sed 's/\r$//')
-            fi
+          COMMIT_MSG=""
+          # 1) If merge_commit_sha exists, try to fetch that commit (works for merge & squash)
+          if [ -n "$MERGE_SHA" ] && [ "$MERGE_SHA" != "null" ]; then
+              echo "Attempting to fetch merge commit message for SHA: $MERGE_SHA"
+              RESP=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  "https://api.github.com/repos/$REPO/commits/$MERGE_SHA")
+              COMMIT_MSG=$(echo "$RESP" | jq -r '.commit.message // empty' | sed 's/\r$//')
+          fi
 
-            # 2) Fallback: collect all commits on the PR and join their messages
-            if [ -z "$COMMIT_MSG" ]; then
-                echo "Falling back to collecting PR commits..."
-                RESP=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                    "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/commits")
-                COMMIT_MSG=$(echo "$RESP" | jq -r 'map(.commit.message) | join("\n\n---\n\n")' | sed 's/\r$//')
-            fi
+          # 2) Fallback: collect all commits on the PR and join their messages
+          if [ -z "$COMMIT_MSG" ]; then
+              echo "Falling back to collecting PR commits..."
+              RESP=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/commits")
+              COMMIT_MSG=$(echo "$RESP" | jq -r 'map(.commit.message) | join("\n\n---\n\n")' | sed 's/\r$//')
+          fi
 
-            # 3) Fallback: use PR title and body
-            if [ -z "$COMMIT_MSG" ]; then
-                echo "Falling back to PR title/body..."
-                RESP=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                    "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER")
-                TITLE=$(echo "$RESP" | jq -r '.title // empty') BODY=$(echo "$RESP" | jq -r '.body // empty')
-                if [ -n "$TITLE" ] || [ -n "$BODY" ]; then
-                    COMMIT_MSG="$TITLE"$'\n\n'"$BODY"
-                fi
-            fi
+          # 3) Fallback: use PR title and body
+          if [ -z "$COMMIT_MSG" ]; then
+              echo "Falling back to PR title/body..."
+              RESP=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
+                  "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER")
+              TITLE=$(echo "$RESP" | jq -r '.title // empty') BODY=$(echo "$RESP" | jq -r '.body // empty')
+              if [ -n "$TITLE" ] || [ -n "$BODY" ]; then
+                  COMMIT_MSG="$TITLE"$'\n\n'"$BODY"
+              fi
+          fi
 
-            # 4) Final fallback
-            if [ -z "$COMMIT_MSG" ]; then
-                COMMIT_MSG="Automated update from source repo (PR #$PR_NUMBER)"
-            fi
+          # 4) Final fallback
+          if [ -z "$COMMIT_MSG" ]; then
+              COMMIT_MSG="Automated update from source repo (PR #$PR_NUMBER)"
+          fi
 
-            set_output "$COMMIT_MSG"
+          set_output "$COMMIT_MSG"
 
       - name: Clone target repository
         run: |
