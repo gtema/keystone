@@ -54,6 +54,25 @@ jobs:
         id: vars
         run: |
           echo "branch_name=${GITHUB_HEAD_REF}" >> $GITHUB_OUTPUT
+          echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+
+      - name: Get commit message from merged PR
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.vars.outputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Fetch all commits for the PR
+          RESPONSE=$(curl -s -H "Authorization: token $GH_TOKEN" \
+            "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/commits")
+
+          # Extract last commit message using jq
+          COMMIT_MESSAGE=$(echo "$RESPONSE" | jq -r '.[-1].commit.message')
+
+          echo "commit_message<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Get commit message from merged PR
         id: commit
@@ -97,8 +116,9 @@ jobs:
           git push origin "${{ steps.vars.outputs.branch_name }}"
 
       - name: Create PR in target repo
+        env:
+          GH_TOKEN: ${{ secrets.OPENSTACK_REPO_TOKEN }}
         run: |
-          gh auth login --with-token <<< "${{ secrets.OPENSTACK_REPO_TOKEN }}"
           gh pr create \
             --repo gtema/openstack \
             --head "${{ steps.vars.outputs.branch_name }}" \
