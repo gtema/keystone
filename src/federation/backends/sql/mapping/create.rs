@@ -74,20 +74,14 @@ pub async fn create(
             .map(|x| Set(x.join(",")))
             .unwrap_or(NotSet)
             .into(),
-        token_user_id: mapping
-            .token_user_id
+        token_project_id: mapping
+            .token_project_id
             .clone()
             .map(Set)
             .unwrap_or(NotSet)
             .into(),
-        token_role_ids: mapping
-            .token_role_ids
-            .clone()
-            .map(|x| Set(x.join(",")))
-            .unwrap_or(NotSet)
-            .into(),
-        token_project_id: mapping
-            .token_project_id
+        token_restriction_id: mapping
+            .token_restriction_id
             .clone()
             .map(Set)
             .unwrap_or(NotSet)
@@ -132,9 +126,8 @@ mod tests {
             bound_claims: Some(json!({"department": "foo"})),
             //claim_mappings: Some(json!({"foo": "bar"})),
             oidc_scopes: Some(vec!["oidc".into(), "oauth".into()]),
-            token_user_id: Some("uid".into()),
-            token_role_ids: Some(vec!["r1".into(), "r2".into()]),
             token_project_id: Some("pid".into()),
+            token_restriction_id: Some("trid".into()),
         };
 
         assert_eq!(
@@ -145,7 +138,7 @@ mod tests {
             db.into_transaction_log(),
             [Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                r#"INSERT INTO "federated_mapping" ("id", "name", "idp_id", "domain_id", "type", "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_user_id", "token_role_ids", "token_project_id") VALUES ($1, $2, $3, $4, CAST($5 AS "federated_mapping_type"), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING "id", "name", "idp_id", "domain_id", CAST("type" AS "text"), "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_user_id", "token_role_ids", "token_project_id""#,
+                r#"INSERT INTO "federated_mapping" ("id", "name", "idp_id", "domain_id", "type", "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_project_id", "token_restriction_id") VALUES ($1, $2, $3, $4, CAST($5 AS "federated_mapping_type"), $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING "id", "name", "idp_id", "domain_id", CAST("type" AS "text"), "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_project_id", "token_restriction_id""#,
                 [
                     "1".into(),
                     "mapping".into(),
@@ -161,9 +154,8 @@ mod tests {
                     "subject".into(),
                     json!({"department": "foo"}).into(),
                     "oidc,oauth".into(),
-                    "uid".into(),
-                    "r1,r2".into(),
                     "pid".into(),
+                    "trid".into(),
                 ]
             ),]
         );

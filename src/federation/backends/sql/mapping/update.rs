@@ -66,14 +66,11 @@ pub async fn update<S: AsRef<str>>(
         if let Some(val) = mapping.oidc_scopes {
             entry.oidc_scopes = Set(val.clone().map(|x| x.join(",")));
         }
-        if let Some(val) = mapping.token_user_id {
-            entry.token_user_id = Set(val.to_owned());
-        }
-        if let Some(val) = mapping.token_role_ids {
-            entry.token_role_ids = Set(val.clone().map(|x| x.join(",")));
-        }
         if let Some(val) = mapping.token_project_id {
             entry.token_project_id = Set(val.to_owned());
+        }
+        if let Some(val) = mapping.token_restriction_id {
+            entry.token_restriction_id = Set(Some(val.to_owned()));
         }
 
         let db_entry: db_federated_mapping::Model = entry.update(db).await?;
@@ -120,9 +117,8 @@ mod tests {
             bound_claims: Some(json!({"department": "foo"})),
             //claim_mappings: Some(json!({"foo": "bar"})),
             oidc_scopes: Some(Some(vec!["oidc".into(), "oauth".into()])),
-            token_user_id: Some(Some("uid".into())),
-            token_role_ids: Some(Some(vec!["r1".into(), "r2".into()])),
             token_project_id: Some(Some("pid".into())),
+            token_restriction_id: Some("trid".into()),
         };
 
         assert_eq!(
@@ -134,12 +130,12 @@ mod tests {
             [
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", CAST("federated_mapping"."type" AS "text"), "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_user_id", "federated_mapping"."token_role_ids", "federated_mapping"."token_project_id" FROM "federated_mapping" WHERE "federated_mapping"."id" = $1 LIMIT $2"#,
+                    r#"SELECT "federated_mapping"."id", "federated_mapping"."name", "federated_mapping"."idp_id", "federated_mapping"."domain_id", CAST("federated_mapping"."type" AS "text"), "federated_mapping"."allowed_redirect_uris", "federated_mapping"."user_id_claim", "federated_mapping"."user_name_claim", "federated_mapping"."domain_id_claim", "federated_mapping"."groups_claim", "federated_mapping"."bound_audiences", "federated_mapping"."bound_subject", "federated_mapping"."bound_claims", "federated_mapping"."oidc_scopes", "federated_mapping"."token_project_id", "federated_mapping"."token_restriction_id" FROM "federated_mapping" WHERE "federated_mapping"."id" = $1 LIMIT $2"#,
                     ["1".into(), 1u64.into()]
                 ),
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"UPDATE "federated_mapping" SET "name" = $1, "idp_id" = $2, "type" = CAST($3 AS "federated_mapping_type"), "allowed_redirect_uris" = $4, "user_id_claim" = $5, "user_name_claim" = $6, "domain_id_claim" = $7, "groups_claim" = $8, "bound_audiences" = $9, "bound_subject" = $10, "bound_claims" = $11, "oidc_scopes" = $12, "token_user_id" = $13, "token_role_ids" = $14, "token_project_id" = $15 WHERE "federated_mapping"."id" = $16 RETURNING "id", "name", "idp_id", "domain_id", CAST("type" AS "text"), "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_user_id", "token_role_ids", "token_project_id""#,
+                    r#"UPDATE "federated_mapping" SET "name" = $1, "idp_id" = $2, "type" = CAST($3 AS "federated_mapping_type"), "allowed_redirect_uris" = $4, "user_id_claim" = $5, "user_name_claim" = $6, "domain_id_claim" = $7, "groups_claim" = $8, "bound_audiences" = $9, "bound_subject" = $10, "bound_claims" = $11, "oidc_scopes" = $12, "token_project_id" = $13, "token_restriction_id" = $14 WHERE "federated_mapping"."id" = $15 RETURNING "id", "name", "idp_id", "domain_id", CAST("type" AS "text"), "allowed_redirect_uris", "user_id_claim", "user_name_claim", "domain_id_claim", "groups_claim", "bound_audiences", "bound_subject", "bound_claims", "oidc_scopes", "token_project_id", "token_restriction_id""#,
                     [
                         "name".into(),
                         "idp".into(),
@@ -153,9 +149,8 @@ mod tests {
                         "subject".into(),
                         json!({"department": "foo"}).into(),
                         "oidc,oauth".into(),
-                        "uid".into(),
-                        "r1,r2".into(),
                         "pid".into(),
+                        "trid".into(),
                         "1".into()
                     ]
                 ),

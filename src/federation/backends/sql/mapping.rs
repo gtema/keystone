@@ -92,16 +92,11 @@ impl TryFrom<db_federated_mapping::Model> for Mapping {
                 builder.oidc_scopes(Vec::from_iter(val.split(",").map(Into::into)));
             }
         }
-        if let Some(val) = &value.token_user_id {
-            builder.token_user_id(val.clone());
-        }
-        if let Some(val) = &value.token_role_ids {
-            if !val.is_empty() {
-                builder.token_role_ids(Vec::from_iter(val.split(",").map(Into::into)));
-            }
-        }
         if let Some(val) = &value.token_project_id {
             builder.token_project_id(val.clone());
+        }
+        if let Some(val) = &value.token_restriction_id {
+            builder.token_restriction_id(val.clone());
         }
         Ok(builder.build()?)
     }
@@ -130,9 +125,8 @@ mod tests {
             bound_subject: None,
             bound_claims: None,
             oidc_scopes: None,
-            token_user_id: None,
-            token_role_ids: None,
             token_project_id: None,
+            token_restriction_id: None,
         }
     }
 }

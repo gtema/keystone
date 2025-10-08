@@ -119,6 +119,16 @@ pub async fn callback(
             })
         })??;
 
+    let token_restrictions = if let Some(tr_id) = &mapping.token_restriction_id {
+        state
+            .provider
+            .get_token_provider()
+            .get_token_restriction(&state.db, tr_id, true)
+            .await?
+    } else {
+        None
+    };
+
     let http_client = reqwest::ClientBuilder::new()
         // Following redirects opens the client up to SSRF vulnerabilities.
         .redirect(reqwest::redirect::Policy::none())
@@ -288,10 +298,11 @@ pub async fn callback(
     let authz_info = get_authz_info(&state, auth_state.scope.as_ref()).await?;
     trace!("Granting the scope: {:?}", authz_info);
 
-    let mut token = state
-        .provider
-        .get_token_provider()
-        .issue_token(authed_info, authz_info)?;
+    let mut token = state.provider.get_token_provider().issue_token(
+        authed_info,
+        authz_info,
+        token_restrictions.as_ref(),
+    )?;
 
     token = state
         .provider

@@ -21,9 +21,8 @@ pub struct Model {
     pub bound_subject: Option<String>,
     pub bound_claims: Option<Json>,
     pub oidc_scopes: Option<String>,
-    pub token_user_id: Option<String>,
-    pub token_role_ids: Option<String>,
     pub token_project_id: Option<String>,
+    pub token_restriction_id: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

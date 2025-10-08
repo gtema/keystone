@@ -693,7 +693,7 @@ mod tests {
             .withf(|_: &DatabaseConnection, id: &'_ str| id == "pdid")
             .returning(move |_, _| Ok(Some(project_domain.clone())));
         let mut token_mock = MockTokenProvider::default();
-        token_mock.expect_issue_token().returning(|_, _| {
+        token_mock.expect_issue_token().returning(|_, _, _| {
             Ok(ProviderToken::ProjectScope(ProjectScopePayload {
                 user_id: "bar".into(),
                 methods: Vec::from(["password".to_string()]),

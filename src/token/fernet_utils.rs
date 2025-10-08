@@ -16,7 +16,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{DateTime, Utc};
 use rmp::{
     Marker,
-    decode::*,
+    decode::{self, *},
     encode::{self, *},
 };
 use std::collections::BTreeMap;
@@ -276,6 +276,17 @@ pub fn write_list_of_uuids<W: RmpWrite, I: IntoIterator<Item = V>, V: AsRef<str>
     Ok(())
 }
 
+/// Read boolean.
+pub fn read_bool<R: Read>(rd: &mut R) -> Result<bool, TokenProviderError> {
+    Ok(decode::read_bool(rd)?)
+}
+
+/// Write boolean.
+pub fn write_bool<W: RmpWrite>(wd: &mut W, data: bool) -> Result<(), TokenProviderError> {
+    encode::write_bool(wd, data).map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::FernetUtils;
@@ -361,6 +372,17 @@ mod tests {
             .unwrap()
             .into_iter()
             .collect();
+        assert_eq!(test, decoded);
+    }
+
+    #[test]
+    fn test_write_bool() {
+        let test = true;
+        let mut buf = Vec::with_capacity(1);
+        write_bool(&mut buf, test).unwrap();
+        let msg = buf.clone();
+        let mut decode_data = msg.as_slice();
+        let decoded = read_bool(&mut decode_data).unwrap();
         assert_eq!(test, decoded);
     }
 }

@@ -340,14 +340,6 @@ impl FederationApi for FederationProvider {
     ) -> Result<Mapping, FederationProviderError> {
         let mut mod_mapping = mapping;
         mod_mapping.id = Uuid::new_v4().into();
-        if let Some(_uid) = &mod_mapping.token_user_id {
-            // ensure domain_id is set and matches the user_id.
-            if let Some(_did) = &mod_mapping.domain_id {
-                // TODO: Get the user_id and compare the domain_id
-            } else {
-                return Err(FederationProviderError::MappingTokenUserDomainUnset);
-            }
-        }
         if let Some(_pid) = &mod_mapping.token_project_id {
             // ensure domain_id is set and matches the one of the project_id.
             if let Some(_did) = &mod_mapping.domain_id {
@@ -379,14 +371,6 @@ impl FederationApi for FederationProvider {
             // TODO: Check the new idp_id domain escaping
         }
 
-        if let Some(_uid) = &mapping.token_user_id {
-            // ensure domain_id is set and matches the user_id.
-            if let Some(_did) = &current.domain_id {
-                // TODO: Get the user_id and compare the domain_id
-            } else {
-                return Err(FederationProviderError::MappingTokenUserDomainUnset);
-            }
-        }
         if let Some(_pid) = &mapping.token_project_id {
             // ensure domain_id is set and matches the one of the project_id.
             if let Some(_did) = &current.domain_id {
