@@ -4,6 +4,9 @@ on:
   pull_request:
     types: ["closed"]
 
+permissions:
+  contents: read
+
 jobs:
   generate:
     if: github.event.pull_request.merged == true
@@ -52,7 +55,7 @@ jobs:
       - name: Get commit message from merged PR
         id: commit
         env:
-          GH_TOKEN: ${{ secrets.TARGET_REPO_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           COMMIT_MESSAGE=$(gh pr view $PR_NUMBER --json commits --jq '.commits[-1].commit.message')
