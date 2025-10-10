@@ -29,6 +29,7 @@ pub mod federation;
 pub mod group;
 pub mod role;
 pub mod role_assignment;
+pub mod token;
 pub mod user;
 
 use crate::api::types::*;
@@ -40,6 +41,7 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
         .nest("/federation", federation::openapi_router())
         .nest("/role_assignments", role_assignment::openapi_router())
         .nest("/roles", role::openapi_router())
+        .nest("/tokens", token::openapi_router())
         .nest("/users", user::openapi_router())
         .routes(routes!(version))
 }

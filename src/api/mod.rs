@@ -45,7 +45,9 @@ use crate::api::types::*;
     modifiers(&SecurityAddon),
     tags(
         (name="identity_providers", description=v4::federation::identity_provider::DESCRIPTION),
-        (name="mappings", description=v4::federation::mapping::DESCRIPTION)
+        (name="mappings", description=v4::federation::mapping::DESCRIPTION),
+        (name="token", description=v4::token::DESCRIPTION),
+        (name="token_restrictions", description=v4::token::restriction::DESCRIPTION),
     )
 )]
 pub struct ApiDoc;
