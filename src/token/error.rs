@@ -46,7 +46,7 @@ pub enum TokenProviderError {
     },
 
     /// Missing fernet keys
-    #[error("missing fernet keys")]
+    #[error("no usable fernet keys has been found")]
     FernetKeysMissing,
 
     /// Invalid token data
