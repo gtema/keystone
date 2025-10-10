@@ -33,7 +33,7 @@ use crate::token::TokenApi;
 #[utoipa::path(
     get,
     path = "/{id}",
-    operation_id = "/token_restiction:show",
+    operation_id = "/token_restriction:show",
     params(
       ("id" = String, Path, description = "The ID of the token restriction")
     ),
