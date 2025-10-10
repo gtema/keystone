@@ -13,7 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use bytes::Bytes;
-use fernet::{Fernet, MultiFernet};
+use fernet::MultiFernet;
 use rmp::{
     Marker,
     decode::{ValueReadError, read_marker, read_u8},
@@ -206,11 +206,7 @@ impl FernetTokenProvider {
     /// Get MultiFernet initialized with repository keys
     pub fn get_fernet(&self) -> Result<MultiFernet, TokenProviderError> {
         Ok(MultiFernet::new(
-            self.utils
-                .load_keys()?
-                .into_iter()
-                .filter_map(|x| Fernet::new(&x))
-                .collect::<Vec<_>>(),
+            self.utils.load_keys()?.into_iter().collect::<Vec<_>>(),
         ))
     }
 
@@ -280,7 +276,6 @@ pub(super) mod tests {
     use chrono::{Local, SubsecRound};
     use std::fs::File;
     use std::io::Write;
-    use std::path::PathBuf;
     use tempfile::tempdir;
     use uuid::Uuid;
 
@@ -290,14 +285,17 @@ pub(super) mod tests {
         let file_path = keys_dir.path().join("0");
         let mut tmp_file = File::create(file_path).unwrap();
         write!(tmp_file, "BFTs1CIVIBLTP4GOrQ26VETrJ7Zwz1O4wbEcCQ966eM=").unwrap();
-        let mut config = Config::new(PathBuf::new()).unwrap();
+
+        let builder = config::Config::builder()
+            .set_override(
+                "auth.methods",
+                "password,token,openid,application_credential",
+            )
+            .unwrap()
+            .set_override("database.connection", "dummy")
+            .unwrap();
+        let mut config: Config = Config::try_from(builder).expect("can build a valid config");
         config.fernet_tokens.key_repository = keys_dir.keep();
-        config.auth.methods = vec![
-            "password".into(),
-            "token".into(),
-            "openid".into(),
-            "application_credential".into(),
-        ];
         config
     }
 

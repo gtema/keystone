@@ -14,6 +14,7 @@
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{DateTime, Utc};
+use fernet::Fernet;
 use rmp::{
     Marker,
     decode::{self, *},
@@ -25,7 +26,7 @@ use std::io;
 use std::io::Read;
 use std::path::PathBuf;
 use tokio::fs as fs_async;
-use tracing::trace;
+use tracing::{trace, warn};
 use uuid::Uuid;
 
 use crate::token::error::TokenProviderError;
@@ -41,10 +42,8 @@ impl FernetUtils {
         Ok(self.key_repository.exists())
     }
 
-    pub fn load_keys(
-        &self,
-    ) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
-        let mut keys: BTreeMap<i8, String> = BTreeMap::new();
+    pub fn load_keys(&self) -> Result<impl IntoIterator<Item = Fernet>, TokenProviderError> {
+        let mut keys: BTreeMap<i8, Fernet> = BTreeMap::new();
         if self.validate_key_repository()? {
             for entry in fs::read_dir(&self.key_repository)? {
                 let entry = entry?;
@@ -52,24 +51,35 @@ impl FernetUtils {
                     if let Ok(key_order) = fname.parse::<i8>() {
                         // We are only interested in files named as integer (0, 1, 2, ...)
                         trace!("Loading key {:?}", entry.file_name());
-                        let key = fs::read_to_string(entry.path()).map_err(|e| {
-                            TokenProviderError::FernetKeyRead {
-                                source: e,
-                                path: entry.path(),
-                            }
-                        })?;
-                        keys.insert(key_order, key);
+                        if let Some(fernet) = Fernet::new(
+                            fs::read_to_string(entry.path())
+                                .map_err(|e| TokenProviderError::FernetKeyRead {
+                                    source: e,
+                                    path: entry.path(),
+                                })?
+                                .trim_end(),
+                        ) {
+                            keys.insert(key_order, fernet);
+                        } else {
+                            warn!(
+                                "The key {:?} is not usable for Fernet library",
+                                entry.file_name()
+                            )
+                        }
                     }
                 }
             }
+        }
+        if keys.len() == 0 {
+            return Err(TokenProviderError::FernetKeysMissing);
         }
         Ok(keys.into_values().rev())
     }
 
     pub async fn load_keys_async(
         &self,
-    ) -> Result<impl IntoIterator<Item = String> + use<>, TokenProviderError> {
-        let mut keys: BTreeMap<i8, String> = BTreeMap::new();
+    ) -> Result<impl IntoIterator<Item = Fernet>, TokenProviderError> {
+        let mut keys: BTreeMap<i8, Fernet> = BTreeMap::new();
         if self.validate_key_repository()? {
             let mut entries = fs_async::read_dir(&self.key_repository).await?;
             while let Some(entry) = entries.next_entry().await? {
@@ -77,16 +87,27 @@ impl FernetUtils {
                     if let Ok(key_order) = fname.parse::<i8>() {
                         // We are only interested in files named as integer (0, 1, 2, ...)
                         trace!("Loading key {:?}", entry.file_name());
-                        let key = fs::read_to_string(entry.path()).map_err(|e| {
-                            TokenProviderError::FernetKeyRead {
-                                source: e,
-                                path: entry.path(),
-                            }
-                        })?;
-                        keys.insert(key_order, key);
+                        if let Some(fernet) = Fernet::new(
+                            fs::read_to_string(entry.path())
+                                .map_err(|e| TokenProviderError::FernetKeyRead {
+                                    source: e,
+                                    path: entry.path(),
+                                })?
+                                .trim_end(),
+                        ) {
+                            keys.insert(key_order, fernet);
+                        } else {
+                            warn!(
+                                "The key {:?} is not usable for Fernet library",
+                                entry.file_name()
+                            )
+                        }
                     }
                 }
             }
+        }
+        if keys.len() == 0 {
+            return Err(TokenProviderError::FernetKeysMissing);
         }
         Ok(keys.into_values().rev())
     }
@@ -298,7 +319,23 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_load_keys() {
+    async fn test_load_keys_valid() {
+        let tmp_dir = tempdir().unwrap();
+        for i in 0..5 {
+            let file_path = tmp_dir.path().join(format!("{i}"));
+            let mut tmp_file = File::create(file_path).unwrap();
+            write!(tmp_file, "{}", Fernet::generate_key()).unwrap();
+        }
+        let utils = FernetUtils {
+            key_repository: tmp_dir.keep(),
+            ..Default::default()
+        };
+        let keys: Vec<Fernet> = utils.load_keys().unwrap().into_iter().collect();
+        assert_eq!(5, keys.len());
+    }
+
+    #[tokio::test]
+    async fn test_load_keys_all_invalid() {
         let tmp_dir = tempdir().unwrap();
         for i in 0..5 {
             let file_path = tmp_dir.path().join(format!("{i}"));
@@ -314,18 +351,28 @@ mod tests {
             key_repository: tmp_dir.keep(),
             ..Default::default()
         };
-        let keys: Vec<String> = utils.load_keys_async().await.unwrap().into_iter().collect();
+        let res = utils.load_keys();
 
-        assert_eq!(
-            vec![
-                "4".to_string(),
-                "3".to_string(),
-                "2".to_string(),
-                "1".to_string(),
-                "0".to_string()
-            ],
-            keys
-        );
+        if let Err(TokenProviderError::FernetKeysMissing) = res {
+        } else {
+            panic!("Should have raised an exception");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_load_keys_trim() {
+        let tmp_dir = tempdir().unwrap();
+        for i in 0..5 {
+            let file_path = tmp_dir.path().join(format!("{i}"));
+            let mut tmp_file = File::create(file_path).unwrap();
+            write!(tmp_file, "{}\n", Fernet::generate_key()).unwrap();
+        }
+        let utils = FernetUtils {
+            key_repository: tmp_dir.keep(),
+            ..Default::default()
+        };
+        let keys: Vec<Fernet> = utils.load_keys().unwrap().into_iter().collect();
+        assert_eq!(5, keys.len());
     }
 
     #[test]

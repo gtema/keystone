@@ -1,7 +1,6 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
 use tempfile::tempdir;
 
 use openstack_keystone::config::Config;
@@ -19,8 +18,14 @@ fn bench_decrypt_token(c: &mut Criterion) {
     let mut tmp_file = File::create(file_path).unwrap();
     write!(tmp_file, "BFTs1CIVIBLTP4GOrQ26VETrJ7Zwz1O4wbEcCQ966eM=").unwrap();
 
+    let builder = config::Config::builder()
+        .set_override("auth.methods", "password,token")
+        .unwrap()
+        .set_override("database.connection", "dummy")
+        .unwrap();
+    let mut config: Config = Config::try_from(builder).expect("can build a valid config");
     let mut backend = FernetTokenProvider::default();
-    let mut config = Config::new(PathBuf::new()).unwrap();
+
     config.fernet_tokens.key_repository = tmp_dir.keep();
     backend.set_config(config);
     backend.load_keys().unwrap();

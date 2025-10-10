@@ -61,7 +61,6 @@ pub fn verify_password<P: AsRef<[u8]>, H: AsRef<str>>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn test_verify_length_and_trunc_password() {
@@ -82,7 +81,12 @@ mod tests {
 
     #[test]
     fn test_hash_bcrypt() {
-        let conf = Config::new(PathBuf::new()).unwrap();
+        let builder = config::Config::builder()
+            .set_override("auth.methods", "")
+            .unwrap()
+            .set_override("database.connection", "dummy")
+            .unwrap();
+        let conf: Config = Config::try_from(builder).expect("can build a valid config");
         assert!(hash_password(&conf, "abcdefg").is_ok());
     }
 }

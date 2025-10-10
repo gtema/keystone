@@ -14,7 +14,6 @@
 
 use std::fs::File;
 use std::io::Write;
-use std::path::PathBuf;
 use tempfile::tempdir;
 
 use crate::config::Config;
@@ -23,15 +22,18 @@ pub fn setup_config() -> Config {
     let keys_dir = tempdir().unwrap();
     // write fernet key used to generate tokens in python
     let file_path = keys_dir.path().join("0");
-    let mut tmp_file = File::create(file_path).unwrap();
+    let mut tmp_file = File::create(&file_path).unwrap();
     write!(tmp_file, "BFTs1CIVIBLTP4GOrQ26VETrJ7Zwz1O4wbEcCQ966eM=").unwrap();
-    let mut config = Config::new(PathBuf::new()).unwrap();
+
+    let builder = config::Config::builder()
+        .set_override(
+            "auth.methods",
+            "password,token,openid,application_credential",
+        )
+        .unwrap()
+        .set_override("database.connection", "dummy")
+        .unwrap();
+    let mut config: Config = Config::try_from(builder).expect("can build a valid config");
     config.fernet_tokens.key_repository = keys_dir.keep();
-    config.auth.methods = vec![
-        "password".into(),
-        "token".into(),
-        "openid".into(),
-        "application_credential".into(),
-    ];
     config
 }

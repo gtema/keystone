@@ -30,8 +30,7 @@ pub struct Config {
     #[serde(default)]
     pub assignment: AssignmentSection,
 
-    /// Auth
-    #[serde(default)]
+    /// Authentication configuration.
     pub auth: AuthSection,
 
     /// Catalog
@@ -46,7 +45,7 @@ pub struct Config {
     pub fernet_tokens: FernetTokenSection,
 
     /// Database configuration
-    #[serde(default)]
+    //#[serde(default)]
     pub database: DatabaseSection,
 
     /// Identity provider related configuration
@@ -82,8 +81,10 @@ pub struct DefaultSection {
     pub public_endpoint: Option<String>,
 }
 
+/// Authentication configuration.
 #[derive(Debug, Default, Deserialize, Clone)]
 pub struct AuthSection {
+    /// Authentication methods to be enabled and used for token validation.
     #[serde(deserialize_with = "csv")]
     pub methods: Vec<String>,
 }
@@ -213,6 +214,20 @@ impl Config {
     pub fn new(path: PathBuf) -> Result<Self, Report> {
         let mut builder = config::Config::builder();
 
+        if std::path::Path::new(&path).is_file() {
+            builder = builder.add_source(File::from(path).format(FileFormat::Ini));
+        }
+
+        builder.try_into()
+    }
+}
+
+impl TryFrom<config::ConfigBuilder<config::builder::DefaultState>> for Config {
+    type Error = Report;
+    fn try_from(
+        builder: config::ConfigBuilder<config::builder::DefaultState>,
+    ) -> Result<Self, Self::Error> {
+        let mut builder = builder;
         builder = builder
             .set_default("api_policy.enable", "true")?
             .set_default("api_policy.opa_base_url", "http://localhost:8181")?
@@ -224,9 +239,6 @@ impl Config {
             .set_default("federation.driver", "sql")?
             .set_default("resource.driver", "sql")?
             .set_default("token.expiration", "3600")?;
-        if std::path::Path::new(&path).is_file() {
-            builder = builder.add_source(File::from(path).format(FileFormat::Ini));
-        }
 
         builder
             .build()
