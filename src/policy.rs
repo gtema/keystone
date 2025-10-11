@@ -103,7 +103,11 @@ impl PolicyFactory {
     #[allow(clippy::needless_update)]
     #[tracing::instrument(name = "policy.http", err)]
     pub async fn http(url: Url) -> Result<Self, PolicyError> {
-        let client = Client::new();
+        let client = Client::builder()
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .gzip(true)
+            .deflate(true)
+            .build()?;
         Ok(Self {
             http_client: Some(Arc::new(client)),
             base_url: Some(url.join("/v1/data/")?),
