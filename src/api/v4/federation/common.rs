@@ -79,13 +79,13 @@ pub(super) fn validate_bound_claims(
     claims: &IdTokenClaims<AllOtherClaims, CoreGenderClaim>,
     claims_as_json: &Value,
 ) -> Result<(), OidcError> {
-    if let Some(bound_subject) = &mapping.bound_subject {
-        if bound_subject != claims.subject().as_str() {
-            return Err(OidcError::BoundSubjectMismatch {
-                expected: bound_subject.to_string(),
-                found: claims.subject().as_str().into(),
-            });
-        }
+    if let Some(bound_subject) = &mapping.bound_subject
+        && bound_subject != claims.subject().as_str()
+    {
+        return Err(OidcError::BoundSubjectMismatch {
+            expected: bound_subject.to_string(),
+            found: claims.subject().as_str().into(),
+        });
     }
     if let Some(bound_audiences) = &mapping.bound_audiences {
         let mut bound_audiences_match: bool = false;
@@ -106,23 +106,23 @@ pub(super) fn validate_bound_claims(
             });
         }
     }
-    if let Some(bound_claims) = &mapping.bound_claims {
-        if let Some(required_claims) = bound_claims.as_object() {
-            for (claim, value) in required_claims.iter() {
-                if !claims_as_json
-                    .get(claim)
-                    .map(|x| x == value)
-                    .is_some_and(|val| val)
-                {
-                    return Err(OidcError::BoundClaimsMismatch {
-                        claim: claim.to_string(),
-                        expected: value.to_string(),
-                        found: claims_as_json
-                            .get(claim)
-                            .map(|x| x.to_string())
-                            .unwrap_or_default(),
-                    });
-                }
+    if let Some(bound_claims) = &mapping.bound_claims
+        && let Some(required_claims) = bound_claims.as_object()
+    {
+        for (claim, value) in required_claims.iter() {
+            if !claims_as_json
+                .get(claim)
+                .map(|x| x == value)
+                .is_some_and(|val| val)
+            {
+                return Err(OidcError::BoundClaimsMismatch {
+                    claim: claim.to_string(),
+                    expected: value.to_string(),
+                    found: claims_as_json
+                        .get(claim)
+                        .map(|x| x.to_string())
+                        .unwrap_or_default(),
+                });
             }
         }
     }
@@ -192,20 +192,20 @@ pub(super) async fn map_user_data(
             .ok_or(OidcError::UserDomainUnbound)?,
     );
 
-    if let Some(groups_claim) = &mapping.groups_claim {
-        if let Some(group_names_data) = &claims_as_json.get(groups_claim) {
-            builder.group_names(
-                group_names_data
-                    .as_array()
-                    .map(|names| {
-                        names
-                            .iter()
-                            .map(|group| group.as_str().map(|v| v.to_string()))
-                            .collect::<Option<Vec<_>>>()
-                    })
-                    .ok_or(OidcError::GroupsClaimNotArrayOfStrings)?,
-            );
-        }
+    if let Some(groups_claim) = &mapping.groups_claim
+        && let Some(group_names_data) = &claims_as_json.get(groups_claim)
+    {
+        builder.group_names(
+            group_names_data
+                .as_array()
+                .map(|names| {
+                    names
+                        .iter()
+                        .map(|group| group.as_str().map(|v| v.to_string()))
+                        .collect::<Option<Vec<_>>>()
+                })
+                .ok_or(OidcError::GroupsClaimNotArrayOfStrings)?,
+        );
     }
 
     Ok(builder.build()?)

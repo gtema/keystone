@@ -70,31 +70,31 @@ async fn authenticate_request(
                         .await?,
                 );
             }
-        } else if method == "token" {
-            if let Some(token) = &req.auth.identity.token {
-                let mut authz = state
+        } else if method == "token"
+            && let Some(token) = &req.auth.identity.token
+        {
+            let mut authz = state
+                .provider
+                .get_token_provider()
+                .authenticate_by_token(&token.id, Some(false), None)
+                .await?;
+            // Resolve the user
+            authz.user = Some(
+                state
                     .provider
-                    .get_token_provider()
-                    .authenticate_by_token(&token.id, Some(false), None)
-                    .await?;
-                // Resolve the user
-                authz.user = Some(
-                    state
-                        .provider
-                        .get_identity_provider()
-                        .get_user(&state.db, &authz.user_id)
-                        .await
-                        .map(|x| {
-                            x.ok_or_else(|| KeystoneApiError::NotFound {
-                                resource: "user".into(),
-                                identifier: authz.user_id.clone(),
-                            })
-                        })??,
-                );
-                authenticated_info = Some(authz);
+                    .get_identity_provider()
+                    .get_user(&state.db, &authz.user_id)
+                    .await
+                    .map(|x| {
+                        x.ok_or_else(|| KeystoneApiError::NotFound {
+                            resource: "user".into(),
+                            identifier: authz.user_id.clone(),
+                        })
+                    })??,
+            );
+            authenticated_info = Some(authz);
 
-                {}
-            }
+            {}
         }
     }
     authenticated_info

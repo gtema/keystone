@@ -47,30 +47,30 @@ impl FernetUtils {
         if self.validate_key_repository()? {
             for entry in fs::read_dir(&self.key_repository)? {
                 let entry = entry?;
-                if let Ok(fname) = entry.file_name().into_string() {
-                    if let Ok(key_order) = fname.parse::<i8>() {
-                        // We are only interested in files named as integer (0, 1, 2, ...)
-                        trace!("Loading key {:?}", entry.file_name());
-                        if let Some(fernet) = Fernet::new(
-                            fs::read_to_string(entry.path())
-                                .map_err(|e| TokenProviderError::FernetKeyRead {
-                                    source: e,
-                                    path: entry.path(),
-                                })?
-                                .trim_end(),
-                        ) {
-                            keys.insert(key_order, fernet);
-                        } else {
-                            warn!(
-                                "The key {:?} is not usable for Fernet library",
-                                entry.file_name()
-                            )
-                        }
+                if let Ok(fname) = entry.file_name().into_string()
+                    && let Ok(key_order) = fname.parse::<i8>()
+                {
+                    // We are only interested in files named as integer (0, 1, 2, ...)
+                    trace!("Loading key {:?}", entry.file_name());
+                    if let Some(fernet) = Fernet::new(
+                        fs::read_to_string(entry.path())
+                            .map_err(|e| TokenProviderError::FernetKeyRead {
+                                source: e,
+                                path: entry.path(),
+                            })?
+                            .trim_end(),
+                    ) {
+                        keys.insert(key_order, fernet);
+                    } else {
+                        warn!(
+                            "The key {:?} is not usable for Fernet library",
+                            entry.file_name()
+                        )
                     }
                 }
             }
         }
-        if keys.len() == 0 {
+        if keys.is_empty() {
             return Err(TokenProviderError::FernetKeysMissing);
         }
         Ok(keys.into_values().rev())
@@ -83,30 +83,30 @@ impl FernetUtils {
         if self.validate_key_repository()? {
             let mut entries = fs_async::read_dir(&self.key_repository).await?;
             while let Some(entry) = entries.next_entry().await? {
-                if let Ok(fname) = entry.file_name().into_string() {
-                    if let Ok(key_order) = fname.parse::<i8>() {
-                        // We are only interested in files named as integer (0, 1, 2, ...)
-                        trace!("Loading key {:?}", entry.file_name());
-                        if let Some(fernet) = Fernet::new(
-                            fs::read_to_string(entry.path())
-                                .map_err(|e| TokenProviderError::FernetKeyRead {
-                                    source: e,
-                                    path: entry.path(),
-                                })?
-                                .trim_end(),
-                        ) {
-                            keys.insert(key_order, fernet);
-                        } else {
-                            warn!(
-                                "The key {:?} is not usable for Fernet library",
-                                entry.file_name()
-                            )
-                        }
+                if let Ok(fname) = entry.file_name().into_string()
+                    && let Ok(key_order) = fname.parse::<i8>()
+                {
+                    // We are only interested in files named as integer (0, 1, 2, ...)
+                    trace!("Loading key {:?}", entry.file_name());
+                    if let Some(fernet) = Fernet::new(
+                        fs::read_to_string(entry.path())
+                            .map_err(|e| TokenProviderError::FernetKeyRead {
+                                source: e,
+                                path: entry.path(),
+                            })?
+                            .trim_end(),
+                    ) {
+                        keys.insert(key_order, fernet);
+                    } else {
+                        warn!(
+                            "The key {:?} is not usable for Fernet library",
+                            entry.file_name()
+                        )
                     }
                 }
             }
         }
-        if keys.len() == 0 {
+        if keys.is_empty() {
             return Err(TokenProviderError::FernetKeysMissing);
         }
         Ok(keys.into_values().rev())

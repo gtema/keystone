@@ -63,10 +63,10 @@ impl TryFrom<db_federated_mapping::Model> for Mapping {
             db_mapping_type::Oidc => MappingType::Oidc,
             db_mapping_type::Jwt => MappingType::Jwt,
         });
-        if let Some(val) = &value.allowed_redirect_uris {
-            if !val.is_empty() {
-                builder.allowed_redirect_uris(Vec::from_iter(val.split(",").map(Into::into)));
-            }
+        if let Some(val) = &value.allowed_redirect_uris
+            && !val.is_empty()
+        {
+            builder.allowed_redirect_uris(Vec::from_iter(val.split(",").map(Into::into)));
         }
         builder.user_id_claim(value.user_id_claim.clone());
         builder.user_name_claim(value.user_name_claim.clone());
@@ -76,10 +76,10 @@ impl TryFrom<db_federated_mapping::Model> for Mapping {
         if let Some(val) = &value.groups_claim {
             builder.groups_claim(val);
         }
-        if let Some(val) = &value.bound_audiences {
-            if !val.is_empty() {
-                builder.bound_audiences(Vec::from_iter(val.split(",").map(Into::into)));
-            }
+        if let Some(val) = &value.bound_audiences
+            && !val.is_empty()
+        {
+            builder.bound_audiences(Vec::from_iter(val.split(",").map(Into::into)));
         }
         if let Some(val) = &value.bound_subject {
             builder.bound_subject(val);
@@ -87,10 +87,10 @@ impl TryFrom<db_federated_mapping::Model> for Mapping {
         if let Some(val) = &value.bound_claims {
             builder.bound_claims(val.clone());
         }
-        if let Some(val) = &value.oidc_scopes {
-            if !val.is_empty() {
-                builder.oidc_scopes(Vec::from_iter(val.split(",").map(Into::into)));
-            }
+        if let Some(val) = &value.oidc_scopes
+            && !val.is_empty()
+        {
+            builder.oidc_scopes(Vec::from_iter(val.split(",").map(Into::into)));
         }
         if let Some(val) = &value.token_project_id {
             builder.token_project_id(val.clone());
