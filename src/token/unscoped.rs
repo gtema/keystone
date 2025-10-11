@@ -16,13 +16,12 @@ use chrono::{DateTime, Utc};
 use derive_builder::Builder;
 use rmp::{decode::read_pfix, encode::write_pfix};
 use serde::Serialize;
-use std::collections::BTreeMap;
 use std::io::Write;
 
 use crate::identity::types::UserResponse;
 use crate::token::{
     error::TokenProviderError,
-    fernet::{self, MsgPackToken},
+    fernet::{FernetTokenProvider, MsgPackToken},
     fernet_utils,
     types::Token,
 };
@@ -77,12 +76,12 @@ impl MsgPackToken for UnscopedPayload {
     fn assemble<W: Write>(
         &self,
         wd: &mut W,
-        auth_map: &BTreeMap<usize, String>,
+        fernet_provider: &FernetTokenProvider,
     ) -> Result<(), TokenProviderError> {
         fernet_utils::write_uuid(wd, &self.user_id)?;
         write_pfix(
             wd,
-            fernet::encode_auth_methods(self.methods.clone(), auth_map)? as u8,
+            fernet_provider.encode_auth_methods(self.methods.clone())?,
         )
         .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
         fernet_utils::write_time(wd, self.expires_at)?;
@@ -93,11 +92,12 @@ impl MsgPackToken for UnscopedPayload {
 
     fn disassemble(
         rd: &mut &[u8],
-        auth_map: &BTreeMap<usize, String>,
+        fernet_provider: &FernetTokenProvider,
     ) -> Result<Self::Token, TokenProviderError> {
         // Order of writing is important
         let user_id = fernet_utils::read_uuid(rd)?;
-        let methods: Vec<String> = fernet::decode_auth_methods(read_pfix(rd)?.into(), auth_map)?
+        let methods: Vec<String> = fernet_provider
+            .decode_auth_methods(read_pfix(rd)?)?
             .into_iter()
             .collect();
         let expires_at = fernet_utils::read_time(rd)?;
@@ -117,6 +117,7 @@ mod tests {
     use chrono::{Local, SubsecRound};
     use uuid::Uuid;
 
+    use super::super::tests::setup_config;
     use super::*;
 
     #[test]
@@ -128,11 +129,13 @@ mod tests {
             expires_at: Local::now().trunc_subsecs(0).into(),
             ..Default::default()
         };
-        let auth_map = BTreeMap::from([(1, "password".into())]);
+
+        let provider = FernetTokenProvider::new(setup_config());
+
         let mut buf = vec![];
-        token.assemble(&mut buf, &auth_map).unwrap();
+        token.assemble(&mut buf, &provider).unwrap();
         let encoded_buf = buf.clone();
-        let decoded = UnscopedPayload::disassemble(&mut encoded_buf.as_slice(), &auth_map).unwrap();
+        let decoded = UnscopedPayload::disassemble(&mut encoded_buf.as_slice(), &provider).unwrap();
         assert_eq!(token, decoded);
     }
 }

@@ -50,18 +50,18 @@ impl TryFrom<db_federated_identity_provider::Model> for IdentityProvider {
         if let Some(val) = &value.oidc_response_mode {
             builder.oidc_response_mode(val);
         }
-        if let Some(val) = &value.oidc_response_types {
-            if !val.is_empty() {
-                builder.oidc_response_types(Vec::from_iter(val.split(",").map(Into::into)));
-            }
+        if let Some(val) = &value.oidc_response_types
+            && !val.is_empty()
+        {
+            builder.oidc_response_types(Vec::from_iter(val.split(",").map(Into::into)));
         }
         if let Some(val) = &value.jwks_url {
             builder.jwks_url(val);
         }
-        if let Some(val) = &value.jwt_validation_pubkeys {
-            if !val.is_empty() {
-                builder.jwt_validation_pubkeys(Vec::from_iter(val.split(",").map(Into::into)));
-            }
+        if let Some(val) = &value.jwt_validation_pubkeys
+            && !val.is_empty()
+        {
+            builder.jwt_validation_pubkeys(Vec::from_iter(val.split(",").map(Into::into)));
         }
         if let Some(val) = &value.bound_issuer {
             builder.bound_issuer(val);

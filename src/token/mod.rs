@@ -72,10 +72,9 @@ pub struct TokenProvider {
 
 impl TokenProvider {
     pub fn new(config: &Config) -> Result<Self, TokenProviderError> {
-        let mut backend_driver = match config.token.provider {
-            TokenProviderType::Fernet => fernet::FernetTokenProvider::default(),
+        let backend_driver = match config.token.provider {
+            TokenProviderType::Fernet => fernet::FernetTokenProvider::new(config.clone()),
         };
-        backend_driver.set_config(config.clone());
         Ok(Self {
             config: config.clone(),
             backend_driver: Box::new(backend_driver),
@@ -415,10 +414,10 @@ impl TokenApi for TokenProvider {
             .validate_token(credential, allow_expired, window_seconds)
             .await?;
         tracing::debug!("The token is {:?}", token);
-        if let Token::Restricted(restriction) = &token {
-            if !restriction.allow_renew {
-                return Err(AuthenticationError::TokenRenewalForbidden)?;
-            }
+        if let Token::Restricted(restriction) = &token
+            && !restriction.allow_renew
+        {
+            return Err(AuthenticationError::TokenRenewalForbidden)?;
         }
         let mut auth_info_builder = AuthenticatedInfo::builder();
         auth_info_builder.user_id(token.user_id());
@@ -820,6 +819,9 @@ mock! {
 #[cfg(test)]
 mod tests {
     use sea_orm::DatabaseConnection;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
 
     use super::*;
     use crate::assignment::{
@@ -830,6 +832,26 @@ mod tests {
     use crate::config::Config;
 
     use crate::token::{DomainScopePayload, ProjectScopePayload, Token, UnscopedPayload};
+
+    pub(super) fn setup_config() -> Config {
+        let keys_dir = tempdir().unwrap();
+        // write fernet key used to generate tokens in python
+        let file_path = keys_dir.path().join("0");
+        let mut tmp_file = File::create(file_path).unwrap();
+        write!(tmp_file, "BFTs1CIVIBLTP4GOrQ26VETrJ7Zwz1O4wbEcCQ966eM=").unwrap();
+
+        let builder = config::Config::builder()
+            .set_override(
+                "auth.methods",
+                "password,token,openid,application_credential",
+            )
+            .unwrap()
+            .set_override("database.connection", "dummy")
+            .unwrap();
+        let mut config: Config = Config::try_from(builder).expect("can build a valid config");
+        config.fernet_tokens.key_repository = keys_dir.keep();
+        config
+    }
 
     #[tokio::test]
     async fn test_populate_role_assignments() {

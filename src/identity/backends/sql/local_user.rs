@@ -117,14 +117,13 @@ pub async fn create(
         failed_auth_at: NotSet,
     };
     // Set failed_auth_count to 0 if compliance disabling is on
-    if let Some(true) = &user.enabled {
-        if conf
+    if let Some(true) = &user.enabled
+        && conf
             .security_compliance
             .disable_user_account_days_inactive
             .is_some()
-        {
-            entry.failed_auth_count = Set(Some(0));
-        }
+    {
+        entry.failed_auth_count = Set(Some(0));
     }
 
     let db_user: local_user::Model = entry.insert(db).await?;

@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 authors = ["Artem Goncharov (gtema)"]
-rust-version = "1.85"  # MSRV
+rust-version = "1.90"  # MSRV
 repository = "https://github.com/gtema/keystone"
 
 [package.metadata.clippy]
@@ -26,7 +26,7 @@ harness = false
 [dependencies]
 async-trait = { version = "0.1" }
 axum = { version = "0.8", features = ["macros"] }
-base64 = "0.22"
+base64 = { version = "0.22" }
 bcrypt = { version = "0.17", features = ["alloc"] }
 bytes = { version = "1.10" }
 chrono = { version = "0.4" }
@@ -38,10 +38,11 @@ dyn-clone = { version = "1.0" }
 eyre = { version = "0.6" }
 fernet = { version = "0.2", default-features = false, features = ["rustcrypto"] }
 futures-util = { version = "0.3" }
+itertools = { version = "0.14" }
 mockall_double = { version = "0.3" }
 opa-wasm = { version = "^0.1", optional = true }
 openidconnect = { version = "4.0" }
-regex = { version = "1.11"}
+regex = { version = "1.12" }
 reqwest = { version = "0.12", features = ["json", "http2", "gzip", "deflate"] }
 rmp = { version = "0.8" }
 schemars = { version = "1.0" }
@@ -71,7 +72,7 @@ criterion = { version = "0.7", features = ["async_tokio"] }
 http-body-util = "0.1"
 hyper = { version = "1.7", features = ["http1"] }
 hyper-util = { version = "0.1", features = ["tokio", "http1"] }
-keycloak = { version = "26.3" }
+keycloak = { version = "26.4" }
 mockall = { version = "0.13" }
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 sea-orm = { version = "1.1", features = ["mock"]}
