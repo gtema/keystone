@@ -55,22 +55,16 @@ pub fn get_local_user_builder<
 ) -> UserResponseBuilder {
     let mut user_builder: UserResponseBuilder = get_user_builder(user, opts);
     user_builder.name(data.name.clone());
-    if let Some(password_expires_days) = conf.security_compliance.password_expires_days {
-        if let Some(pass) = passwords {
-            if let (Some(current_password), Some(options)) =
-                (pass.into_iter().next(), user_builder.get_options())
-            {
-                if let Some(false) = options.ignore_password_expiry.or(Some(false)) {
-                    if let Some(dt) =
-                        DateTime::from_timestamp_micros(current_password.created_at_int)
-                            .expect("invalid timestamp")
-                            .checked_add_days(Days::new(password_expires_days))
-                    {
-                        user_builder.password_expires_at(dt);
-                    }
-                }
-            }
-        }
+    if let Some(password_expires_days) = conf.security_compliance.password_expires_days
+        && let Some(pass) = passwords
+        && let (Some(current_password), Some(options)) =
+            (pass.into_iter().next(), user_builder.get_options())
+        && let Some(false) = options.ignore_password_expiry.or(Some(false))
+        && let Some(dt) = DateTime::from_timestamp_micros(current_password.created_at_int)
+            .expect("invalid timestamp")
+            .checked_add_days(Days::new(password_expires_days))
+    {
+        user_builder.password_expires_at(dt);
     }
     user_builder
 }

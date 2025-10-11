@@ -158,15 +158,15 @@ impl AssignmentApi for AssignmentProvider {
             if let Some(uid) = &params.user_id {
                 actors.push(uid.into());
             }
-            if let Some(true) = &params.effective {
-                if let Some(uid) = &params.user_id {
-                    let users = provider
-                        .get_identity_provider()
-                        .list_groups_of_user(db, uid)
-                        .await?;
-                    actors.extend(users.into_iter().map(|x| x.id));
-                };
-            }
+            if let Some(true) = &params.effective
+                && let Some(uid) = &params.user_id
+            {
+                let users = provider
+                    .get_identity_provider()
+                    .list_groups_of_user(db, uid)
+                    .await?;
+                actors.extend(users.into_iter().map(|x| x.id));
+            };
             if let Some(val) = &params.project_id {
                 targets.push(RoleAssignmentTarget {
                     target_id: val.clone(),

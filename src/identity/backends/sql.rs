@@ -71,36 +71,32 @@ impl IdentityBackend for SqlBackend {
         .await?;
         if let Some((local_user, password)) = user_with_passwords {
             let passwords: Vec<db_password::Model> = password.into_iter().collect();
-            if let Some(latest_password) = passwords.first() {
-                if let Some(expected_hash) = &latest_password.password_hash {
-                    let user_opts = user_option::get(db, local_user.user_id.clone()).await?;
+            if let Some(latest_password) = passwords.first()
+                && let Some(expected_hash) = &latest_password.password_hash
+            {
+                let user_opts = user_option::get(db, local_user.user_id.clone()).await?;
 
-                    if password_hashing::verify_password(
-                        &self.config,
-                        auth.password,
-                        expected_hash,
-                    )? {
-                        if let Some(user) = user::get(db, &local_user.user_id).await? {
-                            // TODO: Check password is expired
-                            // TODO: reset failed login attempt
-                            let user_builder = common::get_local_user_builder(
-                                &self.config,
-                                &user,
-                                local_user,
-                                Some(passwords),
-                                user_opts,
-                            );
-                            let user = user_builder.build()?;
-                            return Ok(AuthenticatedInfo::builder()
-                                .user_id(user.id.clone())
-                                .user(user)
-                                .methods(vec!["password".into()])
-                                .build()
-                                .map_err(AuthenticationError::from)?);
-                        }
-                    } else {
-                        return Err(IdentityProviderError::WrongUsernamePassword);
+                if password_hashing::verify_password(&self.config, auth.password, expected_hash)? {
+                    if let Some(user) = user::get(db, &local_user.user_id).await? {
+                        // TODO: Check password is expired
+                        // TODO: reset failed login attempt
+                        let user_builder = common::get_local_user_builder(
+                            &self.config,
+                            &user,
+                            local_user,
+                            Some(passwords),
+                            user_opts,
+                        );
+                        let user = user_builder.build()?;
+                        return Ok(AuthenticatedInfo::builder()
+                            .user_id(user.id.clone())
+                            .user(user)
+                            .methods(vec!["password".into()])
+                            .build()
+                            .map_err(AuthenticationError::from)?);
                     }
+                } else {
+                    return Err(IdentityProviderError::WrongUsernamePassword);
                 }
             }
         }
