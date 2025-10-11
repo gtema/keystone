@@ -42,7 +42,7 @@ mockall_double = { version = "0.3" }
 opa-wasm = { version = "^0.1", optional = true }
 openidconnect = { version = "4.0" }
 regex = { version = "1.11"}
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "http2", "gzip", "deflate"] }
 rmp = { version = "0.8" }
 schemars = { version = "1.0" }
 sea-orm = { version = "1.1", features = ["sqlx-mysql", "sqlx-postgres", "runtime-tokio", "runtime-tokio-native-tls"] }
