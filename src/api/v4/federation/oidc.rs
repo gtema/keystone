@@ -171,15 +171,14 @@ pub async fn callback(
     let claims = id_token
         .claims(&client.id_token_verifier(), &Nonce::new(auth_state.nonce))
         .map_err(OidcError::from)?;
-    if let Some(bound_issuer) = &idp.bound_issuer {
-        if Url::parse(bound_issuer)
+    if let Some(bound_issuer) = &idp.bound_issuer
+        && Url::parse(bound_issuer)
             .map_err(OidcError::from)
             .wrap_err_with(|| {
                 format!("while parsing the mapping bound_issuer url: {bound_issuer}")
             })?
             == *claims.issuer().url()
-        {}
-    }
+    {}
 
     let claims_as_json = serde_json::to_value(claims)?;
     debug!("Claims data {claims_as_json}");
