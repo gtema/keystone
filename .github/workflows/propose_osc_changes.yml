@@ -112,7 +112,7 @@ jobs:
         run: |
           git clone https://x-access-token:${{ secrets.OPENSTACK_REPO_TOKEN }}@github.com/gtema/openstack.git target-repo
           cd target-repo
-          git checkout -b "${{ steps.vars.outputs.branch_name }}" || git checkout "${{ steps.vars.outputs.branch_name }}"
+          git checkout -b "ks_${{ steps.vars.outputs.branch_name }}" || git checkout "ks_${{ steps.vars.outputs.branch_name }}"
 
       - name: Copy files to target repo
         run: |
@@ -130,21 +130,31 @@ jobs:
           cargo b --all-features
 
       - name: Commit files
+        id: sync
         run: |
           cd target-repo
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet; then
+              echo "No changes detected — skipping commit and PR creation."
+              echo "no_changes=true" >> $GITHUB_OUTPUT
+              exit 0
+          fi
+
           git add .
           git commit -m "${{ steps.commit.outputs.commit_message }}" || echo "No changes to commit"
-          git push origin "${{ steps.vars.outputs.branch_name }}"
+          git push origin "ks_${{ steps.vars.outputs.branch_name }}"
+          echo "no_changes=false" >> $GITHUB_OUTPUT
 
       - name: Create PR in target repo
         env:
           GH_TOKEN: ${{ secrets.OPENSTACK_REPO_TOKEN }}
+        if: steps.sync.outputs.no_changes == 'false'
         run: |
           gh pr create \
             --repo gtema/openstack \
-            --head "${{ steps.vars.outputs.branch_name }}" \
+            --head "ks_${{ steps.vars.outputs.branch_name }}" \
             --base main \
             --title "${{ steps.commit.outputs.commit_message }}" \
             --body "Automated PR created after merging '${{ steps.vars.outputs.branch_name }}' in the gtema/keystone repo."
