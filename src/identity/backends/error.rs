@@ -35,6 +35,12 @@ pub enum IdentityDatabaseError {
         source: serde_json::Error,
     },
 
+    #[error(transparent)]
+    Join {
+        #[from]
+        source: tokio::task::JoinError,
+    },
+
     #[error("building user response data")]
     UserBuilderError {
         #[from]

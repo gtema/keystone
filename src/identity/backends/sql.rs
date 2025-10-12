@@ -366,31 +366,28 @@ async fn list_users(
 
     let db_users: Vec<db_user::Model> = user_select.all(db).await?;
 
-    let user_opts: Vec<Vec<db_user_option::Model>> = db_users.load_many(UserOption, db).await?;
+    let (user_opts, local_users, nonlocal_users, federated_users) = tokio::join!(
+        db_users.load_many(UserOption, db),
+        db_users.load_one(local_user_select, db),
+        db_users.load_one(nonlocal_user_select, db),
+        db_users.load_many(federated_user_select, db)
+    );
 
-    let local_users: Vec<Option<db_local_user::Model>> =
-        db_users.load_one(local_user_select, db).await?;
-
-    let nonlocal_users: Vec<Option<db_nonlocal_user::Model>> =
-        db_users.load_one(nonlocal_user_select, db).await?;
-
-    let federated_users: Vec<Vec<db_federated_user::Model>> =
-        db_users.load_many(federated_user_select, db).await?;
+    let locals = local_users?;
 
     let local_users_passwords: Vec<Option<Vec<db_password::Model>>> =
-        local_user::load_local_users_passwords(
-            db,
-            local_users.iter().cloned().map(|u| u.map(|x| x.id)),
-        )
-        .await?;
+        local_user::load_local_users_passwords(db, locals.iter().cloned().map(|u| u.map(|x| x.id)))
+            .await?;
 
     let mut results: Vec<UserResponse> = Vec::new();
     for (u, (o, (l, (p, (n, f))))) in db_users.into_iter().zip(
-        user_opts.into_iter().zip(
-            local_users.into_iter().zip(
-                local_users_passwords
-                    .into_iter()
-                    .zip(nonlocal_users.into_iter().zip(federated_users.into_iter())),
+        user_opts?.into_iter().zip(
+            locals.into_iter().zip(
+                local_users_passwords.into_iter().zip(
+                    nonlocal_users?
+                        .into_iter()
+                        .zip(federated_users?.into_iter()),
+                ),
             ),
         ),
     ) {
@@ -435,32 +432,33 @@ pub async fn get_user(
 
     let user_entry: Option<db_user::Model> = user_select.one(db).await?;
 
-    if let Some(user) = &user_entry {
-        let user_opts: Vec<db_user_option::Model> = user.find_related(UserOption).all(db).await?;
+    if let Some(user) = user_entry {
+        let (user_opts, local_user_with_passwords) = tokio::join!(
+            user.find_related(UserOption).all(db),
+            local_user::load_local_user_with_passwords(
+                db,
+                Some(&user_id),
+                None::<&str>,
+                None::<&str>,
+            )
+        );
 
-        let user_builder: UserResponseBuilder = match local_user::load_local_user_with_passwords(
-            db,
-            Some(&user_id),
-            None::<&str>,
-            None::<&str>,
-        )
-        .await?
-        {
+        let user_builder: UserResponseBuilder = match local_user_with_passwords? {
             Some(local_user_with_passwords) => common::get_local_user_builder(
                 conf,
-                user,
+                &user,
                 local_user_with_passwords.0,
                 Some(local_user_with_passwords.1),
-                user_opts,
+                user_opts?,
             ),
             _ => match user.find_related(NonlocalUser).one(db).await? {
                 Some(nonlocal_user) => {
-                    common::get_nonlocal_user_builder(user, nonlocal_user, user_opts)
+                    common::get_nonlocal_user_builder(&user, nonlocal_user, user_opts?)
                 }
                 _ => {
                     let federated_user = user.find_related(FederatedUser).all(db).await?;
                     if !federated_user.is_empty() {
-                        common::get_federated_user_builder(user, federated_user, user_opts)
+                        common::get_federated_user_builder(&user, federated_user, user_opts?)
                     } else {
                         return Err(IdentityDatabaseError::MalformedUser(user_id.to_string()))?;
                     }
