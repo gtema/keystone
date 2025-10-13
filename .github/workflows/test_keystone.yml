@@ -1,0 +1,94 @@
+---
+name: Test keystone container
+
+on:
+  workflow_dispatch:
+  pull_request:
+env:
+  DATABASE_URL: postgresql://keystone:1234@127.0.0.1:5432/keystone
+  KEYSTONE_URL: http://localhost:8080
+  OPA_URL: http://localhost:8181
+  OS_KEYSTONE_CONFIG_DIR: ${{ github.workspace }}/etc
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: keystone
+          POSTGRES_PASSWORD: '1234'
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      # - name: Prepare keystone config file
+      #   run: |
+      #     mkdir -p etc
+      #     cat <<EOF > etc/keystone.conf
+      #     [auth]
+      #     methods = password,token,openid,application_credential
+      #     [database]
+      #     connection = postgresql://keystone:1234@localhost:5432/keystone
+      #     [fernet_receipts]
+      #     key_repository = $(pwd)/etc/fernet
+      #     [fernet_tokens]
+      #     key_repository = $(pwd)/etc/fernet
+      #     EOF
+      #     cat etc/keystone.conf
+
+      - name: Start keystone
+        run: |
+          network=$(docker network ls --filter name=github_network_ -q | head -n 1)
+          docker run -d \
+            --user $(id -u):$(id -g) \
+            --network "$network" \
+            -p 5001:5001 \
+            -e OS_KEYSTONE_DATABASE__CONNECTION="postgresql://keystone:1234@postgres:5432/keystone" \
+            -e OS_KEYSTONE_AUTH__METHODS="password,token,openid,application_credential" \
+            -e OS_KEYSTONE_FERNET_TOKENS__KEY_REPOSITORY="/etc/keystone/fernet" \
+            -e OS_KEYSTONE_FERNET_RECEIPTS__KEY_REPOSITORY="/etc/keystone/fernet" \
+            -v $PWD/etc:/etc/keystone:rw \
+            --name keystone \
+            ghcr.io/gtema/keystone/py-keystone:main
+
+      - run: sleep 10
+
+      # - name: Prepare clouds.yaml
+      #   run: |
+      #     mkdir -p ~/.config/openstack
+      #     cat <<EOF > ~/.config/openstack/clouds.yaml
+      #     clouds:
+      #       admin:
+      #         auth:
+      #           auth_url: http://localhost:5001
+      #           username: admin
+      #           password: password
+      #           project_name: admin
+      #           user_domain_id: default
+      #           project_domain_id: default
+      #         interface: public
+
+      #       admin-rust:
+      #         auth:
+      #           auth_url: http://localhost:8080
+      #           username: admin
+      #           password: password
+      #           project_name: admin
+      #           user_domain_id: default
+      #           project_domain_id: default
+      #         interface: internal
+      #     EOF
+
+      - run: curl http://localhost:5001/v3
+
+      - run: sudo find ${{ github.workspace}}/etc -type f | xargs ls -al
+
+      - run: docker logs keystone
+        if: failure()

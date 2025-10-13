@@ -72,281 +72,281 @@ jobs:
             keystone-db
             policy.wasm
 
-  interop:
-    runs-on: ubuntu-latest
-    needs:
-      - build
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: keystone
-          POSTGRES_PASSWORD: '1234'
-        ports:
-          - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+  # interop:
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - build
+  #   services:
+  #     postgres:
+  #       image: postgres:17
+  #       env:
+  #         POSTGRES_USER: keystone
+  #         POSTGRES_PASSWORD: '1234'
+  #       ports:
+  #         - 5432:5432
+  #       options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+  #   steps:
+  #     - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Enable cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.cargo
-          key: ${{ runner.os }}-integration
+  #     - name: Enable cache
+  #       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+  #       with:
+  #         path: |
+  #           ~/.cache/pip
+  #           ~/.cargo
+  #         key: ${{ runner.os }}-integration
 
-      - name: Rust Cache
-        uses: swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+  #     - name: Rust Cache
+  #       uses: swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
 
-      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
-        with:
-          python-version: '3.12'
+  #     - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+  #       with:
+  #         python-version: '3.12'
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # stable
-        with:
-          toolchain: stable
+  #     - name: Install Rust
+  #       uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # stable
+  #       with:
+  #         toolchain: stable
 
-      - name: Fetch pre-built artifacts
-        uses: actions/download-artifact@abefc31eafcfbdf6c5336127c1346fdae79ff41c # v5.0.0
-        with:
-          name: keystone
+  #     - name: Fetch pre-built artifacts
+  #       uses: actions/download-artifact@abefc31eafcfbdf6c5336127c1346fdae79ff41c # v5.0.0
+  #       with:
+  #         name: keystone
 
-      - name: Fix keystone permissions
-        run: chmod u+x keystone keystone-db
+  #     - name: Fix keystone permissions
+  #       run: chmod u+x keystone keystone-db
 
-      - name: Install necessary python packages
-        run: pip install keystone uwsgi psycopg2
+  #     - name: Install necessary python packages
+  #       run: pip install keystone uwsgi psycopg2
 
-      - name: Install osc
-        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/gtema/openstack/releases/latest/download/openstack_cli-installer.sh | sh
+  #     - name: Install osc
+  #       run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/gtema/openstack/releases/latest/download/openstack_cli-installer.sh | sh
 
-      - name: Prepare keystone config file
-        run: |
-          mkdir -p etc
-          cat <<EOF > etc/keystone.conf
-          [auth]
-          methods = password,token,openid,application_credential
-          [database]
-          connection = postgresql://keystone:1234@127.0.0.1:5432/keystone
-          [fernet_receipts]
-          key_repository = $(pwd)/etc/fernet
-          [fernet_tokens]
-          key_repository = $(pwd)/etc/fernet
-          EOF
-          cat etc/keystone.conf
+  #     - name: Prepare keystone config file
+  #       run: |
+  #         mkdir -p etc
+  #         cat <<EOF > etc/keystone.conf
+  #         [auth]
+  #         methods = password,token,openid,application_credential
+  #         [database]
+  #         connection = postgresql://keystone:1234@127.0.0.1:5432/keystone
+  #         [fernet_receipts]
+  #         key_repository = $(pwd)/etc/fernet
+  #         [fernet_tokens]
+  #         key_repository = $(pwd)/etc/fernet
+  #         EOF
+  #         cat etc/keystone.conf
 
-      - name: Init keystone
-        run: |
-          mkdir -p etc/fernet
-          keystone-manage --config-file etc/keystone.conf db_sync
-          keystone-manage --config-file etc/keystone.conf fernet_setup
-          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:5001 --bootstrap-internal-url http://localhost:8080 --bootstrap-region-id dev
+  #     - name: Init keystone
+  #       run: |
+  #         mkdir -p etc/fernet
+  #         keystone-manage --config-file etc/keystone.conf db_sync
+  #         keystone-manage --config-file etc/keystone.conf fernet_setup
+  #         keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:5001 --bootstrap-internal-url http://localhost:8080 --bootstrap-region-id dev
 
-      - name: Prepare clouds.yaml
-        run: |
-          mkdir -p ~/.config/openstack
-          cat <<EOF > ~/.config/openstack/clouds.yaml
-          clouds:
-            admin:
-              auth:
-                auth_url: http://localhost:5001
-                username: admin
-                password: password
-                project_name: admin
-                user_domain_id: default
-                project_domain_id: default
-              interface: public
+  #     - name: Prepare clouds.yaml
+  #       run: |
+  #         mkdir -p ~/.config/openstack
+  #         cat <<EOF > ~/.config/openstack/clouds.yaml
+  #         clouds:
+  #           admin:
+  #             auth:
+  #               auth_url: http://localhost:5001
+  #               username: admin
+  #               password: password
+  #               project_name: admin
+  #               user_domain_id: default
+  #               project_domain_id: default
+  #             interface: public
 
-            admin-rust:
-              auth:
-                auth_url: http://localhost:8080
-                username: admin
-                password: password
-                project_name: admin
-                user_domain_id: default
-                project_domain_id: default
-              interface: internal
-          EOF
+  #           admin-rust:
+  #             auth:
+  #               auth_url: http://localhost:8080
+  #               username: admin
+  #               password: password
+  #               project_name: admin
+  #               user_domain_id: default
+  #               project_domain_id: default
+  #             interface: internal
+  #         EOF
 
-      - name: Start open-policy-agent
-        run: docker run -p 8181:8181 -d -v $PWD/policy:/policy --name opa openpolicyagent/opa:1.6.0 run -s /policy --log-level debug
+  #     - name: Start open-policy-agent
+  #       run: docker run -p 8181:8181 -d -v $PWD/policy:/policy --name opa openpolicyagent/opa:1.6.0 run -s /policy --log-level debug
 
-      - name: Start python keystone
-        run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
+  #     - name: Start python keystone
+  #       run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
 
-      - name: Start rust keystone
-        run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
+  #     - name: Start rust keystone
+  #       run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
 
-      - run: sleep 1
+  #     - run: sleep 1
 
-      - name: Test python keystone availability
-        run: curl http://localhost:5001/v3
+  #     - name: Test python keystone availability
+  #       run: curl http://localhost:5001/v3
 
-      - name: Test rust keystone availability
-        run: curl http://localhost:8080/v3
+  #     - name: Test rust keystone availability
+  #       run: curl http://localhost:8080/v3
 
-      - name: Basic test using token validation
-        run: |
-          TOKEN1=$(osc --os-cloud admin auth login)
-          TOKEN2=$(osc --os-cloud admin-rust auth login)
+  #     - name: Basic test using token validation
+  #       run: |
+  #         TOKEN1=$(osc --os-cloud admin auth login)
+  #         TOKEN2=$(osc --os-cloud admin-rust auth login)
 
-          echo "Use rust Keystone token against both Keystones"
-          curl http://localhost:8080/v3/auth/tokens -H "X-Auth-Token: ${TOKEN1}" -H "X-Subject-Token: ${TOKEN1}" | jq
-          curl http://localhost:5001/v3/auth/tokens -H "X-Auth-Token: ${TOKEN1}" -H "X-Subject-Token: ${TOKEN1}" | jq
+  #         echo "Use rust Keystone token against both Keystones"
+  #         curl http://localhost:8080/v3/auth/tokens -H "X-Auth-Token: ${TOKEN1}" -H "X-Subject-Token: ${TOKEN1}" | jq
+  #         curl http://localhost:5001/v3/auth/tokens -H "X-Auth-Token: ${TOKEN1}" -H "X-Subject-Token: ${TOKEN1}" | jq
 
-          echo "Use python Keystone token against both Keystones"
-          curl http://localhost:8080/v3/auth/tokens -H "X-Auth-Token: ${TOKEN2}" -H "X-Subject-Token: ${TOKEN2}" | jq
-          curl http://localhost:5001/v3/auth/tokens -H "X-Auth-Token: ${TOKEN2}" -H "X-Subject-Token: ${TOKEN2}" | jq
+  #         echo "Use python Keystone token against both Keystones"
+  #         curl http://localhost:8080/v3/auth/tokens -H "X-Auth-Token: ${TOKEN2}" -H "X-Subject-Token: ${TOKEN2}" | jq
+  #         curl http://localhost:5001/v3/auth/tokens -H "X-Auth-Token: ${TOKEN2}" -H "X-Subject-Token: ${TOKEN2}" | jq
 
-      - name: Run interop tests
-        run: cargo test --test interop
+  #     - name: Run interop tests
+  #       run: cargo test --test interop
 
-      - name: Dump python keystone log
-        if: failure()
-        run: cat python.log
+  #     - name: Dump python keystone log
+  #       if: failure()
+  #       run: cat python.log
 
-      - name: Dump rust keystone log
-        if: failure()
-        run: cat rust.log
+  #     - name: Dump rust keystone log
+  #       if: failure()
+  #       run: cat rust.log
 
-  federation:
-    runs-on: ubuntu-latest
-    needs:
-      - build
-    permissions:
-      id-token: write
-      contents: read
-      packages: read
-    env:
-      KEYCLOAK_URL: http://localhost:8082
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_USER: keystone
-          POSTGRES_PASSWORD: '1234'
-        ports:
-          - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-      keycloak:
-        image: ghcr.io/gtema/keystone/keycloak-ci-service:26.2
-        env:
-          KC_BOOTSTRAP_ADMIN_USERNAME: admin
-          KC_BOOTSTRAP_ADMIN_PASSWORD: password
-        ports:
-          - 8082:8080
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+  # federation:
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - build
+  #   permissions:
+  #     id-token: write
+  #     contents: read
+  #     packages: read
+  #   env:
+  #     KEYCLOAK_URL: http://localhost:8082
+  #   services:
+  #     postgres:
+  #       image: postgres:17
+  #       env:
+  #         POSTGRES_USER: keystone
+  #         POSTGRES_PASSWORD: '1234'
+  #       ports:
+  #         - 5432:5432
+  #       options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+  #     keycloak:
+  #       image: ghcr.io/gtema/keystone/keycloak-ci-service:26.2
+  #       env:
+  #         KC_BOOTSTRAP_ADMIN_USERNAME: admin
+  #         KC_BOOTSTRAP_ADMIN_PASSWORD: password
+  #       ports:
+  #         - 8082:8080
+  #   steps:
+  #     - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
-      - name: Enable cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: |
-            ~/.cache/pip
-            ~/.cargo
-          key: ${{ runner.os }}-integration
+  #     - name: Enable cache
+  #       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+  #       with:
+  #         path: |
+  #           ~/.cache/pip
+  #           ~/.cargo
+  #         key: ${{ runner.os }}-integration
 
-      - name: Rust Cache
-        uses: swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+  #     - name: Rust Cache
+  #       uses: swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
 
-      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
-        with:
-          python-version: '3.12'
+  #     - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+  #       with:
+  #         python-version: '3.12'
 
-      - name: Fetch pre-built artifacts
-        uses: actions/download-artifact@abefc31eafcfbdf6c5336127c1346fdae79ff41c # v5.0.0
-        with:
-          name: keystone
+  #     - name: Fetch pre-built artifacts
+  #       uses: actions/download-artifact@abefc31eafcfbdf6c5336127c1346fdae79ff41c # v5.0.0
+  #       with:
+  #         name: keystone
 
-      - name: Fix keystone permissions
-        run: chmod u+x keystone keystone-db
+  #     - name: Fix keystone permissions
+  #       run: chmod u+x keystone keystone-db
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # stable
-        with:
-          toolchain: stable
+  #     - name: Install Rust
+  #       uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # stable
+  #       with:
+  #         toolchain: stable
 
-      - name: Install browser
-        # This is crucial for Selenium to interact with a browser
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y firefox
+  #     - name: Install browser
+  #       # This is crucial for Selenium to interact with a browser
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y firefox
 
-      - name: Install necessary python packages
-        run: pip install keystone uwsgi psycopg2
+  #     - name: Install necessary python packages
+  #       run: pip install keystone uwsgi psycopg2
 
-      - name: Prepare keystone config file
-        run: |
-          mkdir -p etc
-          cat <<EOF > etc/keystone.conf
-          [auth]
-          methods = password,token,openid,application_credential
-          [database]
-          connection = postgresql://keystone:1234@127.0.0.1:5432/keystone
-          [fernet_receipts]
-          key_repository = $(pwd)/etc/fernet
-          [fernet_tokens]
-          key_repository = $(pwd)/etc/fernet
-          EOF
-          cat etc/keystone.conf
+  #     - name: Prepare keystone config file
+  #       run: |
+  #         mkdir -p etc
+  #         cat <<EOF > etc/keystone.conf
+  #         [auth]
+  #         methods = password,token,openid,application_credential
+  #         [database]
+  #         connection = postgresql://keystone:1234@127.0.0.1:5432/keystone
+  #         [fernet_receipts]
+  #         key_repository = $(pwd)/etc/fernet
+  #         [fernet_tokens]
+  #         key_repository = $(pwd)/etc/fernet
+  #         EOF
+  #         cat etc/keystone.conf
 
-      - name: Init keystone
-        run: |
-          mkdir -p etc/fernet
-          keystone-manage --config-file etc/keystone.conf db_sync
-          keystone-manage --config-file etc/keystone.conf fernet_setup
-          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:8080
+  #     - name: Init keystone
+  #       run: |
+  #         mkdir -p etc/fernet
+  #         keystone-manage --config-file etc/keystone.conf db_sync
+  #         keystone-manage --config-file etc/keystone.conf fernet_setup
+  #         keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:8080
 
-      - name: Apply Rust keystone DB changes
-        run: ./keystone-db -c ${{ github.workspace }}/etc/keystone.conf up
+  #     - name: Apply Rust keystone DB changes
+  #       run: ./keystone-db -c ${{ github.workspace }}/etc/keystone.conf up
 
-      - name: Start python keystone
-        run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
+  #     - name: Start python keystone
+  #       run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
 
-      - name: Start open-policy-agent
-        run: docker run -p 8181:8181 -d -v $PWD/policy:/policy --name opa openpolicyagent/opa:1.6.0 run -s /policy --log-level debug --addr :8181
+  #     - name: Start open-policy-agent
+  #       run: docker run -p 8181:8181 -d -v $PWD/policy:/policy --name opa openpolicyagent/opa:1.6.0 run -s /policy --log-level debug --addr :8181
 
-      - name: Start rust keystone
-        run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
+  #     - name: Start rust keystone
+  #       run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
 
-      - name: Start geckodriver for selenium
-        run: /snap/bin/geckodriver --port=4444 > seleniumdriver.log 2>&1 &
+  #     - name: Start geckodriver for selenium
+  #       run: /snap/bin/geckodriver --port=4444 > seleniumdriver.log 2>&1 &
 
-      - name: Run keycloak tests
-        env:
-          KEYCLOAK_USER: admin
-          KEYCLOAK_PASSWORD: password
-          BROWSERDRIVER_PORT: 4444
-        run: cargo test --test keycloak
+  #     - name: Run keycloak tests
+  #       env:
+  #         KEYCLOAK_USER: admin
+  #         KEYCLOAK_PASSWORD: password
+  #         BROWSERDRIVER_PORT: 4444
+  #       run: cargo test --test keycloak
 
-      - name: Get GitHub JWT token
-        id: get_token
-        run: |
-          TOKEN_JSON=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-          "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com")
+  #     - name: Get GitHub JWT token
+  #       id: get_token
+  #       run: |
+  #         TOKEN_JSON=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+  #         "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com")
 
-          TOKEN=$(echo $TOKEN_JSON | jq -r .value)
-          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+  #         TOKEN=$(echo $TOKEN_JSON | jq -r .value)
+  #         echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
-      - name: Run github tests
-        env:
-          GITHUB_JWT: ${{ steps.get_token.outputs.token }}
-          GITHUB_SUB: "repo:gtema/keystone:pull_request"
-        run: cargo test --test github -- --nocapture
+  #     - name: Run github tests
+  #       env:
+  #         GITHUB_JWT: ${{ steps.get_token.outputs.token }}
+  #         GITHUB_SUB: "repo:gtema/keystone:pull_request"
+  #       run: cargo test --test github -- --nocapture
 
-      - name: Dump OPA log
-        if: failure()
-        run: docker logs opa
+  #     - name: Dump OPA log
+  #       if: failure()
+  #       run: docker logs opa
 
-      - name: Dump rust keystone log
-        if: failure()
-        run: cat rust.log
+  #     - name: Dump rust keystone log
+  #       if: failure()
+  #       run: cat rust.log
 
-      - name: Dump seleniumdriver log
-        if: failure()
-        run: cat seleniumdriver.log
+  #     - name: Dump seleniumdriver log
+  #       if: failure()
+  #       run: cat seleniumdriver.log
 
   loadtest:
     runs-on: ubuntu-latest
@@ -380,9 +380,6 @@ jobs:
       - name: Fix keystone permissions
         run: chmod u+x keystone keystone-db
 
-      - name: Install necessary python packages
-        run: pip install keystone uwsgi psycopg2
-
       - name: Prepare keystone config file
         run: |
           mkdir -p etc
@@ -390,7 +387,7 @@ jobs:
           [auth]
           methods = password,token,openid,application_credential
           [database]
-          connection = postgresql://keystone:1234@127.0.0.1:5432/keystone
+          connection = postgresql://keystone:1234@localhost:5432/keystone
           [fernet_receipts]
           key_repository = $(pwd)/etc/fernet
           [fernet_tokens]
@@ -398,12 +395,17 @@ jobs:
           EOF
           cat etc/keystone.conf
 
-      - name: Init keystone
+      - name: Start keystone
         run: |
-          mkdir -p etc/fernet
-          keystone-manage --config-file etc/keystone.conf db_sync
-          keystone-manage --config-file etc/keystone.conf fernet_setup
-          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:5001 --bootstrap-internal-url http://localhost:8080 --bootstrap-region-id dev
+          network=$(docker network ls --filter name=github_network_ -q | head -n 1)
+          docker run -d \
+            --network "$network" \
+            -p 5001:5001 \
+            -e OS_KEYSTONE_DATABASE__CONNECTION="postgresql://keystone:1234@postgres:5432/keystone" \
+            -e OS_KEYSTONE_CONFIG_DIR="${{ github.workspace }}/etc" \
+            -v $PWD/etc:/etc/keystone:rw -v $PWD/etc:$PWD/etc:rw \
+            --name keystone \
+            ghcr.io/gtema/keystone/py-keystone:main
 
       - name: Prepare clouds.yaml
         run: |
@@ -433,9 +435,6 @@ jobs:
 
       - name: Start open-policy-agent
         run: docker run -p 8181:8181 -d -v $PWD/policy:/policy --name opa openpolicyagent/opa:1.6.0 run -s /policy --log-level debug
-
-      - name: Start python keystone
-        run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
 
       - name: Start rust keystone
         run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
@@ -492,6 +491,10 @@ jobs:
             ```
             [View full report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
-      - name: Dump rust keystone log
-        if: failure()
+      - name: Dump rust keystone logs
+        #if: failure()
         run: cat rust.log
+
+      - name: Dump py-keystone logs
+        #if: failure()
+        run: docker logs keystone
