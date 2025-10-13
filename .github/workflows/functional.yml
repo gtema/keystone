@@ -9,6 +9,7 @@ on:
       - 'Cargo.lock'
       - '.github/workflows/functional.yml'
       - 'tests/**'
+      - 'loadtest/**'
       - 'src/**'
       - 'policy/**'
 env:
@@ -346,3 +347,151 @@ jobs:
       - name: Dump seleniumdriver log
         if: failure()
         run: cat seleniumdriver.log
+
+  loadtest:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    permissions:
+      pull-requests: write
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: keystone
+          POSTGRES_PASSWORD: '1234'
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # stable
+        with:
+          toolchain: stable
+
+      - name: Fetch pre-built artifacts
+        uses: actions/download-artifact@abefc31eafcfbdf6c5336127c1346fdae79ff41c # v5.0.0
+        with:
+          name: keystone
+
+      - name: Fix keystone permissions
+        run: chmod u+x keystone keystone-db
+
+      - name: Install necessary python packages
+        run: pip install keystone uwsgi psycopg2
+
+      - name: Prepare keystone config file
+        run: |
+          mkdir -p etc
+          cat <<EOF > etc/keystone.conf
+          [auth]
+          methods = password,token,openid,application_credential
+          [database]
+          connection = postgresql://keystone:1234@127.0.0.1:5432/keystone
+          [fernet_receipts]
+          key_repository = $(pwd)/etc/fernet
+          [fernet_tokens]
+          key_repository = $(pwd)/etc/fernet
+          EOF
+          cat etc/keystone.conf
+
+      - name: Init keystone
+        run: |
+          mkdir -p etc/fernet
+          keystone-manage --config-file etc/keystone.conf db_sync
+          keystone-manage --config-file etc/keystone.conf fernet_setup
+          keystone-manage --config-file etc/keystone.conf bootstrap --bootstrap-password password --bootstrap-public-url http://localhost:5001 --bootstrap-internal-url http://localhost:8080 --bootstrap-region-id dev
+
+      - name: Prepare clouds.yaml
+        run: |
+          mkdir -p ~/.config/openstack
+          cat <<EOF > ~/.config/openstack/clouds.yaml
+          clouds:
+            admin:
+              auth:
+                auth_url: http://localhost:5001
+                username: admin
+                password: password
+                project_name: admin
+                user_domain_id: default
+                project_domain_id: default
+              interface: public
+
+            admin-rust:
+              auth:
+                auth_url: http://localhost:8080
+                username: admin
+                password: password
+                project_name: admin
+                user_domain_id: default
+                project_domain_id: default
+              interface: internal
+          EOF
+
+      - name: Start open-policy-agent
+        run: docker run -p 8181:8181 -d -v $PWD/policy:/policy --name opa openpolicyagent/opa:1.6.0 run -s /policy --log-level debug
+
+      - name: Start python keystone
+        run: uwsgi --module "keystone.server.wsgi:initialize_public_application()" --http-socket :5001 -b 65535 --http-keepalive --so-keepalive --logformat "Request %(uri):%(method) returned %(status) in %(msecs)ms" > python.log 2>&1 &
+
+      - name: Start rust keystone
+        run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
+
+      - run: sleep 1
+
+      - name: Build Load test binary
+        working-directory: loadtest
+        run: cargo build --release
+
+      - name: Run load test
+        working-directory: loadtest
+        env:
+          OS_CLOUD: admin
+        run: |
+          mkdir -p reports
+          ./target/release/load_test \
+            --host http://localhost:8080 \
+            --hatch-rate 2 \
+            --run-time 30s \
+            --report-file reports/loadtest-report-rust.html \
+            --report-file reports/loadtest-report-rust.md
+          ./target/release/load_test \
+            --host http://localhost:5001 \
+            --hatch-rate 2 \
+            --run-time 30s \
+            --report-file reports/loadtest-report-python.html \
+            --report-file reports/loadtest-report-python.md
+
+      - name: Extract report
+        id: metrics
+        working-directory: loadtest
+        run: |
+          SUMMARY=$(cat reports/loadtest-report-rust.md || echo "No summary found")
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Upload report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: loadtest-report
+          path: loadtest/reports/
+
+      - name: Post Loadtest results to PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: loadtest
+          message: |
+            🦢 **Load Test Results**
+            ```
+            ${{ steps.metrics.outputs.summary }}
+            ```
+            [View full report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+      - name: Dump rust keystone log
+        if: failure()
+        run: cat rust.log
