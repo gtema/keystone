@@ -1,0 +1,113 @@
+name: 'Prepare functional environment for Keystone'
+description: 'Deploy'
+inputs: {}
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+    - name: Enable cache
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: |
+          ~/.cache/pip
+          ~/.cargo
+        key: ${{ runner.os }}-integration
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@6d653acede28d24f02e3cd41383119e8b1b35921 # stable
+      with:
+        toolchain: stable
+
+    - name: Fetch pre-built artifacts
+      uses: actions/download-artifact@abefc31eafcfbdf6c5336127c1346fdae79ff41c # v5.0.0
+      with:
+        name: keystone
+
+    - name: Install osc
+      shell: bash
+      run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/gtema/openstack/releases/latest/download/openstack_cli-installer.sh | sh
+
+    - name: Fix keystone permissions
+      shell: bash
+      run: chmod u+x keystone keystone-db
+
+    - name: Prepare keystone config file
+      shell: bash
+      run: |
+        mkdir -p etc
+        mkdir -p etc/fernet-keys
+        cat <<EOF > etc/keystone.conf
+        [auth]
+        methods = password,token,openid,application_credential
+        [database]
+        connection = postgresql://keystone:1234@postgres:5432/keystone
+        [fernet_receipts]
+        key_repository = $(pwd)/etc/fernet-keys
+        [fernet_tokens]
+        key_repository = $(pwd)/etc/fernet-keys
+        EOF
+        cat etc/keystone.conf
+        echo "2Rlc-npWYOGqqG1zM-bmfBj2apLacLXhIbBsdyqQ0zg=" > etc/fernet-keys/0
+        echo "sQyQVikArus5DRomTHCLPEIJO2yYkeB5nDdaasIKHVQ=" > etc/fernet-keys/1
+
+    - name: Start keystone
+      shell: bash
+      run: |
+        network=$(docker network ls --filter name=github_network_ -q | head -n 1)
+        docker run -d \
+          --network "$network" \
+          -p 5001:5001 \
+          -e OS_KEYSTONE_CONFIG_DIR="${{ github.workspace }}/etc" \
+          -v $PWD/etc:/etc/keystone:rw -v $PWD/etc:$PWD/etc \
+          --name keystone \
+          ghcr.io/gtema/keystone/py-keystone:main
+
+    - name: Add postgres container address to /etc/hosts
+      shell: bash
+      run: |
+        sudo echo "127.0.0.1 postgres localhost" | sudo tee -a /etc/hosts
+
+    - name: Prepare clouds.yaml
+      shell: bash
+      run: |
+        mkdir -p ~/.config/openstack
+        cat <<EOF > ~/.config/openstack/clouds.yaml
+        clouds:
+          admin:
+            auth:
+              auth_url: http://localhost:5001
+              username: admin
+              password: password
+              project_name: admin
+              user_domain_id: default
+              project_domain_id: default
+            interface: public
+
+          admin-rust:
+            auth:
+              auth_url: http://localhost:8080
+              username: admin
+              password: password
+              project_name: admin
+              user_domain_id: default
+              project_domain_id: default
+            interface: internal
+        EOF
+
+    - name: Start open-policy-agent
+      shell: bash
+      run: docker run -p 8181:8181 -d -v $PWD/policy:/policy --name opa openpolicyagent/opa:1.9.0 run -s /policy --log-level debug --addr :8181
+
+    - name: Wait for py-keystone to bootstrap
+      shell: bash
+      run: sleep 5
+
+    - name: Apply Rust keystone DB changes
+      shell: bash
+      run: ./keystone-db -c ${{ github.workspace }}/etc/keystone.conf up
+
+    - name: Start rust keystone
+      shell: bash
+      run: ./keystone -c ${{ github.workspace }}/etc/keystone.conf -vv > rust.log 2>&1 &
