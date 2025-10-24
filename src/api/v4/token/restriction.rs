@@ -45,7 +45,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::config::Config;
-    use crate::federation::MockFederationProvider;
+
     use crate::identity::types::UserResponse;
     use crate::keystone::{Service, ServiceState};
     use crate::policy::{MockPolicy, MockPolicyFactory, PolicyError, PolicyEvaluationResult};
