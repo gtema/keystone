@@ -32,10 +32,16 @@ Token restrictions allow controlling multiple aspects of the authentication and 
 - `roles` binds the roles of the issued token on the scope. Using this bypasses necessity to grant the roles explicitly to the user.
 "#;
 
+mod create;
+mod delete;
+mod list;
 mod show;
+mod update;
 
 pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
-    OpenApiRouter::new().routes(routes!(show::show))
+    OpenApiRouter::new()
+        .routes(routes!(show::show, delete::remove, update::update))
+        .routes(routes!(list::list, create::create))
 }
 
 #[cfg(test)]
@@ -45,7 +51,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::config::Config;
-    use crate::federation::MockFederationProvider;
+
     use crate::identity::types::UserResponse;
     use crate::keystone::{Service, ServiceState};
     use crate::policy::{MockPolicy, MockPolicyFactory, PolicyError, PolicyEvaluationResult};

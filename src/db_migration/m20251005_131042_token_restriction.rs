@@ -28,10 +28,18 @@ impl MigrationTrait for Migration {
                     .table(TokenRestriction::Table)
                     .if_not_exists()
                     .col(string_len(TokenRestriction::Id, 64).primary_key())
+                    .col(string_len(TokenRestriction::DomainId, 64))
                     .col(string_len_null(TokenRestriction::UserId, 64))
                     .col(boolean(TokenRestriction::AllowRenew))
                     .col(boolean(TokenRestriction::AllowRescope))
                     .col(string_len_null(TokenRestriction::ProjectId, 64))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk-token-restriction-domain")
+                            .from(TokenRestriction::Table, TokenRestriction::DomainId)
+                            .to(Project, project::Column::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk-token-restriction-user")
@@ -140,6 +148,7 @@ impl MigrationTrait for Migration {
 enum TokenRestriction {
     Table,
     Id,
+    DomainId,
     UserId,
     AllowRenew,
     AllowRescope,

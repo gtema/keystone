@@ -148,6 +148,8 @@ pub struct TokenRestriction {
     pub allow_renew: bool,
     /// Id.
     pub id: String,
+    /// Domain Id the token restriction belongs to.
+    pub domain_id: String,
     /// Optional project ID to be used with this restriction.
     pub project_id: Option<String>,
     /// Roles bound to the restriction.
@@ -156,6 +158,51 @@ pub struct TokenRestriction {
     pub roles: Option<Vec<crate::assignment::types::Role>>,
     /// User id
     pub user_id: Option<String>,
+}
+
+/// New token restriction information.
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct TokenRestrictionCreate {
+    /// Whether the restriction allows to rescope the token.
+    pub allow_rescope: bool,
+    /// Whether it is allowed to renew the token with this restriction.
+    pub allow_renew: bool,
+    /// Id.
+    pub id: String,
+    /// Domain Id the token restriction belongs to.
+    pub domain_id: String,
+    /// Optional project ID to be used with this restriction.
+    pub project_id: Option<String>,
+    /// Roles bound to the restriction.
+    pub role_ids: Vec<String>,
+    /// User id
+    pub user_id: Option<String>,
+}
+
+/// Token restriction update information.
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct TokenRestrictionUpdate {
+    /// Whether the restriction allows to rescope the token.
+    pub allow_rescope: Option<bool>,
+    /// Whether it is allowed to renew the token with this restriction.
+    pub allow_renew: Option<bool>,
+    /// Optional project ID to be used with this restriction.
+    pub project_id: Option<Option<String>>,
+    /// Roles bound to the restriction.
+    pub role_ids: Option<Vec<String>>,
+    /// User id.
+    pub user_id: Option<Option<String>>,
+}
+
+/// Token restriction list filters.
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct TokenRestrictionListParameters {
+    /// Domain id.
+    pub domain_id: Option<String>,
+    /// User id.
+    pub user_id: Option<String>,
+    /// Project id.
+    pub project_id: Option<String>,
 }
 
 pub trait TokenBackend: DynClone + Send + Sync + std::fmt::Debug {

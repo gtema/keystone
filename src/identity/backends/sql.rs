@@ -36,7 +36,7 @@ use crate::db::entity::{
     federated_user as db_federated_user, local_user as db_local_user,
     nonlocal_user as db_nonlocal_user, password as db_password,
     prelude::{FederatedUser, LocalUser, NonlocalUser, User as DbUser, UserOption},
-    user as db_user, user_option as db_user_option,
+    user as db_user,
 };
 use crate::identity::IdentityProviderError;
 use crate::identity::backends::error::{IdentityDatabaseError, db_err};

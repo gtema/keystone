@@ -376,7 +376,7 @@ pub(super) mod tests {
             assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
             assert_eq!(
                 decrypted.methods.clone().sort(),
-                vec!["password", "token"].sort()
+                ["password", "token"].sort()
             );
             assert_eq!(
                 decrypted.expires_at.to_rfc3339(),

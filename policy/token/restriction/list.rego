@@ -1,8 +1,8 @@
-package identity.token_restriction.show
+package identity.token_restriction.list
 
 import data.identity
 
-# Show single token restriction.
+# List token restriction.
 
 default allow := false
 
@@ -11,8 +11,12 @@ allow if {
 }
 
 allow if {
-	identity.own_token_restriction
 	"manager" in input.credentials.roles
+}
+
+allow if {
+	"member" in input.credentials.roles
+	identity.own_token_restriction
 }
 
 violation contains {"field": "domain_id", "msg": "showing token restrictions requires `admin` role."} if {

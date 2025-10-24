@@ -11,7 +11,7 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
-
+//! Get existing token restriction.
 use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
@@ -24,6 +24,7 @@ use crate::db::entity::token_restriction_role_association;
 use crate::token::error::{TokenProviderError, db_err};
 use crate::token::types::TokenRestriction;
 
+/// Get existing token restriction by the ID.
 pub async fn get<S: AsRef<str>>(
     db: &DatabaseConnection,
     token_restriction_id: S,
@@ -68,20 +69,11 @@ mod tests {
     #![allow(clippy::derivable_impls)]
 
     use crate::assignment::types::Role;
-    use crate::db::entity::{role, token_restriction, token_restriction_role_association};
+    use crate::db::entity::{role, token_restriction_role_association};
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
 
+    use super::super::tests::get_restriction_mock;
     use super::*;
-
-    fn get_restriction_mock<S: AsRef<str>>(id: S) -> token_restriction::Model {
-        token_restriction::Model {
-            id: id.as_ref().to_string(),
-            user_id: Some("uid".to_string()),
-            project_id: Some("pid".to_string()),
-            allow_rescope: true,
-            allow_renew: true,
-        }
-    }
 
     fn get_restriction_roles_mock<S: AsRef<str>>(
         id: S,
@@ -139,6 +131,7 @@ mod tests {
             get(&db, "id", false).await.unwrap(),
             Some(TokenRestriction {
                 id: "id".into(),
+                domain_id: "did".into(),
                 user_id: Some("uid".into()),
                 project_id: Some("pid".into()),
                 allow_rescope: true,
@@ -154,7 +147,7 @@ mod tests {
             [
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT "token_restriction"."id", "token_restriction"."user_id", "token_restriction"."allow_renew", "token_restriction"."allow_rescope", "token_restriction"."project_id" FROM "token_restriction" WHERE "token_restriction"."id" = $1 LIMIT $2"#,
+                    r#"SELECT "token_restriction"."id", "token_restriction"."domain_id", "token_restriction"."user_id", "token_restriction"."allow_renew", "token_restriction"."allow_rescope", "token_restriction"."project_id" FROM "token_restriction" WHERE "token_restriction"."id" = $1 LIMIT $2"#,
                     ["id".into(), 1u64.into()]
                 ),
                 Transaction::from_sql_and_values(
@@ -178,6 +171,7 @@ mod tests {
             get(&db, "id", true).await.unwrap(),
             Some(TokenRestriction {
                 id: "id".into(),
+                domain_id: "did".into(),
                 user_id: Some("uid".into()),
                 project_id: Some("pid".into()),
                 allow_rescope: true,
@@ -204,7 +198,7 @@ mod tests {
             [
                 Transaction::from_sql_and_values(
                     DatabaseBackend::Postgres,
-                    r#"SELECT "token_restriction"."id", "token_restriction"."user_id", "token_restriction"."allow_renew", "token_restriction"."allow_rescope", "token_restriction"."project_id" FROM "token_restriction" WHERE "token_restriction"."id" = $1 LIMIT $2"#,
+                    r#"SELECT "token_restriction"."id", "token_restriction"."domain_id", "token_restriction"."user_id", "token_restriction"."allow_renew", "token_restriction"."allow_rescope", "token_restriction"."project_id" FROM "token_restriction" WHERE "token_restriction"."id" = $1 LIMIT $2"#,
                     ["id".into(), 1u64.into()]
                 ),
                 Transaction::from_sql_and_values(
