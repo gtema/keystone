@@ -24,6 +24,7 @@ extend-ignore-re = []
 [default.extend-words]
 ro = "ro"
 ratatui = "ratatui"
+wrk = "wrk"
 
 [type.rust]
 extend-glob = []
