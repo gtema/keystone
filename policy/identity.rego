@@ -39,3 +39,13 @@ foreign_mapping if {
 	input.target.domain_id != null
 	input.target.domain_id != input.credentials.domain_id
 }
+
+foreign_token_restriction if {
+	input.target.domain_id != null
+	input.target.domain_id != input.credentials.domain_id
+}
+
+own_token_restriction if {
+	input.target.domain_id != null
+	input.target.domain_id == input.credentials.domain_id
+}

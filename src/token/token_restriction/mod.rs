@@ -16,14 +16,23 @@ use crate::db::entity::{role, token_restriction, token_restriction_role_associat
 
 use crate::token::types::TokenRestriction;
 
+mod create;
+mod delete;
 mod get;
+mod list;
+mod update;
 
+pub use create::create;
+pub use delete::delete;
 pub use get::get;
+pub use list::list;
+pub use update::update;
 
 impl From<token_restriction::Model> for TokenRestriction {
     fn from(value: token_restriction::Model) -> Self {
         TokenRestriction {
             id: value.id,
+            domain_id: value.domain_id,
             user_id: value.user_id,
             project_id: value.project_id,
             allow_rescope: value.allow_rescope,
@@ -84,5 +93,21 @@ impl
         restriction.role_ids = roles.iter().map(|role| role.id.clone()).collect();
         restriction.roles = Some(roles);
         restriction
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::db::entity::token_restriction;
+
+    pub fn get_restriction_mock<S: AsRef<str>>(id: S) -> token_restriction::Model {
+        token_restriction::Model {
+            id: id.as_ref().to_string(),
+            domain_id: "did".to_string(),
+            user_id: Some("uid".to_string()),
+            project_id: Some("pid".to_string()),
+            allow_rescope: true,
+            allow_renew: true,
+        }
     }
 }

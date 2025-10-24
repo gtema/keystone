@@ -61,7 +61,7 @@ pub use federation_project_scoped::{
 pub use federation_unscoped::{FederationUnscopedPayload, FederationUnscopedPayloadBuilder};
 pub use project_scoped::{ProjectScopePayload, ProjectScopePayloadBuilder};
 pub use restricted::{RestrictedPayload, RestrictedPayloadBuilder};
-pub use types::{Token, TokenRestriction};
+pub use types::{Token, TokenRestriction, TokenRestrictionListParameters};
 pub use unscoped::{UnscopedPayload, UnscopedPayloadBuilder};
 
 #[derive(Clone, Debug)]
@@ -398,6 +398,35 @@ pub trait TokenApi: Send + Sync + Clone {
         id: &'a str,
         expand_roles: bool,
     ) -> Result<Option<TokenRestriction>, TokenProviderError>;
+
+    /// Create new token restriction.
+    async fn create_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        restriction: TokenRestriction,
+    ) -> Result<TokenRestriction, TokenProviderError>;
+
+    /// List token restrictions.
+    async fn list_token_restrictions<'a>(
+        &self,
+        db: &DatabaseConnection,
+        params: &TokenRestrictionListParameters,
+    ) -> Result<Vec<TokenRestriction>, TokenProviderError>;
+
+    /// Update token restriction by the ID.
+    async fn update_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+        restriction: TokenRestriction,
+    ) -> Result<TokenRestriction, TokenProviderError>;
+
+    /// Delete token restriction by the ID.
+    async fn delete_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<(), TokenProviderError>;
 }
 
 #[async_trait]
@@ -753,6 +782,47 @@ impl TokenApi for TokenProvider {
     ) -> Result<Option<TokenRestriction>, TokenProviderError> {
         token_restriction::get(db, id, expand_roles).await
     }
+
+    /// Create new token restriction.
+    async fn create_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        restriction: TokenRestriction,
+    ) -> Result<TokenRestriction, TokenProviderError> {
+        let mut restriction = restriction;
+        if restriction.id.is_empty() {
+            restriction.id = Uuid::new_v4().simple().to_string();
+        }
+        token_restriction::create(db, restriction).await
+    }
+
+    /// List token restrictions.
+    async fn list_token_restrictions<'a>(
+        &self,
+        db: &DatabaseConnection,
+        params: &TokenRestrictionListParameters,
+    ) -> Result<Vec<TokenRestriction>, TokenProviderError> {
+        token_restriction::list(db, params).await
+    }
+
+    /// Update existing token restriction.
+    async fn update_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+        restriction: TokenRestriction,
+    ) -> Result<TokenRestriction, TokenProviderError> {
+        token_restriction::update(db, id, restriction).await
+    }
+
+    /// Delete token restriction by the ID.
+    async fn delete_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        id: &'a str,
+    ) -> Result<(), TokenProviderError> {
+        token_restriction::delete(db, id).await
+    }
 }
 
 #[cfg(test)]
@@ -808,6 +878,30 @@ mock! {
             expand_roles: bool,
         ) -> Result<Option<TokenRestriction>, TokenProviderError>;
 
+        async fn list_token_restrictions<'a>(
+            &self,
+            db: &DatabaseConnection,
+            params: &TokenRestrictionListParameters,
+        ) -> Result<Vec<TokenRestriction>, TokenProviderError>;
+
+        async fn create_token_restriction<'a>(
+            &self,
+            db: &DatabaseConnection,
+            restriction: TokenRestriction,
+        ) -> Result<TokenRestriction, TokenProviderError>;
+
+        async fn update_token_restriction<'a>(
+            &self,
+            db: &DatabaseConnection,
+            id: &'a str,
+            restriction: TokenRestriction,
+        ) -> Result<TokenRestriction, TokenProviderError>;
+
+        async fn delete_token_restriction<'a>(
+            &self,
+            db: &DatabaseConnection,
+            id: &'a str,
+        ) -> Result<(), TokenProviderError>;
     }
 
     impl Clone for TokenProvider {
