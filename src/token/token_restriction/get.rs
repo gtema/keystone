@@ -68,20 +68,11 @@ mod tests {
     #![allow(clippy::derivable_impls)]
 
     use crate::assignment::types::Role;
-    use crate::db::entity::{role, token_restriction, token_restriction_role_association};
+    use crate::db::entity::{role, token_restriction_role_association};
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
 
+    use super::super::tests::get_restriction_mock;
     use super::*;
-
-    fn get_restriction_mock<S: AsRef<str>>(id: S) -> token_restriction::Model {
-        token_restriction::Model {
-            id: id.as_ref().to_string(),
-            user_id: Some("uid".to_string()),
-            project_id: Some("pid".to_string()),
-            allow_rescope: true,
-            allow_renew: true,
-        }
-    }
 
     fn get_restriction_roles_mock<S: AsRef<str>>(
         id: S,

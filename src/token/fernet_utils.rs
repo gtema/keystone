@@ -365,7 +365,7 @@ mod tests {
         for i in 0..5 {
             let file_path = tmp_dir.path().join(format!("{i}"));
             let mut tmp_file = File::create(file_path).unwrap();
-            write!(tmp_file, "{}\n", Fernet::generate_key()).unwrap();
+            writeln!(tmp_file, "{}", Fernet::generate_key()).unwrap();
         }
         let utils = FernetUtils {
             key_repository: tmp_dir.keep(),

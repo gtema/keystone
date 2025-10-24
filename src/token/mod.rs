@@ -398,6 +398,13 @@ pub trait TokenApi: Send + Sync + Clone {
         id: &'a str,
         expand_roles: bool,
     ) -> Result<Option<TokenRestriction>, TokenProviderError>;
+
+    /// Create new token restriction.
+    async fn create_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        restriction: TokenRestriction,
+    ) -> Result<TokenRestriction, TokenProviderError>;
 }
 
 #[async_trait]
@@ -753,6 +760,19 @@ impl TokenApi for TokenProvider {
     ) -> Result<Option<TokenRestriction>, TokenProviderError> {
         token_restriction::get(db, id, expand_roles).await
     }
+
+    /// Create new token restriction.
+    async fn create_token_restriction<'a>(
+        &self,
+        db: &DatabaseConnection,
+        restriction: TokenRestriction,
+    ) -> Result<TokenRestriction, TokenProviderError> {
+        let mut restriction = restriction;
+        if restriction.id.is_empty() {
+            restriction.id = Uuid::new_v4().simple().to_string();
+        }
+        token_restriction::create(db, restriction).await
+    }
 }
 
 #[cfg(test)]
@@ -808,6 +828,11 @@ mock! {
             expand_roles: bool,
         ) -> Result<Option<TokenRestriction>, TokenProviderError>;
 
+        async fn create_token_restriction<'a>(
+            &self,
+            db: &DatabaseConnection,
+            restriction: TokenRestriction,
+        ) -> Result<TokenRestriction, TokenProviderError>;
     }
 
     impl Clone for TokenProvider {

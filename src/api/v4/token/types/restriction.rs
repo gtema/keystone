@@ -53,10 +53,73 @@ pub struct TokenRestriction {
     pub roles: Vec<Role>,
 }
 
+/// New token restriction data.
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(strip_option, into))]
+pub struct TokenRestrictionCreate {
+    /// Allow token renew.
+    pub allow_renew: bool,
+
+    /// Allow token rescope.
+    pub allow_rescope: bool,
+
+    /// Project ID that the token must be bound to.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+
+    /// User ID that the token must be bound to.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+
+    /// Bound token roles.
+    #[builder(default)]
+    pub roles: Vec<Role>,
+}
+
+/// New token restriction data.
+#[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(strip_option, into))]
+pub struct TokenRestrictionUpdate {
+    /// Allow token renew.
+    pub allow_renew: Option<bool>,
+
+    /// Allow token rescope.
+    pub allow_rescope: Option<bool>,
+
+    /// Project ID that the token must be bound to.
+    #[builder(default)]
+    pub project_id: Option<Option<String>>,
+
+    /// User ID that the token must be bound to.
+    #[builder(default)]
+    pub user_id: Option<Option<String>>,
+
+    /// Bound token roles.
+    #[builder(default)]
+    pub roles: Option<Vec<Role>>,
+}
+
+/// Token restriction data.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct TokenRestrictionResponse {
     /// Restriction object.
     pub restriction: TokenRestriction,
+}
+
+/// Token restriction creation request.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct TokenRestrictionCreateRequest {
+    /// Restriction object.
+    pub restriction: TokenRestrictionCreate,
+}
+
+/// Token restriction update request.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
+pub struct TokenRestrictionUpdateRequest {
+    /// Restriction object.
+    pub restriction: TokenRestrictionUpdate,
 }
 
 impl From<ProviderTokenRestriction> for TokenRestriction {
