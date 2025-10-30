@@ -148,6 +148,8 @@ pub struct TokenRestriction {
     pub allow_renew: bool,
     /// Id.
     pub id: String,
+    /// Domain Id the token restriction belongs to.
+    pub domain_id: String,
     /// Optional project ID to be used with this restriction.
     pub project_id: Option<String>,
     /// Roles bound to the restriction.
@@ -156,6 +158,17 @@ pub struct TokenRestriction {
     pub roles: Option<Vec<crate::assignment::types::Role>>,
     /// User id
     pub user_id: Option<String>,
+}
+
+/// Token restriction list filters.
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct TokenRestrictionListParameters {
+    /// Domain id.
+    pub domain_id: Option<String>,
+    /// User id.
+    pub user_id: Option<String>,
+    /// Project id.
+    pub project_id: Option<String>,
 }
 
 pub trait TokenBackend: DynClone + Send + Sync + std::fmt::Debug {

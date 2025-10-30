@@ -229,21 +229,7 @@ mod tests {
     #[tokio::test]
     #[traced_test]
     async fn test_list_forbidden() {
-        let mut federation_mock = MockFederationProvider::default();
-        federation_mock
-            .expect_list_identity_providers()
-            .withf(
-                |_: &DatabaseConnection, _: &provider_types::IdentityProviderListParameters| true,
-            )
-            .returning(|_, _| {
-                Ok(vec![provider_types::IdentityProvider {
-                    id: "id".into(),
-                    name: "name".into(),
-                    domain_id: Some("did".into()),
-                    default_mapping_name: Some("dummy".into()),
-                    ..Default::default()
-                }])
-            });
+        let federation_mock = MockFederationProvider::default();
         let state = get_mocked_state(federation_mock, false, None);
 
         let mut api = openapi_router()
