@@ -20,6 +20,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
+    pub domain_id: String,
     pub user_id: Option<String>,
     pub allow_renew: bool,
     pub allow_rescope: bool,
@@ -28,6 +29,14 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::project::Entity",
+        from = "Column::DomainId",
+        to = "super::project::Column::Id",
+        on_update = "NoAction",
+        on_delete = "Cascade"
+    )]
+    Domain,
     #[sea_orm(
         belongs_to = "super::project::Entity",
         from = "Column::ProjectId",

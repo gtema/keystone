@@ -8,7 +8,7 @@ default allow := false
 
 default can_see_other_domain_resources := false
 
-can_see_other_domain_resources := true if {
+can_see_other_domain_resources if {
 	"admin" in input.credentials.roles
 }
 

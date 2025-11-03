@@ -252,6 +252,15 @@ impl KeystoneApiError {
             _ => source.into(),
         }
     }
+    pub fn token(source: TokenProviderError) -> Self {
+        match source {
+            TokenProviderError::TokenRestrictionNotFound(x) => Self::NotFound {
+                resource: "token restriction".into(),
+                identifier: x,
+            },
+            _ => source.into(),
+        }
+    }
 }
 
 #[derive(Debug, Error)]
