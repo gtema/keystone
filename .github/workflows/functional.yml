@@ -147,7 +147,7 @@ jobs:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       keycloak:
-        image: ghcr.io/gtema/keystone/keycloak-ci-service:26.2
+        image: ghcr.io/openstack-experimental/keystone/keycloak-ci-service:26.2
         env:
           KC_BOOTSTRAP_ADMIN_USERNAME: admin
           KC_BOOTSTRAP_ADMIN_PASSWORD: password
@@ -186,7 +186,7 @@ jobs:
       - name: Run github tests
         env:
           GITHUB_JWT: ${{ steps.get_token.outputs.token }}
-          GITHUB_SUB: "repo:gtema/keystone:pull_request"
+          GITHUB_SUB: "repo:openstack-experimental/keystone:pull_request"
         run: cargo test --test github -- --nocapture
 
       - name: Dump seleniumdriver log
