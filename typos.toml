@@ -55,3 +55,6 @@ extend-ignore-re = []
 [type.lock.extend-words]
 
 [type.js]
+
+[type.md]
+extend-ignore-identifiers-re = ["HashiCorp"] 

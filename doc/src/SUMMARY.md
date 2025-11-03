@@ -18,4 +18,8 @@
 
 ---
 
+[Architecture Decision Records](adr/index.md)
+
+---
+
 [Performance comparison](./performance.md)
