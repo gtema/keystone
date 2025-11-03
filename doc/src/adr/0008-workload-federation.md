@@ -14,7 +14,7 @@ platform which the service provider can trust. This is very similar (and
 technically relates) to the OIDC standard.
 
 In the JWT flow the "user" is exchanging a JWT token issued by the trusted
-IdP for a Keystone token. This authentication response includes a token and a 
+IdP for a Keystone token. This authentication response includes a token and a
 service catalog to provide a known OpenStack usage scenario.
 
 ## Decision

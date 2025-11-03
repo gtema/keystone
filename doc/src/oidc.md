@@ -155,7 +155,7 @@ be set. For the sake of example simplicity domains are modelled as user groups
 in Keycloak. Such group gets the attribute with the value of the domain_id.
 Users belonging to such group inherit this attribute automatically.
 Alternatively every user may be extended with the domain_id attribute
-individually. 
+individually.
 
 Keycloak can be used as an Identity provider by the Keystone.
 

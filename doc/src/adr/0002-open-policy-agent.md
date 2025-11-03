@@ -38,7 +38,7 @@ Engine.
 
 ## Consequences
 
-- Policy evaluation requires external service (OPA) to be running. 
+- Policy evaluation requires external service (OPA) to be running.
 
 - When covering existing functionality of the python Keystone policies SHOULD
 be converted as is and do not introduce a changed flow.
