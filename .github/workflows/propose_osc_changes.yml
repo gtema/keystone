@@ -34,7 +34,7 @@ jobs:
         run: mkdir -p codegenerator/wrk/openapi_specs/identity
 
       - name: Get the fresh openapi for the codegenerator
-        run: curl https://gtema.github.io/keystone/openapi.yaml -o codegenerator/wrk/openapi_specs/identity/keystone_rust.yaml
+        run: curl https://openstack-experimental.github.io/keystone/openapi.yaml -o codegenerator/wrk/openapi_specs/identity/keystone_rust.yaml
 
       - name: Install the codegenerator
         working-directory: codegenerator
