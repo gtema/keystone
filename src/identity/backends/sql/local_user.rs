@@ -22,7 +22,7 @@ use crate::db::entity::{
     local_user, password,
     prelude::{LocalUser, Password},
 };
-use crate::identity::backends::error::IdentityDatabaseError;
+use crate::identity::backends::sql::{IdentityDatabaseError, db_err};
 use crate::identity::types::UserCreate;
 
 /// Load local user record with passwords from database
@@ -55,7 +55,8 @@ pub async fn load_local_user_with_passwords<S1: AsRef<str>, S2: AsRef<str>, S3: 
         .find_with_related(Password)
         .order_by(password::Column::CreatedAtInt, Order::Desc)
         .all(db)
-        .await?;
+        .await
+        .map_err(|err| db_err(err, "fetching user with passwords"))?;
     Ok(results.first().cloned())
 }
 
@@ -76,7 +77,8 @@ pub async fn load_local_users_passwords<L: IntoIterator<Item = Option<i32>>>(
         .filter(password::Column::LocalUserId.is_in(keys.clone()))
         .order_by(password::Column::CreatedAtInt, Order::Desc)
         .all(db)
-        .await?;
+        .await
+        .map_err(|err| db_err(err, "fetching user passwords"))?;
 
     // Prepare hashmap of passwords per local_user_id from requested users
     let mut hashmap: HashMap<i32, Vec<password::Model>> =
@@ -126,7 +128,10 @@ pub async fn create(
         entry.failed_auth_count = Set(Some(0));
     }
 
-    let db_user: local_user::Model = entry.insert(db).await?;
+    let db_user: local_user::Model = entry
+        .insert(db)
+        .await
+        .map_err(|err| db_err(err, "inserting new user record"))?;
 
     Ok(db_user)
 }
@@ -137,11 +142,12 @@ pub async fn get_by_name_and_domain<N: AsRef<str>, D: AsRef<str>>(
     name: N,
     domain_id: D,
 ) -> Result<Option<local_user::Model>, IdentityDatabaseError> {
-    Ok(LocalUser::find()
+    LocalUser::find()
         .filter(local_user::Column::Name.eq(name.as_ref()))
         .filter(local_user::Column::DomainId.eq(domain_id.as_ref()))
         .one(db)
-        .await?)
+        .await
+        .map_err(|err| db_err(err, "searching user by name and domain"))
 }
 
 pub async fn get_by_user_id<U: AsRef<str>>(
@@ -149,8 +155,9 @@ pub async fn get_by_user_id<U: AsRef<str>>(
     db: &DatabaseConnection,
     user_id: U,
 ) -> Result<Option<local_user::Model>, IdentityDatabaseError> {
-    Ok(LocalUser::find()
+    LocalUser::find()
         .filter(local_user::Column::UserId.eq(user_id.as_ref()))
         .one(db)
-        .await?)
+        .await
+        .map_err(|err| db_err(err, "fetching the user by ID"))
 }

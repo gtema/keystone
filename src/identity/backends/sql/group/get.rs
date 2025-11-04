@@ -17,7 +17,7 @@ use sea_orm::entity::*;
 
 use crate::db::entity::prelude::Group as DbGroup;
 use crate::identity::Config;
-use crate::identity::backends::sql::IdentityDatabaseError;
+use crate::identity::backends::sql::{IdentityDatabaseError, db_err};
 use crate::identity::types::Group;
 
 pub async fn get<S: AsRef<str>>(
@@ -27,7 +27,8 @@ pub async fn get<S: AsRef<str>>(
 ) -> Result<Option<Group>, IdentityDatabaseError> {
     Ok(DbGroup::find_by_id(group_id.as_ref())
         .one(db)
-        .await?
+        .await
+        .map_err(|err| db_err(err, "fetching group data"))?
         .map(Into::into))
 }
 

@@ -19,14 +19,17 @@ use serde_json::json;
 
 use crate::config::Config;
 use crate::db::entity::{prelude::User as DbUser, user};
-use crate::identity::backends::error::IdentityDatabaseError;
+use crate::identity::backends::sql::{IdentityDatabaseError, db_err};
 use crate::identity::types::UserCreate;
 
 pub async fn get<U: AsRef<str>>(
     db: &DatabaseConnection,
     user_id: U,
 ) -> Result<Option<user::Model>, IdentityDatabaseError> {
-    Ok(DbUser::find_by_id(user_id.as_ref()).one(db).await?)
+    DbUser::find_by_id(user_id.as_ref())
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching user by ID"))
 }
 
 pub(super) async fn create(
@@ -62,7 +65,10 @@ pub(super) async fn create(
         created_at: Set(Some(now)),
         domain_id: Set(user.domain_id.clone()),
     };
-    let db_user: user::Model = entry.insert(db).await?;
+    let db_user: user::Model = entry
+        .insert(db)
+        .await
+        .map_err(|err| db_err(err, "inserting user entry"))?;
     Ok(db_user)
 }
 
@@ -71,7 +77,10 @@ pub async fn delete<U: AsRef<str>>(
     db: &DatabaseConnection,
     user_id: U,
 ) -> Result<(), IdentityDatabaseError> {
-    let res = DbUser::delete_by_id(user_id.as_ref()).exec(db).await?;
+    let res = DbUser::delete_by_id(user_id.as_ref())
+        .exec(db)
+        .await
+        .map_err(|err| db_err(err, "deleting the user record"))?;
     if res.rows_affected == 1 {
         Ok(())
     } else {

@@ -18,7 +18,7 @@ use sea_orm::query::*;
 
 use crate::config::Config;
 use crate::db::entity::{federated_user, prelude::FederatedUser};
-use crate::identity::backends::error::IdentityDatabaseError;
+use crate::identity::backends::sql::{IdentityDatabaseError, db_err};
 
 pub async fn create<A>(
     _conf: &Config,
@@ -28,7 +28,11 @@ pub async fn create<A>(
 where
     A: Into<federated_user::ActiveModel>,
 {
-    let db_user: federated_user::Model = federation.into().insert(db).await?;
+    let db_user: federated_user::Model = federation
+        .into()
+        .insert(db)
+        .await
+        .map_err(|err| db_err(err, "persisting federated user data"))?;
 
     Ok(db_user)
 }
@@ -44,7 +48,8 @@ pub async fn find_by_idp_and_unique_id<I: AsRef<str>, U: AsRef<str>>(
         .filter(federated_user::Column::IdpId.eq(idp_id.as_ref()))
         .filter(federated_user::Column::UniqueId.eq(unique_id.as_ref()))
         .all(db)
-        .await?
+        .await
+        .map_err(|err| db_err(err, "searching federated user by the idp and unique id"))?
         .first()
         .cloned())
 }

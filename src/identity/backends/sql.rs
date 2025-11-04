@@ -364,7 +364,10 @@ async fn list_users(
             federated_user_select.filter(db_federated_user::Column::DisplayName.eq(name));
     }
 
-    let db_users: Vec<db_user::Model> = user_select.all(db).await?;
+    let db_users: Vec<db_user::Model> = user_select
+        .all(db)
+        .await
+        .map_err(|err| db_err(err, "fetching users data"))?;
 
     let (user_opts, local_users, nonlocal_users, federated_users) = tokio::join!(
         db_users.load_many(UserOption, db),
@@ -373,7 +376,7 @@ async fn list_users(
         db_users.load_many(federated_user_select, db)
     );
 
-    let locals = local_users?;
+    let locals = local_users.map_err(|err| db_err(err, "fetching local users data"))?;
 
     let local_users_passwords: Vec<Option<Vec<db_password::Model>>> =
         local_user::load_local_users_passwords(db, locals.iter().cloned().map(|u| u.map(|x| x.id)))
@@ -381,15 +384,23 @@ async fn list_users(
 
     let mut results: Vec<UserResponse> = Vec::new();
     for (u, (o, (l, (p, (n, f))))) in db_users.into_iter().zip(
-        user_opts?.into_iter().zip(
-            locals.into_iter().zip(
-                local_users_passwords.into_iter().zip(
-                    nonlocal_users?
-                        .into_iter()
-                        .zip(federated_users?.into_iter()),
+        user_opts
+            .map_err(|err| db_err(err, "fetching user options"))?
+            .into_iter()
+            .zip(
+                locals.into_iter().zip(
+                    local_users_passwords.into_iter().zip(
+                        nonlocal_users
+                            .map_err(|err| db_err(err, "fetching nonlocal users data"))?
+                            .into_iter()
+                            .zip(
+                                federated_users
+                                    .map_err(|err| db_err(err, "fetching federated users data"))?
+                                    .into_iter(),
+                            ),
+                    ),
                 ),
             ),
-        ),
     ) {
         if l.is_none() && n.is_none() && f.is_empty() {
             continue;
@@ -430,7 +441,10 @@ pub async fn get_user(
 ) -> Result<Option<UserResponse>, IdentityDatabaseError> {
     let user_select = DbUser::find_by_id(user_id);
 
-    let user_entry: Option<db_user::Model> = user_select.one(db).await?;
+    let user_entry: Option<db_user::Model> = user_select
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching the user data"))?;
 
     if let Some(user) = user_entry {
         let (user_opts, local_user_with_passwords) = tokio::join!(
@@ -449,16 +463,31 @@ pub async fn get_user(
                 &user,
                 local_user_with_passwords.0,
                 Some(local_user_with_passwords.1),
-                user_opts?,
+                user_opts.map_err(|err| db_err(err, "fetching user options"))?,
             ),
-            _ => match user.find_related(NonlocalUser).one(db).await? {
-                Some(nonlocal_user) => {
-                    common::get_nonlocal_user_builder(&user, nonlocal_user, user_opts?)
-                }
+            _ => match user
+                .find_related(NonlocalUser)
+                .one(db)
+                .await
+                .map_err(|err| db_err(err, "fetching nonlocal user data"))?
+            {
+                Some(nonlocal_user) => common::get_nonlocal_user_builder(
+                    &user,
+                    nonlocal_user,
+                    user_opts.map_err(|err| db_err(err, "fetching user options"))?,
+                ),
                 _ => {
-                    let federated_user = user.find_related(FederatedUser).all(db).await?;
+                    let federated_user = user
+                        .find_related(FederatedUser)
+                        .all(db)
+                        .await
+                        .map_err(|err| db_err(err, "fetching federated user data"))?;
                     if !federated_user.is_empty() {
-                        common::get_federated_user_builder(&user, federated_user, user_opts?)
+                        common::get_federated_user_builder(
+                            &user,
+                            federated_user,
+                            user_opts.map_err(|err| db_err(err, "fetching user options"))?,
+                        )
                     } else {
                         return Err(IdentityDatabaseError::MalformedUser(user_id.to_string()))?;
                     }

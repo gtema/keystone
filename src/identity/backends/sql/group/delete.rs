@@ -17,14 +17,17 @@ use sea_orm::entity::*;
 
 use crate::db::entity::prelude::Group as DbGroup;
 use crate::identity::Config;
-use crate::identity::backends::sql::IdentityDatabaseError;
+use crate::identity::backends::sql::{IdentityDatabaseError, db_err};
 
 pub async fn delete<S: AsRef<str>>(
     _conf: &Config,
     db: &DatabaseConnection,
     group_id: S,
 ) -> Result<(), IdentityDatabaseError> {
-    let res = DbGroup::delete_by_id(group_id.as_ref()).exec(db).await?;
+    let res = DbGroup::delete_by_id(group_id.as_ref())
+        .exec(db)
+        .await
+        .map_err(|err| db_err(err, "removing group record"))?;
     if res.rows_affected == 1 {
         Ok(())
     } else {
