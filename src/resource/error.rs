@@ -51,7 +51,7 @@ pub enum ResourceProviderError {
 impl From<ResourceDatabaseError> for ResourceProviderError {
     fn from(source: ResourceDatabaseError) -> Self {
         match source {
-            ResourceDatabaseError::Conflict(x) => Self::Conflict(x),
+            ResourceDatabaseError::Conflict { message, .. } => Self::Conflict(message),
             ResourceDatabaseError::DomainNotFound(x) => Self::DomainNotFound(x),
             _ => Self::ResourceDatabase { source },
         }

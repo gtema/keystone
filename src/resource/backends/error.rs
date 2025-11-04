@@ -41,26 +41,40 @@ pub enum ResourceDatabaseError {
     },
 
     /// Conflict
-    #[error("{0}")]
-    Conflict(String),
+    #[error("{message}")]
+    Conflict { message: String, context: String },
 
     /// SqlError
-    #[error("{0}")]
-    Sql(String),
+    #[error("{message}")]
+    Sql { message: String, context: String },
 
-    #[error(transparent)]
-    Database { source: sea_orm::DbErr },
+    #[error("Database error while {context}")]
+    Database {
+        source: sea_orm::DbErr,
+        context: String,
+    },
 }
 
-impl From<sea_orm::DbErr> for ResourceDatabaseError {
-    fn from(err: sea_orm::DbErr) -> Self {
-        err.sql_err().map_or_else(
-            || Self::Database { source: err },
-            |err| match err {
-                SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
-                SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
-                other => Self::Sql(other.to_string()),
+/// Convert the DB error into the [ResourceDatabaseError] with the context information.
+pub fn db_err(e: sea_orm::DbErr, context: &str) -> ResourceDatabaseError {
+    e.sql_err().map_or_else(
+        || ResourceDatabaseError::Database {
+            source: e,
+            context: context.to_string(),
+        },
+        |err| match err {
+            SqlErr::UniqueConstraintViolation(descr) => ResourceDatabaseError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
             },
-        )
-    }
+            SqlErr::ForeignKeyConstraintViolation(descr) => ResourceDatabaseError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
+            },
+            other => ResourceDatabaseError::Sql {
+                message: other.to_string(),
+                context: context.to_string(),
+            },
+        },
+    )
 }

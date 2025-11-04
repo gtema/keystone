@@ -20,7 +20,7 @@ use crate::db::entity::{
     federated_auth_state as db_federated_auth_state,
     prelude::FederatedAuthState as DbFederatedAuthState,
 };
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 use crate::federation::types::*;
 
 pub async fn get<I: AsRef<str>>(
@@ -30,7 +30,10 @@ pub async fn get<I: AsRef<str>>(
 ) -> Result<Option<AuthState>, FederationDatabaseError> {
     let select = DbFederatedAuthState::find_by_id(state.as_ref());
 
-    let entry: Option<db_federated_auth_state::Model> = select.one(db).await?;
+    let entry: Option<db_federated_auth_state::Model> = select
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching federation login auth_state by id"))?;
     entry.map(TryInto::try_into).transpose()
 }
 

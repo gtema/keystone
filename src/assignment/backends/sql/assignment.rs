@@ -18,7 +18,7 @@ use sea_orm::prelude::Expr;
 use sea_orm::query::*;
 use std::collections::{BTreeMap, HashMap};
 
-use crate::assignment::backends::error::AssignmentDatabaseError;
+use crate::assignment::backends::error::{AssignmentDatabaseError, db_err};
 use crate::assignment::types::*;
 use crate::config::Config;
 use crate::db::entity::{
@@ -71,15 +71,19 @@ pub async fn list(
     }
 
     let results: Result<Vec<Assignment>, _> = if let Some(true) = &params.include_names {
-        let db_assignments: Vec<(db_assignment::Model, Option<db_role::Model>)> =
-            select_assignment.find_also_related(DbRole).all(db).await?;
+        let db_assignments: Vec<(db_assignment::Model, Option<db_role::Model>)> = select_assignment
+            .find_also_related(DbRole)
+            .all(db)
+            .await
+            .map_err(|err| db_err(err, "fetching role assignments with roles"))?;
         let db_system_assignments: Vec<(db_system_assignment::Model, Option<db_role::Model>)> =
             if params.project_id.is_none() && params.domain_id.is_none() {
                 // get system scope assignments only when no project or domain is specified
                 select_system_assignment
                     .find_also_related(DbRole)
                     .all(db)
-                    .await?
+                    .await
+                    .map_err(|err| db_err(err, "fetching system role assignments with roles"))?
             } else {
                 Vec::new()
             };
@@ -93,11 +97,17 @@ pub async fn list(
             )
             .collect()
     } else {
-        let db_assignments: Vec<db_assignment::Model> = select_assignment.all(db).await?;
+        let db_assignments: Vec<db_assignment::Model> = select_assignment
+            .all(db)
+            .await
+            .map_err(|err| db_err(err, "fetching role assignments"))?;
         let db_system_assignments: Vec<db_system_assignment::Model> =
             if params.project_id.is_none() && params.domain_id.is_none() {
                 // get system scope assignments only when no project or domain is specified
-                select_system_assignment.all(db).await?
+                select_system_assignment
+                    .all(db)
+                    .await
+                    .map_err(|err| db_err(err, "fetching system role assignments"))?
             } else {
                 Vec::new()
             };
@@ -153,7 +163,12 @@ pub async fn list_for_multiple_actors_and_targets(
 
     let mut db_assignments: BTreeMap<String, db_assignment::Model> = BTreeMap::new();
     // Get assignments resolving the roles inference
-    for assignment in select.all(db).await? {
+    for assignment in select.all(db).await.map_err(|err| {
+        db_err(
+            err,
+            "fetching role assignments for multiple actors and targets",
+        )
+    })? {
         db_assignments.insert(assignment.role_id.clone(), assignment.clone());
         if let Some(implies) = imply_rules.get(&assignment.role_id) {
             let mut implied_assignment = assignment.clone();
@@ -173,7 +188,8 @@ pub async fn list_for_multiple_actors_and_targets(
                 .filter(Expr::col(db_role::Column::Id).is_in(db_assignments.keys()))
                 .into_tuple()
                 .all(db)
-                .await?,
+                .await
+                .map_err(|err| db_err(err, "fetching roles by ids"))?,
         );
         let results: Result<Vec<Assignment>, _> = db_assignments
             .values()

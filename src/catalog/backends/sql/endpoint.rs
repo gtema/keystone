@@ -17,7 +17,7 @@ use sea_orm::entity::*;
 use sea_orm::query::*;
 use serde_json::Value;
 
-use crate::catalog::backends::error::CatalogDatabaseError;
+use crate::catalog::backends::error::{CatalogDatabaseError, db_err};
 use crate::catalog::types::*;
 use crate::config::Config;
 use crate::db::entity::{endpoint as db_endpoint, prelude::Endpoint as DbEndpoint};
@@ -29,7 +29,10 @@ pub async fn get<I: AsRef<str>>(
 ) -> Result<Option<Endpoint>, CatalogDatabaseError> {
     let select = DbEndpoint::find_by_id(id.as_ref());
 
-    let entry: Option<db_endpoint::Model> = select.one(db).await?;
+    let entry: Option<db_endpoint::Model> = select
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching service endpoint by id"))?;
     entry.map(TryInto::try_into).transpose()
 }
 
@@ -50,7 +53,10 @@ pub async fn list(
         select = select.filter(db_endpoint::Column::RegionId.eq(val));
     }
 
-    let db_entities: Vec<db_endpoint::Model> = select.all(db).await?;
+    let db_entities: Vec<db_endpoint::Model> = select
+        .all(db)
+        .await
+        .map_err(|err| db_err(err, "fetching endpoints"))?;
     let results: Result<Vec<Endpoint>, _> = db_entities
         .into_iter()
         .map(TryInto::<Endpoint>::try_into)

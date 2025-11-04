@@ -77,7 +77,7 @@ pub enum IdentityDatabaseError {
     UserIdOrNameWithDomain,
 }
 
-/// Convert the DB error into the IdentityDatabaseError with the context information.
+/// Convert the DB error into the [IdentityDatabaseError] with the context information.
 pub fn db_err(e: sea_orm::DbErr, context: &str) -> IdentityDatabaseError {
     e.sql_err().map_or_else(
         || IdentityDatabaseError::Database {

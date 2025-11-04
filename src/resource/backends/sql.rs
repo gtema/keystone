@@ -22,7 +22,7 @@ use super::super::types::*;
 use crate::config::Config;
 use crate::db::entity::{prelude::Project as DbProject, project as db_project};
 use crate::resource::ResourceProviderError;
-use crate::resource::backends::error::ResourceDatabaseError;
+use crate::resource::backends::error::{ResourceDatabaseError, db_err};
 
 #[derive(Clone, Debug, Default)]
 pub struct SqlBackend {
@@ -84,7 +84,10 @@ pub async fn get_domain_by_id<I: AsRef<str>>(
     let domain_select =
         DbProject::find_by_id(domain_id.as_ref()).filter(db_project::Column::IsDomain.eq(true));
 
-    let domain_entry: Option<db_project::Model> = domain_select.one(db).await?;
+    let domain_entry: Option<db_project::Model> = domain_select
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching domain by id"))?;
     domain_entry.map(TryInto::try_into).transpose()
 }
 
@@ -97,19 +100,25 @@ pub async fn get_domain_by_name<N: AsRef<str>>(
         .filter(db_project::Column::IsDomain.eq(true))
         .filter(db_project::Column::Name.eq(domain_name.as_ref()));
 
-    let domain_entry: Option<db_project::Model> = domain_select.one(db).await?;
+    let domain_entry: Option<db_project::Model> = domain_select
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching domain by name"))?;
     domain_entry.map(TryInto::try_into).transpose()
 }
 
 pub async fn get_project<I: AsRef<str>>(
     _conf: &Config,
     db: &DatabaseConnection,
-    domain_id: I,
+    id: I,
 ) -> Result<Option<Project>, ResourceDatabaseError> {
     let project_select =
-        DbProject::find_by_id(domain_id.as_ref()).filter(db_project::Column::IsDomain.eq(false));
+        DbProject::find_by_id(id.as_ref()).filter(db_project::Column::IsDomain.eq(false));
 
-    let project_entry: Option<db_project::Model> = project_select.one(db).await?;
+    let project_entry: Option<db_project::Model> = project_select
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching project by id"))?;
     project_entry.map(TryInto::try_into).transpose()
 }
 
@@ -124,7 +133,10 @@ pub async fn get_project_by_name<N: AsRef<str>, D: AsRef<str>>(
         .filter(db_project::Column::Name.eq(name.as_ref()))
         .filter(db_project::Column::DomainId.eq(domain_id.as_ref()));
 
-    let project_entry: Option<db_project::Model> = project_select.one(db).await?;
+    let project_entry: Option<db_project::Model> = project_select
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching project by name and domain"))?;
     project_entry.map(TryInto::try_into).transpose()
 }
 

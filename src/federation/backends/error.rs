@@ -25,8 +25,19 @@ pub enum FederationDatabaseError {
         source: serde_json::Error,
     },
 
-    #[error(transparent)]
-    Database { source: sea_orm::DbErr },
+    /// Conflict
+    #[error("{message}")]
+    Conflict { message: String, context: String },
+
+    /// SqlError
+    #[error("{message}")]
+    Sql { message: String, context: String },
+
+    #[error("Database error while {context}")]
+    Database {
+        source: sea_orm::DbErr,
+        context: String,
+    },
 
     #[error("{0}")]
     IdentityProviderNotFound(String),
@@ -36,14 +47,6 @@ pub enum FederationDatabaseError {
 
     #[error("{0}")]
     AuthStateNotFound(String),
-
-    /// Conflict
-    #[error("{0}")]
-    Conflict(String),
-
-    /// SqlError
-    #[error("{0}")]
-    Sql(String),
 
     #[error(transparent)]
     AuthStateBuilder {
@@ -64,15 +67,26 @@ pub enum FederationDatabaseError {
     },
 }
 
-impl From<sea_orm::DbErr> for FederationDatabaseError {
-    fn from(err: sea_orm::DbErr) -> Self {
-        err.sql_err().map_or_else(
-            || Self::Database { source: err },
-            |err| match err {
-                SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
-                SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
-                other => Self::Sql(other.to_string()),
+/// Convert the DB error into the [FederationDatabaseError] with the context information.
+pub fn db_err(e: sea_orm::DbErr, context: &str) -> FederationDatabaseError {
+    e.sql_err().map_or_else(
+        || FederationDatabaseError::Database {
+            source: e,
+            context: context.to_string(),
+        },
+        |err| match err {
+            SqlErr::UniqueConstraintViolation(descr) => FederationDatabaseError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
             },
-        )
-    }
+            SqlErr::ForeignKeyConstraintViolation(descr) => FederationDatabaseError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
+            },
+            other => FederationDatabaseError::Sql {
+                message: other.to_string(),
+                context: context.to_string(),
+            },
+        },
+    )
 }

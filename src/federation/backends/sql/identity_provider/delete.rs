@@ -20,7 +20,7 @@ use crate::db::entity::prelude::{
     FederatedIdentityProvider as DbFederatedIdentityProvider,
     IdentityProvider as DbIdentityProvider,
 };
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 
 pub async fn delete<S: AsRef<str>>(
     _conf: &Config,
@@ -29,11 +29,13 @@ pub async fn delete<S: AsRef<str>>(
 ) -> Result<(), FederationDatabaseError> {
     let res = DbFederatedIdentityProvider::delete_by_id(id.as_ref())
         .exec(db)
-        .await?;
+        .await
+        .map_err(|err| db_err(err, "deleting identity provider"))?;
     if res.rows_affected == 1 {
         DbIdentityProvider::delete_by_id(id.as_ref())
             .exec(db)
-            .await?;
+            .await
+            .map_err(|err| db_err(err, "deleting v3 identity provider"))?;
         Ok(())
     } else {
         Err(FederationDatabaseError::IdentityProviderNotFound(

@@ -17,7 +17,7 @@ use sea_orm::entity::*;
 
 use crate::config::Config;
 use crate::db::entity::federated_mapping as db_federated_mapping;
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 use crate::federation::types::*;
 
 pub async fn create(
@@ -88,7 +88,10 @@ pub async fn create(
             .into(),
     };
 
-    let db_entry: db_federated_mapping::Model = entry.insert(db).await?;
+    let db_entry: db_federated_mapping::Model = entry
+        .insert(db)
+        .await
+        .map_err(|err| db_err(err, "persisting new federation mapping"))?;
 
     db_entry.try_into()
 }
