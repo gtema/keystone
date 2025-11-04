@@ -100,9 +100,3 @@ pub fn db_err(e: sea_orm::DbErr, context: &str) -> IdentityDatabaseError {
         },
     )
 }
-
-impl From<sea_orm::DbErr> for IdentityDatabaseError {
-    fn from(err: sea_orm::DbErr) -> Self {
-        db_err(err, "unknown")
-    }
-}

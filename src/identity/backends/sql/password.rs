@@ -17,7 +17,7 @@ use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 
 use crate::db::entity::password;
-use crate::identity::backends::error::IdentityDatabaseError;
+use crate::identity::backends::sql::{IdentityDatabaseError, db_err};
 
 pub async fn create<S: AsRef<str>>(
     db: &DatabaseConnection,
@@ -40,6 +40,9 @@ pub async fn create<S: AsRef<str>>(
         entry.expires_at = Set(Some(expire.naive_utc()));
         entry.expires_at_int = Set(Some(expire.timestamp_micros()));
     }
-    let db_entry: password::Model = entry.insert(db).await?;
+    let db_entry: password::Model = entry
+        .insert(db)
+        .await
+        .map_err(|err| db_err(err, "inserting new password record"))?;
     Ok(db_entry)
 }
