@@ -12,7 +12,7 @@ Nowadays password-less authentication becomes standard. In OpenStack it is at
 the moment not implemented whether on the API level (for the CLI) nor on the UI.
 
 [Webauthn](https://webauthn.io/) is a well accepted standard for implementing
-password-less authentication with the help of hardware or software 
+password-less authentication with the help of hardware or software
 authenticators. Keystone should implement support for new authentication methods
 relying on the webauthn.
 
@@ -40,4 +40,3 @@ state.
 
 New authentication method allows users to get valid token without requiring user
 to pass any secrets on the wire. Overall security of the system is increased.
-
