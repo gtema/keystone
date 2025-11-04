@@ -3,6 +3,11 @@ name: "Run Benchmarks"
 on:
   pull_request:
     types: [opened, reopened, edited, synchronize]
+    paths:
+      - '.github/workflows/benchmark*.yml'
+      - 'Cargo.toml'
+      - 'benches/**'
+      - 'src/**'
 
 jobs:
   benchmark_fork_pr_branch:

@@ -93,5 +93,4 @@ opa run -s policies
 
 **NOTE:** by default OPA process listens on the localhost only what lead to
 unavailability to expose it between containers. Please use `-a 0.0.0.0:8181` to
-
 start listening on all interfaces.
