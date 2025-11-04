@@ -61,10 +61,18 @@ We believe this approach allows the best of both worlds: the trusted maturity
 of Keystone’s Python code-base, combined with the modern, high-safety,
 high-performance capabilities of Rust where they matter most.
 
+## Documentation
+
+Project documentation can be found [here](https://openstack-experimental.github.io/keystone).
+It is a work in progress. Target is to provide a comprehensive documentation of
+the new functionality and provide missing insides to the python Keystone
+functionality with Architecture Decision Records, Specs, Thread analysis and
+many more.
+
 ## Config
 
-Keystone config is being read and the main goal is to have possibility to
-simply reuse Keystone config with no changes.
+It is supposed, that the configuration for the python Keystone can be used
+without changes also for the rust implementation.
 
 ## Api + OpenAPI
 
@@ -74,6 +82,7 @@ matches the implementation.
 ## Database
 
 Sea-ORM is being used to access database. PostgreSQL and MySQL are supported.
+Functional tests [would] test the compatibility.
 
 ## Load test
 
@@ -96,13 +105,8 @@ possession of the binary is as easy as `keystone -c etc/keystone.conf -vv`
 
 Alternatively you can try it with `docker compose -f docker-compose.yaml up`.
 
-## Documentation
-
-Comprehensive (as much as it can be at the current stage) is available
-[here](https://gtema.github.io/keystone).
-
 ## Talks
 
 Detailed introduction of the project was given as
-[ALASCA tech talk](https://www.youtube.com/watch?v=0Hx4Q22ZNFU).
-[OpenStack Summit 2025](https://www.youtube.com/watch?v=XOHYqE2HRw4&list=PLKqaoAnDyfgr91wN_12nwY321504Ctw1s&index=30)
+* [ALASCA tech talk](https://www.youtube.com/watch?v=0Hx4Q22ZNFU)
+* [OpenStack Summit 2025](https://www.youtube.com/watch?v=XOHYqE2HRw4&list=PLKqaoAnDyfgr91wN_12nwY321504Ctw1s&index=30)
