@@ -16,7 +16,7 @@
     * [Passkey Auth](adr/0005-auth-passkey.md)
     * [Federation IDP](adr/0006-federation-idp.md)
     * [Federation Mapping](adr/0007-federation-mapping.md)
-    * [Workload Federation](adr/0008-workload-federation.md) 
+    * [Workload Federation](adr/0008-workload-federation.md)
 * [Policy enforcement](./policy.md)
 * [Fernet token]()
   * [Token payloads]()
