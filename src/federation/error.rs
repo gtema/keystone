@@ -61,7 +61,7 @@ impl From<FederationDatabaseError> for FederationProviderError {
                 Self::IdentityProviderNotFound(x)
             }
             FederationDatabaseError::MappingNotFound(x) => Self::MappingNotFound(x),
-            FederationDatabaseError::Conflict(x) => Self::Conflict(x),
+            FederationDatabaseError::Conflict { message, .. } => Self::Conflict(message),
             FederationDatabaseError::Serde { source } => Self::Serde { source },
             _ => Self::FederationDatabase { source },
         }

@@ -19,7 +19,7 @@ use crate::config::Config;
 use crate::db::entity::{
     federated_mapping as db_federated_mapping, prelude::FederatedMapping as DbFederatedMapping,
 };
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 use crate::federation::types::*;
 
 pub async fn update<S: AsRef<str>>(
@@ -28,7 +28,11 @@ pub async fn update<S: AsRef<str>>(
     id: S,
     mapping: MappingUpdate,
 ) -> Result<Mapping, FederationDatabaseError> {
-    if let Some(current) = DbFederatedMapping::find_by_id(id.as_ref()).one(db).await? {
+    if let Some(current) = DbFederatedMapping::find_by_id(id.as_ref())
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching mapping by id for update"))?
+    {
         let mut entry: db_federated_mapping::ActiveModel = current.into();
         if let Some(val) = mapping.name {
             entry.name = Set(val.to_owned());
@@ -73,7 +77,10 @@ pub async fn update<S: AsRef<str>>(
             entry.token_restriction_id = Set(Some(val.to_owned()));
         }
 
-        let db_entry: db_federated_mapping::Model = entry.update(db).await?;
+        let db_entry: db_federated_mapping::Model = entry
+            .update(db)
+            .await
+            .map_err(|err| db_err(err, "updating the mapping"))?;
         db_entry.try_into()
     } else {
         Err(FederationDatabaseError::MappingNotFound(

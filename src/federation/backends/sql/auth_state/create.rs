@@ -17,7 +17,7 @@ use sea_orm::entity::*;
 
 use crate::config::Config;
 use crate::db::entity::federated_auth_state as db_federated_auth_state;
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 use crate::federation::types::*;
 
 pub async fn create(
@@ -41,7 +41,10 @@ pub async fn create(
         requested_scope: scope.map(Set).unwrap_or(NotSet).into(),
     };
 
-    let db_entry: db_federated_auth_state::Model = entry.insert(db).await?;
+    let db_entry: db_federated_auth_state::Model = entry
+        .insert(db)
+        .await
+        .map_err(|err| db_err(err, "persisting federation login auth_state"))?;
 
     db_entry.try_into()
 }

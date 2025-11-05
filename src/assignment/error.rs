@@ -72,7 +72,7 @@ pub enum AssignmentProviderError {
 impl From<AssignmentDatabaseError> for AssignmentProviderError {
     fn from(source: AssignmentDatabaseError) -> Self {
         match source {
-            AssignmentDatabaseError::Conflict(x) => Self::Conflict(x),
+            AssignmentDatabaseError::Conflict { message, .. } => Self::Conflict(message),
             AssignmentDatabaseError::RoleNotFound(x) => Self::RoleNotFound(x),
             AssignmentDatabaseError::Serde { source } => Self::Serde { source },
             _ => Self::AssignmentDatabaseError { source },

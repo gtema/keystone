@@ -22,7 +22,7 @@ use crate::db::entity::{
     federated_auth_state as db_federated_auth_state,
     prelude::FederatedAuthState as DbFederatedAuthState,
 };
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 
 pub async fn delete<S: AsRef<str>>(
     _conf: &Config,
@@ -31,7 +31,8 @@ pub async fn delete<S: AsRef<str>>(
 ) -> Result<(), FederationDatabaseError> {
     let res = DbFederatedAuthState::delete_by_id(id.as_ref())
         .exec(db)
-        .await?;
+        .await
+        .map_err(|err| db_err(err, "deleting federation login auth_state"))?;
     if res.rows_affected == 1 {
         Ok(())
     } else {
@@ -48,7 +49,8 @@ pub async fn delete_expired(
     DbFederatedAuthState::delete_many()
         .filter(db_federated_auth_state::Column::ExpiresAt.lt(Utc::now()))
         .exec(db)
-        .await?;
+        .await
+        .map_err(|err| db_err(err, "deleting expired federation login auth_states"))?;
     Ok(())
 }
 

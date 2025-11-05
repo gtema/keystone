@@ -21,7 +21,7 @@ use crate::db::entity::{
     federated_identity_provider as db_federated_identity_provider,
     prelude::FederatedIdentityProvider as DbFederatedIdentityProvider,
 };
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 use crate::federation::types::*;
 
 pub async fn list(
@@ -48,7 +48,10 @@ pub async fn list(
         };
     }
 
-    let db_entities: Vec<db_federated_identity_provider::Model> = select.all(db).await?;
+    let db_entities: Vec<db_federated_identity_provider::Model> = select
+        .all(db)
+        .await
+        .map_err(|err| db_err(err, "listing identity providers"))?;
     let results: Result<Vec<IdentityProvider>, _> = db_entities
         .into_iter()
         .map(TryInto::<IdentityProvider>::try_into)

@@ -19,7 +19,7 @@ use crate::config::Config;
 use crate::db::entity::{
     federated_mapping as db_federated_mapping, prelude::FederatedMapping as DbFederatedMapping,
 };
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 use crate::federation::types::*;
 
 pub async fn get<I: AsRef<str>>(
@@ -29,7 +29,10 @@ pub async fn get<I: AsRef<str>>(
 ) -> Result<Option<Mapping>, FederationDatabaseError> {
     let select = DbFederatedMapping::find_by_id(id.as_ref());
 
-    let entry: Option<db_federated_mapping::Model> = select.one(db).await?;
+    let entry: Option<db_federated_mapping::Model> = select
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching federation mapping by id"))?;
     entry.map(TryInto::try_into).transpose()
 }
 

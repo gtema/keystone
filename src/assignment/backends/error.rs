@@ -40,30 +40,45 @@ pub enum AssignmentDatabaseError {
         source: RoleBuilderError,
     },
 
-    #[error(transparent)]
-    Database { source: sea_orm::DbErr },
-
     /// Conflict
-    #[error("{0}")]
-    Conflict(String),
+    #[error("{message}")]
+    Conflict { message: String, context: String },
 
     /// SqlError
-    #[error("{0}")]
-    Sql(String),
+    #[error("{message}")]
+    Sql { message: String, context: String },
+
+    /// Database error
+    #[error("Database error while {context}")]
+    Database {
+        source: sea_orm::DbErr,
+        context: String,
+    },
 
     #[error("{0}")]
     InvalidAssignmentType(String),
 }
 
-impl From<sea_orm::DbErr> for AssignmentDatabaseError {
-    fn from(err: sea_orm::DbErr) -> Self {
-        err.sql_err().map_or_else(
-            || Self::Database { source: err },
-            |err| match err {
-                SqlErr::UniqueConstraintViolation(descr) => Self::Conflict(descr),
-                SqlErr::ForeignKeyConstraintViolation(descr) => Self::Conflict(descr),
-                other => Self::Sql(other.to_string()),
+/// Convert the DB error into the [AssignmentDatabaseError] with the context information.
+pub fn db_err(e: sea_orm::DbErr, context: &str) -> AssignmentDatabaseError {
+    e.sql_err().map_or_else(
+        || AssignmentDatabaseError::Database {
+            source: e,
+            context: context.to_string(),
+        },
+        |err| match err {
+            SqlErr::UniqueConstraintViolation(descr) => AssignmentDatabaseError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
             },
-        )
-    }
+            SqlErr::ForeignKeyConstraintViolation(descr) => AssignmentDatabaseError::Conflict {
+                message: descr.to_string(),
+                context: context.to_string(),
+            },
+            other => AssignmentDatabaseError::Sql {
+                message: other.to_string(),
+                context: context.to_string(),
+            },
+        },
+    )
 }

@@ -20,7 +20,7 @@ use crate::db::entity::{
     federated_identity_provider as db_federated_identity_provider,
     prelude::FederatedIdentityProvider as DbFederatedIdentityProvider,
 };
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 use crate::federation::types::*;
 
 pub async fn update<S: AsRef<str>>(
@@ -31,7 +31,8 @@ pub async fn update<S: AsRef<str>>(
 ) -> Result<IdentityProvider, FederationDatabaseError> {
     if let Some(current) = DbFederatedIdentityProvider::find_by_id(id.as_ref())
         .one(db)
-        .await?
+        .await
+        .map_err(|err| db_err(err, "fetching current identity provider data for update"))?
     {
         let mut entry: db_federated_identity_provider::ActiveModel = current.into();
         if let Some(val) = idp.name {
@@ -68,7 +69,10 @@ pub async fn update<S: AsRef<str>>(
             entry.default_mapping_name = Set(val.to_owned());
         }
 
-        let db_entry: db_federated_identity_provider::Model = entry.update(db).await?;
+        let db_entry: db_federated_identity_provider::Model = entry
+            .update(db)
+            .await
+            .map_err(|err| db_err(err, "updating identity provider"))?;
         db_entry.try_into()
     } else {
         Err(FederationDatabaseError::IdentityProviderNotFound(

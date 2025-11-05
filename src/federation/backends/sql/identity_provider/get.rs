@@ -20,7 +20,7 @@ use crate::db::entity::{
     federated_identity_provider as db_federated_identity_provider,
     prelude::FederatedIdentityProvider as DbFederatedIdentityProvider,
 };
-use crate::federation::backends::error::FederationDatabaseError;
+use crate::federation::backends::error::{FederationDatabaseError, db_err};
 use crate::federation::types::*;
 
 pub async fn get<I: AsRef<str>>(
@@ -30,7 +30,10 @@ pub async fn get<I: AsRef<str>>(
 ) -> Result<Option<IdentityProvider>, FederationDatabaseError> {
     let select = DbFederatedIdentityProvider::find_by_id(id.as_ref());
 
-    let entry: Option<db_federated_identity_provider::Model> = select.one(db).await?;
+    let entry: Option<db_federated_identity_provider::Model> = select
+        .one(db)
+        .await
+        .map_err(|err| db_err(err, "fetching identity provider by id"))?;
     entry.map(TryInto::try_into).transpose()
 }
 #[cfg(test)]
