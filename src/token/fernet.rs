@@ -374,10 +374,9 @@ pub(super) mod tests {
 
         if let Token::Unscoped(decrypted) = provider.decrypt(token).unwrap() {
             assert_eq!(decrypted.user_id, "4b7d364ad87d400bbd91798e3c15e9c2");
-            assert_eq!(
-                decrypted.methods.clone().sort(),
-                ["password", "token"].sort()
-            );
+            let mut methods_curr = decrypted.methods.clone();
+            methods_curr.sort();
+            assert_eq!(methods_curr, ["password", "token"]);
             assert_eq!(
                 decrypted.expires_at.to_rfc3339(),
                 "2025-02-20T17:40:13+00:00"
