@@ -102,7 +102,6 @@ mod tests {
         *,
     };
 
-    use crate::assignment::types::Role as ProviderRole;
     use crate::token::{MockTokenProvider, types as provider_types};
 
     #[tokio::test]
