@@ -257,7 +257,7 @@ async fn show(
 
     policy
         .enforce(
-            "identity/validate_token",
+            "identity/auth/token/show",
             &user_auth,
             to_value(json!({"token": &token}))?,
             None,
