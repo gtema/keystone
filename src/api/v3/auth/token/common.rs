@@ -57,7 +57,9 @@ impl Token {
         let mut user_response: UserBuilder = UserBuilder::default();
         user_response.id(user.id.clone());
         user_response.name(user.name.clone());
-        user_response.password_expires_at(user.password_expires_at);
+        if let Some(val) = user.password_expires_at {
+            user_response.password_expires_at(val);
+        }
         user_response.domain(user_domain.clone());
         response.user(user_response.build().map_err(TokenError::from)?);
 

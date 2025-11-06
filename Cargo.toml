@@ -107,3 +107,9 @@ test = false
 name = "github"
 path = "tests/github/main.rs"
 test = false
+
+
+[[test]]
+name = "functional"
+path = "tests/functional/main.rs"
+test = false
