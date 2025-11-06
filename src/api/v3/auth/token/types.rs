@@ -118,15 +118,18 @@ pub struct AuthRequestInner {
 }
 
 /// An identity object.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(into, strip_option))]
 pub struct Identity {
     /// The authentication method. For password authentication, specify password.
     pub methods: Vec<String>,
 
     /// The password object, contains the authentication information.
+    #[builder(default)]
     pub password: Option<PasswordAuth>,
 
     /// The token object, contains the authentication information.
+    #[builder(default)]
     pub token: Option<TokenAuth>,
 }
 
@@ -140,13 +143,17 @@ pub struct PasswordAuth {
 }
 
 /// User password information
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(into, strip_option))]
 pub struct UserPassword {
     /// User ID
+    #[builder(default)]
     pub id: Option<String>,
     /// User Name
+    #[builder(default)]
     pub name: Option<String>,
     /// User domain
+    #[builder(default)]
     pub domain: Option<Domain>,
     /// User password expiry date
     pub password: String,
@@ -180,7 +187,7 @@ impl TryFrom<UserPassword> for identity_types::UserPasswordAuthRequest {
 
 /// User information
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
-#[builder(setter(into))]
+#[builder(setter(into, strip_option))]
 pub struct User {
     /// User ID
     pub id: String,

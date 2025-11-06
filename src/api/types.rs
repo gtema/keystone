@@ -141,7 +141,9 @@ pub struct Endpoint {
     pub id: String,
     pub url: String,
     pub interface: String,
+    #[builder(default)]
     pub region: Option<String>,
+    #[builder(default)]
     pub region_id: Option<String>,
 }
 
@@ -189,18 +191,22 @@ pub enum Scope {
 
 /// Project scope information.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
+#[builder(setter(into, strip_option))]
 pub struct ProjectScope {
     /// Project ID.
+    #[builder(default)]
     pub id: Option<String>,
     /// Project Name.
+    #[builder(default)]
     pub name: Option<String>,
-    /// project domain.
+    /// Project domain.
+    #[builder(default)]
     pub domain: Option<Domain>,
 }
 
 /// Domain information.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
-#[builder(setter(into))]
+#[builder(setter(into, strip_option))]
 pub struct Domain {
     /// Domain ID.
     #[builder(default)]
@@ -223,7 +229,7 @@ pub struct Project {
 
 /// System scope.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize, ToSchema)]
-#[builder(setter(into))]
+#[builder(setter(into, strip_option))]
 pub struct System {
     /// All systems access.
     #[builder(default)]
