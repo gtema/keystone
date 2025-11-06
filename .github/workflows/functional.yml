@@ -51,17 +51,10 @@ jobs:
       - name: Move artifacts to the root
         run: mv target/release/keystone* ./
 
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: just
-
       - name: Setup OPA
         uses: open-policy-agent/setup-opa@v2
         with:
           version: latest
-
-      - name: Build policies
-        run: just build-policy
 
       - name: Upload built binaries
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
@@ -70,7 +63,6 @@ jobs:
           path: |
             keystone
             keystone-db
-            policy.wasm
 
   interop:
     runs-on: ubuntu-latest
