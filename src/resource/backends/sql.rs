@@ -17,6 +17,7 @@ use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
 use serde_json::Value;
+use tracing::error;
 
 use super::super::types::*;
 use crate::config::Config;
@@ -153,7 +154,11 @@ impl TryFrom<db_project::Model> for Project {
         }
         project_builder.enabled(value.enabled.unwrap_or(false));
         if let Some(extra) = &value.extra {
-            project_builder.extra(serde_json::from_str::<Value>(extra).unwrap());
+            project_builder.extra(
+                serde_json::from_str::<Value>(extra)
+                    .inspect_err(|e| error!("failed to deserialize project extra properties: {e}"))
+                    .unwrap_or_default(),
+            );
         }
 
         Ok(project_builder.build()?)
@@ -172,7 +177,11 @@ impl TryFrom<db_project::Model> for Domain {
         }
         domain_builder.enabled(value.enabled.unwrap_or(false));
         if let Some(extra) = &value.extra {
-            domain_builder.extra(serde_json::from_str::<Value>(extra).unwrap());
+            domain_builder.extra(
+                serde_json::from_str::<Value>(extra)
+                    .inspect_err(|e| error!("failed to deserialize domain extra: {e}"))
+                    .unwrap_or_default(),
+            );
         }
 
         Ok(domain_builder.build()?)

@@ -113,8 +113,9 @@ pub struct DatabaseSection {
 impl DatabaseSection {
     pub fn get_connection(&self) -> String {
         if self.connection.contains("+") {
-            let re = Regex::new(r"(?<type>\w+)\+(\w+)://").unwrap();
-            return re.replace(&self.connection, "${type}://").to_string();
+            return Regex::new(r"(?<type>\w+)\+(\w+)://")
+                .map(|re| re.replace(&self.connection, "${type}://").to_string())
+                .unwrap_or(self.connection.clone());
         }
         self.connection.clone()
     }

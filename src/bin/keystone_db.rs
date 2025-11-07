@@ -13,6 +13,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use clap::{Parser, Subcommand};
 use color_eyre::Report;
+use eyre::WrapErr;
 use std::io;
 use std::path::PathBuf;
 use tracing::info;
@@ -96,7 +97,7 @@ async fn main() -> Result<(), Report> {
     info!("Establishing the database connection...");
     let conn = Database::connect(opt)
         .await
-        .expect("Database connection failed");
+        .wrap_err("Database connection failed")?;
 
     match cli.command {
         Commands::Up { steps } => {

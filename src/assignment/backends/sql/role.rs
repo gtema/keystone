@@ -16,6 +16,7 @@ use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
 use serde_json::Value;
+use tracing::error;
 
 use crate::assignment::backends::error::{AssignmentDatabaseError, db_err};
 use crate::assignment::types::*;
@@ -78,7 +79,11 @@ impl TryFrom<db_role::Model> for Role {
             builder.description(description.clone());
         }
         if let Some(extra) = &value.extra {
-            builder.extra(serde_json::from_str::<Value>(extra).unwrap());
+            builder.extra(
+                serde_json::from_str::<Value>(extra)
+                    .inspect_err(|e| error!("failed to deserialize role extra: {e}"))
+                    .unwrap_or_default(),
+            );
         }
 
         Ok(builder.build()?)

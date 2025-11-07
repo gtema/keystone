@@ -89,10 +89,10 @@ pub async fn load_local_users_passwords<L: IntoIterator<Item = Option<i32>>>(
 
     // Collect passwords into hashmap by the local_user_id
     passwords.into_iter().for_each(|item| {
-        let vec = hashmap
-            .get_mut(&item.local_user_id)
-            .expect("failed to find key on passwords hashmap");
-        vec.push(item);
+        hashmap
+            .entry(item.local_user_id)
+            .and_modify(|e| e.push(item.clone()))
+            .or_insert_with(|| Vec::from([item]));
     });
 
     // Prepare final result keeping the order of the requested local_users

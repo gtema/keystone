@@ -86,4 +86,19 @@ pub enum KeystoneError {
         #[from]
         source: serde_json::Error,
     },
+
+    /// Url parsing error
+    #[error(transparent)]
+    UrlParse {
+        #[from]
+        source: url::ParseError,
+    },
+
+    /// WebauthN error.
+    #[error("webauthn error: {}", source)]
+    Webauthn {
+        /// The source of the error.
+        #[from]
+        source: webauthn_rs::prelude::WebauthnError,
+    },
 }
