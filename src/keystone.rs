@@ -63,9 +63,10 @@ impl Service {
         // Effective domain name.
         let rp_id = "localhost";
         // Url containing the effective domain name
+        // TODO: This must come from the configuration file.
         // MUST include the port number!
-        let rp_origin = Url::parse("http://localhost:8080").expect("Invalid URL");
-        let builder = WebauthnBuilder::new(rp_id, &rp_origin).expect("Invalid configuration");
+        let rp_origin = Url::parse("http://localhost:8080")?;
+        let builder = WebauthnBuilder::new(rp_id, &rp_origin)?;
 
         // Now, with the builder you can define other options.
         // Set a "nice" relying party name. Has no security properties and
@@ -73,7 +74,7 @@ impl Service {
         let builder = builder.rp_name("Keystone");
 
         // Consume the builder and create our webauthn instance.
-        let webauthn = builder.build().expect("Invalid configuration");
+        let webauthn = builder.build()?;
 
         Ok(Self {
             config: cfg.clone(),

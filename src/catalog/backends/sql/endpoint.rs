@@ -16,6 +16,7 @@ use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
 use serde_json::Value;
+use tracing::error;
 
 use crate::catalog::backends::error::{CatalogDatabaseError, db_err};
 use crate::catalog::types::*;
@@ -79,7 +80,9 @@ impl TryFrom<db_endpoint::Model> for Endpoint {
             builder.region_id(val);
         }
         if let Some(extra) = &value.extra {
-            let extra = serde_json::from_str::<Value>(extra).unwrap();
+            let extra = serde_json::from_str::<Value>(extra)
+                .inspect_err(|e| error!("failed to deserialize endpoint extra: {e}"))
+                .unwrap_or_default();
             builder.extra(extra);
         }
 

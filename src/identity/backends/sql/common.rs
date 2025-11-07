@@ -12,8 +12,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use chrono::{DateTime, Days};
+use chrono::{DateTime, Days, Utc};
 use serde_json::Value;
+use tracing::error;
 
 use crate::config::Config;
 use crate::db::entity::federated_user;
@@ -35,7 +36,11 @@ pub fn get_user_builder<O: IntoIterator<Item = user_option::Model>>(
     // TODO: default enabled logic
     user_builder.enabled(user.enabled.unwrap_or(false));
     if let Some(extra) = &user.extra {
-        user_builder.extra(serde_json::from_str::<Value>(extra).unwrap());
+        user_builder.extra(
+            serde_json::from_str::<Value>(extra)
+                .inspect_err(|e| error!("failed to deserialize user extra: {e}"))
+                .unwrap_or_default(),
+        );
     }
 
     user_builder.options(UserOptions::from_iter(opts));
@@ -61,7 +66,10 @@ pub fn get_local_user_builder<
             (pass.into_iter().next(), user_builder.get_options())
         && let Some(false) = options.ignore_password_expiry.or(Some(false))
         && let Some(dt) = DateTime::from_timestamp_micros(current_password.created_at_int)
-            .expect("invalid timestamp")
+            .unwrap_or(DateTime::from_naive_utc_and_offset(
+                current_password.created_at,
+                Utc,
+            ))
             .checked_add_days(Days::new(password_expires_days))
     {
         user_builder.password_expires_at(dt);

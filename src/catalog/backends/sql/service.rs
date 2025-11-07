@@ -16,6 +16,7 @@ use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
 use serde_json::Value;
+use tracing::error;
 
 use crate::catalog::backends::error::{CatalogDatabaseError, db_err};
 use crate::catalog::types::*;
@@ -70,7 +71,9 @@ impl TryFrom<db_service::Model> for Service {
         }
         builder.enabled(value.enabled);
         if let Some(extra) = &value.extra {
-            let extra = serde_json::from_str::<Value>(extra).unwrap();
+            let extra = serde_json::from_str::<Value>(extra)
+                .inspect_err(|e| error!("failed to deserialize service extra: {e}"))
+                .unwrap_or_default();
             if let Some(name) = extra.get("name").and_then(|x| x.as_str()) {
                 builder.name(name);
             }

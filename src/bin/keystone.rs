@@ -11,7 +11,6 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
-
 //! Main Keystone executable.
 //!
 //! This is the entry point of the `keystone` binary.
@@ -19,6 +18,7 @@
 use axum::http::{self, HeaderName, Request, header};
 use clap::{Parser, ValueEnum};
 use color_eyre::eyre::{Report, Result};
+use eyre::WrapErr;
 use sea_orm::ConnectOptions;
 use sea_orm::Database;
 use std::io;
@@ -91,7 +91,9 @@ impl MakeRequestId for OpenStackRequestId {
         let req_id = Uuid::new_v4().simple().to_string();
 
         Some(RequestId::new(
-            http::HeaderValue::from_str(format!("req-{req_id}").as_str()).unwrap(),
+            http::HeaderValue::from_str(format!("req-{req_id}").as_str())
+                // default to static value. This is not expected to ever happen.
+                .unwrap_or_else(|_| http::HeaderValue::from_static("req-unknown")),
         ))
     }
 }
@@ -151,7 +153,7 @@ async fn main() -> Result<(), Report> {
     debug!("Establishing the database connection...");
     let conn = Database::connect(opt)
         .await
-        .expect("Database connection failed");
+        .wrap_err("Database connection failed")?;
 
     let plugin_manager = PluginManager::default();
 
@@ -252,26 +254,29 @@ async fn cleanup(cancel: CancellationToken, state: ServiceState) {
     }
 }
 
+/// Install shutdown and interrupt signal handler
 async fn shutdown_signal(state: ServiceState) {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
-            .expect("failed to install Ctrl+C handler");
+            .inspect_err(|e| error!("failed to install Ctrl+C handler: {e}"))
+            .ok();
     };
 
     #[cfg(unix)]
     let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install signal handler")
-            .recv()
-            .await;
+        if let Ok(mut sig) = signal::unix::signal(signal::unix::SignalKind::terminate())
+            .inspect_err(|e| error!("failed to install signal handler: {e}"))
+        {
+            sig.recv().await;
+        }
     };
 
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        () = ctrl_c => {state.terminate().await.unwrap();},
-        () = terminate => {state.terminate().await.unwrap();},
+        () = ctrl_c => {state.terminate().await.ok();},
+        () = terminate => {state.terminate().await.ok();},
     }
 }

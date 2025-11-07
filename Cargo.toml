@@ -113,3 +113,7 @@ test = false
 name = "functional"
 path = "tests/functional/main.rs"
 test = false
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
