@@ -114,6 +114,10 @@ name = "functional"
 path = "tests/functional/main.rs"
 test = false
 
+[lints.rust]
+unsafe_code = "forbid"
+
 [lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"
+enum_glob_use = "deny"
