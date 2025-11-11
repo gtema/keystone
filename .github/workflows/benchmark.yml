@@ -60,4 +60,4 @@ jobs:
           --thresholds-reset \
           --github-actions '${{ secrets.GITHUB_TOKEN }}' \
           --adapter rust_criterion \
-          cargo bench
+          cargo bench --features bench_internals

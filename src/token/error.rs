@@ -28,6 +28,15 @@ pub enum TokenProviderError {
         source: std::io::Error,
     },
 
+    /// Fernet payload timestamp overflow error.
+    #[error("fernet payload timestamp overflow ({value}): {}", source)]
+    TokenTimestampOverflow {
+        /// Token timestamp.
+        value: u64,
+        /// The source of the error.
+        source: std::num::TryFromIntError,
+    },
+
     /// Fernet key read error.
     #[error("fernet key read error: {}", source)]
     FernetKeyRead {

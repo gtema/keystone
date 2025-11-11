@@ -12,7 +12,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use base64::Engine;
+use byteorder::ReadBytesExt;
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use fernet::MultiFernet;
 use itertools::Itertools;
 use rmp::{
@@ -23,7 +26,7 @@ use rmp::{
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::fmt;
-use std::io::Write;
+use std::io::{Cursor, Write};
 use tracing::trace;
 
 use crate::config::Config;
@@ -192,10 +195,14 @@ impl FernetTokenProvider {
         }
     }
 
-    /// Parse binary blob as MessagePack after encrypting it with Fernet
-    fn decode(&self, rd: &mut &[u8]) -> Result<Token, TokenProviderError> {
+    /// Parse binary blob as MessagePack after encrypting it with Fernet.
+    fn decode(
+        &self,
+        rd: &mut &[u8],
+        timestamp: DateTime<Utc>,
+    ) -> Result<Token, TokenProviderError> {
         if let Marker::FixArray(_) = read_marker(rd).map_err(ValueReadError::from)? {
-            match read_payload_token_type(rd)? {
+            let mut token: Token = match read_payload_token_type(rd)? {
                 0 => Ok(UnscopedPayload::disassemble(rd, self)?.into()),
                 1 => Ok(DomainScopePayload::disassemble(rd, self)?.into()),
                 2 => Ok(ProjectScopePayload::disassemble(rd, self)?.into()),
@@ -205,7 +212,9 @@ impl FernetTokenProvider {
                 9 => Ok(ApplicationCredentialPayload::disassemble(rd, self)?.into()),
                 11 => Ok(RestrictedPayload::disassemble(rd, self)?.into()),
                 other => Err(TokenProviderError::InvalidTokenType(other)),
-            }
+            }?;
+            token.set_issued_at(timestamp);
+            Ok(token.to_owned())
         } else {
             Err(TokenProviderError::InvalidToken)
         }
@@ -297,11 +306,13 @@ impl FernetTokenProvider {
     pub fn decrypt(&self, credential: &str) -> Result<Token, TokenProviderError> {
         // TODO: Implement fernet keys change watching. Keystone loads them from FS on every
         // request and in the best case it costs 15µs.
-        let payload = match &self.fernet {
-            Some(fernet) => fernet.decrypt(credential)?,
-            _ => self.get_fernet()?.decrypt(credential)?,
+        let fernet = match &self.fernet {
+            Some(f) => f,
+            None => &self.get_fernet()?,
         };
-        self.decode(&mut payload.as_slice())
+        let payload = fernet.decrypt(credential)?;
+
+        self.decode(&mut payload.as_slice(), get_fernet_timestamp(credential)?)
     }
 
     /// Encrypt the token
@@ -335,6 +346,51 @@ impl TokenBackend for FernetTokenProvider {
     }
 }
 
+/// Decode the fernet payload as Base64_urlsafe.
+fn b64_decode_url(input: &str) -> std::result::Result<Vec<u8>, base64::DecodeError> {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(input.trim_end_matches('='))
+}
+
+/// Get the fernet payload creation timestamp.
+///
+/// Extract the payload creation timestamp in the UTC.
+fn get_fernet_timestamp(payload: &str) -> Result<DateTime<Utc>, TokenProviderError> {
+    let data = match b64_decode_url(payload) {
+        Ok(data) => data,
+        Err(_) => return Err(fernet::DecryptionError)?,
+    };
+
+    let mut input = Cursor::new(data);
+
+    match input.read_u8() {
+        Ok(0x80) => {}
+        _ => return Err(fernet::DecryptionError)?,
+    }
+
+    input
+        .read_u64::<byteorder::BigEndian>()
+        .map_err(|_| TokenProviderError::FernetDecryption {
+            source: fernet::DecryptionError,
+        })
+        .and_then(|val| {
+            TryInto::try_into(val).map_err(|err| TokenProviderError::TokenTimestampOverflow {
+                value: val,
+                source: err,
+            })
+        })
+        .and_then(|val| {
+            DateTime::from_timestamp_secs(val).ok_or_else(|| TokenProviderError::FernetDecryption {
+                source: fernet::DecryptionError,
+            })
+        })
+}
+
+// Conditionally expose the function when the 'bench_internals' feature is enabled
+#[cfg(feature = "bench_internals")]
+pub fn bench_get_fernet_timestamp(payload: &str) -> Result<DateTime<Utc>, TokenProviderError> {
+    get_fernet_timestamp(payload)
+}
+
 #[cfg(test)]
 pub(super) mod tests {
     use super::*;
@@ -362,6 +418,11 @@ pub(super) mod tests {
         let mut config: Config = Config::try_from(builder).expect("can build a valid config");
         config.fernet_tokens.key_repository = keys_dir.keep();
         config
+    }
+
+    fn discard_issued_at(mut token: Token) -> Token {
+        token.set_issued_at(Default::default());
+        token
     }
 
     #[tokio::test]
@@ -403,7 +464,7 @@ pub(super) mod tests {
         provider.load_keys().unwrap();
 
         let encrypted = provider.encrypt(&token).unwrap();
-        let dec_token = provider.decrypt(&encrypted).unwrap();
+        let dec_token = discard_issued_at(provider.decrypt(&encrypted).unwrap());
         assert_eq!(token, dec_token);
     }
 
@@ -443,7 +504,7 @@ pub(super) mod tests {
         provider.load_keys().unwrap();
 
         let encrypted = provider.encrypt(&token).unwrap();
-        let dec_token = provider.decrypt(&encrypted).unwrap();
+        let dec_token = discard_issued_at(provider.decrypt(&encrypted).unwrap());
         assert_eq!(token, dec_token);
     }
 
@@ -483,7 +544,7 @@ pub(super) mod tests {
         provider.load_keys().unwrap();
 
         let encrypted = provider.encrypt(&token).unwrap();
-        let dec_token = provider.decrypt(&encrypted).unwrap();
+        let dec_token = discard_issued_at(provider.decrypt(&encrypted).unwrap());
         assert_eq!(token, dec_token);
     }
 
@@ -531,7 +592,7 @@ pub(super) mod tests {
         provider.load_keys().unwrap();
 
         let encrypted = provider.encrypt(&token).unwrap();
-        let dec_token = provider.decrypt(&encrypted).unwrap();
+        let dec_token = discard_issued_at(provider.decrypt(&encrypted).unwrap());
         assert_eq!(token, dec_token);
     }
 
@@ -580,7 +641,7 @@ pub(super) mod tests {
         provider.load_keys().unwrap();
 
         let encrypted = provider.encrypt(&token).unwrap();
-        let dec_token = provider.decrypt(&encrypted).unwrap();
+        let dec_token = discard_issued_at(provider.decrypt(&encrypted).unwrap());
         assert_eq!(token, dec_token);
     }
 
@@ -626,11 +687,11 @@ pub(super) mod tests {
         });
 
         let config = crate::tests::token::setup_config();
-        let mut backend = FernetTokenProvider::new(config);
-        backend.load_keys().unwrap();
+        let mut provider = FernetTokenProvider::new(config);
+        provider.load_keys().unwrap();
 
-        let encrypted = backend.encrypt(&token).unwrap();
-        let dec_token = backend.decrypt(&encrypted).unwrap();
+        let encrypted = provider.encrypt(&token).unwrap();
+        let dec_token = discard_issued_at(provider.decrypt(&encrypted).unwrap());
         assert_eq!(token, dec_token);
     }
 
@@ -675,7 +736,7 @@ pub(super) mod tests {
         provider.load_keys().unwrap();
 
         let encrypted = provider.encrypt(&token).unwrap();
-        let dec_token = provider.decrypt(&encrypted).unwrap();
+        let dec_token = discard_issued_at(provider.decrypt(&encrypted).unwrap());
         assert_eq!(token, dec_token);
     }
 
@@ -697,7 +758,7 @@ pub(super) mod tests {
         provider.load_keys().unwrap();
 
         let encrypted = provider.encrypt(&token).unwrap();
-        let dec_token = provider.decrypt(&encrypted).unwrap();
+        let dec_token = discard_issued_at(provider.decrypt(&encrypted).unwrap());
         assert_eq!(token, dec_token);
     }
 }

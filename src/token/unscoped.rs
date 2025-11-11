@@ -37,6 +37,8 @@ pub struct UnscopedPayload {
     pub expires_at: DateTime<Utc>,
 
     #[builder(default)]
+    pub issued_at: DateTime<Utc>,
+    #[builder(default)]
     pub user: Option<UserResponse>,
 }
 
