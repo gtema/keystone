@@ -41,6 +41,8 @@ pub struct ApplicationCredentialPayload {
     pub application_credential_id: String,
 
     #[builder(default)]
+    pub issued_at: DateTime<Utc>,
+    #[builder(default)]
     pub user: Option<UserResponse>,
     #[builder(default)]
     pub roles: Vec<Role>,

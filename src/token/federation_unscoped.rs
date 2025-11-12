@@ -41,6 +41,8 @@ pub struct FederationUnscopedPayload {
     pub group_ids: Vec<String>,
 
     #[builder(default)]
+    pub issued_at: DateTime<Utc>,
+    #[builder(default)]
     pub user: Option<UserResponse>,
 }
 

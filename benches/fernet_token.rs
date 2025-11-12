@@ -1,10 +1,14 @@
+#![cfg(feature = "bench_internals")]
+
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::fs::File;
+use std::hint::black_box;
 use std::io::Write;
 use tempfile::tempdir;
 
 use openstack_keystone::config::Config;
 use openstack_keystone::token::fernet::FernetTokenProvider;
+use openstack_keystone::token::fernet::bench_get_fernet_timestamp;
 //use openstack_keystone::token::types::TokenBackend;
 
 fn decode(backend: &FernetTokenProvider, token: &str) {
@@ -40,5 +44,17 @@ fn bench_decrypt_token(c: &mut Criterion) {
     );
 }
 
-criterion_group!(benches, bench_decrypt_token);
+fn bench_get_token_issued_at(c: &mut Criterion) {
+    let token = "gAAAAABns2ixy75K_KfoosWLrNNqG6KW8nm3Xzv0_2dOx8ODWH7B8i2g8CncGLO6XBEH_TYLg83P6XoKQ5bU8An8Kqgw9WX3bvmEQXphnwPM6aRAOQUSdVhTlUm_8otDG9BS2rc70Q7pfy57S3_yBgimy-174aKdP8LPusvdHZsQPEJO9pfeXWw";
+
+    c.bench_with_input(
+        BenchmarkId::new("get_fernet_token_timestamp", "project"),
+        &token,
+        |b, s| {
+            b.iter(|| bench_get_fernet_timestamp(black_box(s)));
+        },
+    );
+}
+
+criterion_group!(benches, bench_decrypt_token, bench_get_token_issued_at);
 criterion_main!(benches);

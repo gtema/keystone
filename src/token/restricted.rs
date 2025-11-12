@@ -52,6 +52,8 @@ pub struct RestrictedPayload {
     pub allow_rescope: bool,
 
     #[builder(default)]
+    pub issued_at: DateTime<Utc>,
+    #[builder(default)]
     pub user: Option<UserResponse>,
     #[builder(default)]
     pub roles: Option<Vec<Role>>,

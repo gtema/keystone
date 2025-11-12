@@ -71,6 +71,42 @@ impl Token {
         }
     }
 
+    /// Set the `issued_at` property of the token.
+    ///
+    /// An internal method (available only within the module) to set the `issued_at` into the token
+    /// payload.
+    pub(super) fn set_issued_at(&mut self, issued_at: DateTime<Utc>) -> &mut Self {
+        match self {
+            Self::Unscoped(x) => x.issued_at = issued_at,
+            Self::ProjectScope(x) => x.issued_at = issued_at,
+            Self::DomainScope(x) => x.issued_at = issued_at,
+            Self::FederationUnscoped(x) => x.issued_at = issued_at,
+            Self::FederationProjectScope(x) => x.issued_at = issued_at,
+            Self::FederationDomainScope(x) => x.issued_at = issued_at,
+            Self::ApplicationCredential(x) => x.issued_at = issued_at,
+            Self::Restricted(x) => x.issued_at = issued_at,
+        }
+        self
+    }
+
+    /// Get token `issued_at` timestamp.
+    ///
+    /// Returns the UTC timestamp when the token was encoded (part of the Fernet payload and not the
+    /// token payload).
+    pub const fn issued_at(&self) -> &DateTime<Utc> {
+        match self {
+            Self::Unscoped(x) => &x.issued_at,
+            Self::ProjectScope(x) => &x.issued_at,
+            Self::DomainScope(x) => &x.issued_at,
+            Self::FederationUnscoped(x) => &x.issued_at,
+            Self::FederationProjectScope(x) => &x.issued_at,
+            Self::FederationDomainScope(x) => &x.issued_at,
+            Self::ApplicationCredential(x) => &x.issued_at,
+            Self::Restricted(x) => &x.issued_at,
+        }
+    }
+
+    /// Get token expiration timestamp.
     pub const fn expires_at(&self) -> &DateTime<Utc> {
         match self {
             Self::Unscoped(x) => &x.expires_at,
