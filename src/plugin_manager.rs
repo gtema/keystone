@@ -19,25 +19,28 @@ use crate::catalog::types::CatalogBackend;
 use crate::federation::types::FederationBackend;
 use crate::identity::types::IdentityBackend;
 use crate::resource::types::ResourceBackend;
+use crate::revoke::backend::RevokeBackend;
 
 /// Plugin manager allowing to pass custom backend plugins implementing required trait during the
-/// service start
+/// service start.
 #[derive(Clone, Debug, Default)]
 pub struct PluginManager {
-    /// Assignments backend plugin
+    /// Assignments backend plugin.
     assignment_backends: HashMap<String, Box<dyn AssignmentBackend>>,
-    /// Catalog backend plugins
+    /// Catalog backend plugins.
     catalog_backends: HashMap<String, Box<dyn CatalogBackend>>,
-    /// Federation backend plugins
+    /// Federation backend plugins.
     federation_backends: HashMap<String, Box<dyn FederationBackend>>,
-    /// Identity backend plugins
+    /// Identity backend plugins.
     identity_backends: HashMap<String, Box<dyn IdentityBackend>>,
-    /// Resource backend plugins
+    /// Resource backend plugins.
     resource_backends: HashMap<String, Box<dyn ResourceBackend>>,
+    /// Revoke backend plugins.
+    revoke_backends: HashMap<String, Box<dyn RevokeBackend>>,
 }
 
 impl PluginManager {
-    /// Register identity backend
+    /// Register identity backend.
     pub fn register_identity_backend<S: AsRef<str>>(
         &mut self,
         name: S,
@@ -47,7 +50,7 @@ impl PluginManager {
             .insert(name.as_ref().to_string(), plugin);
     }
 
-    /// Get registered assignment backend
+    /// Get registered assignment backend.
     #[allow(clippy::borrowed_box)]
     pub fn get_assignment_backend<S: AsRef<str>>(
         &self,
@@ -56,13 +59,13 @@ impl PluginManager {
         self.assignment_backends.get(name.as_ref())
     }
 
-    /// Get registered catalog backend
+    /// Get registered catalog backend.
     #[allow(clippy::borrowed_box)]
     pub fn get_catalog_backend<S: AsRef<str>>(&self, name: S) -> Option<&Box<dyn CatalogBackend>> {
         self.catalog_backends.get(name.as_ref())
     }
 
-    /// Get registered federation backend
+    /// Get registered federation backend.
     #[allow(clippy::borrowed_box)]
     pub fn get_federation_backend<S: AsRef<str>>(
         &self,
@@ -71,7 +74,7 @@ impl PluginManager {
         self.federation_backends.get(name.as_ref())
     }
 
-    /// Get registered identity backend
+    /// Get registered identity backend.
     #[allow(clippy::borrowed_box)]
     pub fn get_identity_backend<S: AsRef<str>>(
         &self,
@@ -80,12 +83,18 @@ impl PluginManager {
         self.identity_backends.get(name.as_ref())
     }
 
-    /// Get registered resource backend
+    /// Get registered resource backend.
     #[allow(clippy::borrowed_box)]
     pub fn get_resource_backend<S: AsRef<str>>(
         &self,
         name: S,
     ) -> Option<&Box<dyn ResourceBackend>> {
         self.resource_backends.get(name.as_ref())
+    }
+
+    /// Get registered revoke backend.
+    #[allow(clippy::borrowed_box)]
+    pub fn get_revoke_backend<S: AsRef<str>>(&self, name: S) -> Option<&Box<dyn RevokeBackend>> {
+        self.revoke_backends.get(name.as_ref())
     }
 }

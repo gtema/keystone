@@ -192,6 +192,14 @@ pub enum TokenProviderError {
         source: crate::resource::error::ResourceProviderError,
     },
 
+    /// Revoke Provider error.
+    #[error(transparent)]
+    RevokeProvider {
+        /// The source of the error.
+        #[from]
+        source: crate::revoke::error::RevokeProviderError,
+    },
+
     #[error("actor has no roles on scope")]
     ActorHasNoRolesOnTarget,
 
@@ -210,6 +218,10 @@ pub enum TokenProviderError {
     #[error("token restriction {0} not found")]
     TokenRestrictionNotFound(String),
 
+    /// Revoked token
+    #[error("token has been revoked")]
+    TokenRevoked,
+
     /// Conflict
     #[error("{message}")]
     Conflict { message: String, context: String },
@@ -223,6 +235,10 @@ pub enum TokenProviderError {
         source: sea_orm::DbErr,
         context: String,
     },
+
+    /// AuditID must be urlsafe base64 encoded value.
+    #[error("audit_id must be urlsafe base64 encoded value")]
+    AuditIdWrongFormat,
 }
 
 /// Convert the DB error into the TokenProviderError with the context information.

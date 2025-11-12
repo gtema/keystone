@@ -26,6 +26,7 @@ pub mod plugin_manager;
 pub mod policy;
 pub mod provider;
 pub mod resource;
+pub mod revoke;
 pub mod token;
 
 #[cfg(test)]

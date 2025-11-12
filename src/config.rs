@@ -56,9 +56,13 @@ pub struct Config {
     #[serde(default)]
     pub api_policy: PolicySection,
 
-    /// Resource provider related configuration
+    /// Resource provider related configuration.
     #[serde(default)]
     pub resource: ResourceSection,
+
+    /// Revoke provider configuration.
+    #[serde(default)]
+    pub revoke: RevokeSection,
 
     /// Security compliance
     #[serde(default)]
@@ -162,6 +166,17 @@ pub struct ResourceSection {
     pub driver: String,
 }
 
+/// Revoke provider configuration.
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct RevokeSection {
+    /// Entry point for the token revocation backend driver in the `keystone.revoke` namespace.
+    /// Keystone only provides a `sql` driver.
+    pub driver: String,
+    /// The number of seconds after a token has expired before a corresponding revocation event may
+    /// be purged from the backend.
+    pub expiration_buffer: usize,
+}
+
 #[derive(Debug, Default, Deserialize, Clone)]
 pub enum PasswordHashingAlgo {
     #[default]
@@ -239,6 +254,8 @@ impl TryFrom<config::ConfigBuilder<config::builder::DefaultState>> for Config {
             .set_default("catalog.driver", "sql")?
             .set_default("federation.driver", "sql")?
             .set_default("resource.driver", "sql")?
+            .set_default("revoke.driver", "sql")?
+            .set_default("revoke.expiration_buffer", "1800")?
             .set_default("token.expiration", "3600")?;
 
         builder

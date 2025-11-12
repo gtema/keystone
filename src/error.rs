@@ -20,6 +20,7 @@ use crate::federation::error::*;
 use crate::identity::error::*;
 use crate::policy::*;
 use crate::resource::error::*;
+use crate::revoke::error::*;
 use crate::token::TokenProviderError;
 
 #[derive(Debug, Error)]
@@ -68,6 +69,14 @@ pub enum KeystoneError {
     ResourceError {
         #[from]
         source: ResourceProviderError,
+    },
+
+    /// Revoke provider error.
+    #[error(transparent)]
+    RevokeProvider {
+        /// The source of the error.
+        #[from]
+        source: RevokeProviderError,
     },
 
     #[error(transparent)]

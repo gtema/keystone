@@ -39,6 +39,7 @@ use crate::resource::{
     ResourceApi,
     types::{Domain, Project},
 };
+use crate::revoke::RevokeApi;
 use backend::{TokenBackend, fernet::FernetTokenProvider};
 pub use error::TokenProviderError;
 
@@ -286,6 +287,8 @@ impl TokenProvider {
                 .build()?,
         ))
     }
+
+    /// Expand user information in the token.
     async fn expand_user_information(
         &self,
         token: &mut Token,
@@ -331,15 +334,17 @@ impl TokenProvider {
 #[async_trait]
 impl TokenApi for TokenProvider {
     /// Authenticate by token
-    #[tracing::instrument(level = "info", skip(self, credential))]
+    #[tracing::instrument(level = "info", skip(self, credential, provider))]
     async fn authenticate_by_token<'a>(
         &self,
+        provider: &Provider,
+        db: &DatabaseConnection,
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
     ) -> Result<AuthenticatedInfo, TokenProviderError> {
         let token = self
-            .validate_token(credential, allow_expired, window_seconds)
+            .validate_token(provider, db, credential, allow_expired, window_seconds)
             .await?;
         tracing::debug!("The token is {:?}", token);
         if let Token::Restricted(restriction) = &token
@@ -360,9 +365,11 @@ impl TokenApi for TokenProvider {
     }
 
     /// Validate token
-    #[tracing::instrument(level = "info", skip(self, credential))]
+    #[tracing::instrument(level = "info", skip(self, credential, provider))]
     async fn validate_token<'a>(
         &self,
+        provider: &Provider,
+        db: &DatabaseConnection,
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
@@ -376,6 +383,14 @@ impl TokenApi for TokenProvider {
             && !allow_expired.unwrap_or(false)
         {
             return Err(TokenProviderError::Expired);
+        }
+
+        if provider
+            .get_revoke_provider()
+            .is_token_revoked(db, &token)
+            .await?
+        {
+            return Err(TokenProviderError::TokenRevoked);
         }
 
         Ok(token)
@@ -726,16 +741,20 @@ impl TokenApi for TokenProvider {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
+    use eyre::{Result, eyre};
     use sea_orm::DatabaseConnection;
     use std::fs::File;
     use std::io::Write;
     use tempfile::tempdir;
+    use uuid::Uuid;
 
     use super::*;
     use crate::assignment::{
         MockAssignmentProvider,
         types::{Assignment, AssignmentType, Role, RoleAssignmentListParameters},
     };
+    use crate::revoke::MockRevokeProvider;
 
     use crate::config::Config;
 
@@ -759,6 +778,20 @@ mod tests {
         let mut config: Config = Config::try_from(builder).expect("can build a valid config");
         config.fernet_tokens.key_repository = keys_dir.keep();
         config
+    }
+
+    /// Generate test token to use for validation testing.
+    fn generate_token(validity: Option<TimeDelta>) -> Result<Token> {
+        Ok(Token::ProjectScope(ProjectScopePayload {
+            methods: vec!["password".into()],
+            user_id: Uuid::new_v4().into(),
+            project_id: Uuid::new_v4().into(),
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: Utc::now()
+                .checked_add_signed(validity.unwrap_or_default())
+                .ok_or(eyre!("timedelta apply failed"))?,
+            ..Default::default()
+        }))
     }
 
     #[tokio::test]
@@ -857,5 +890,39 @@ mod tests {
                 .await
                 .is_ok()
         );
+    }
+
+    /// Test that a valid token with Revocation events fails validation.
+    #[tokio::test]
+    async fn test_validate_token_revoked() {
+        let token = generate_token(Some(TimeDelta::hours(1))).unwrap();
+
+        let config = setup_config();
+        let token_provider = TokenProvider::new(&config).unwrap();
+        let mut revoke_provider = MockRevokeProvider::default();
+        //let token_clone = token.clone();
+        revoke_provider
+            .expect_is_token_revoked()
+            // TODO: in roundtrip the precision of expiry is reduced and issued_at is different
+            //.withf(move |_, t: &Token| {
+            //    *t == token_clone
+            //})
+            .returning(|_, _| Ok(true));
+        let db = DatabaseConnection::Disconnected;
+        let provider = Provider::mocked_builder()
+            .revoke(revoke_provider)
+            .build()
+            .unwrap();
+
+        let credential = token_provider.encode_token(&token).unwrap();
+        match token_provider
+            .validate_token(&provider, &db, &credential, Some(false), None)
+            .await
+        {
+            Err(TokenProviderError::TokenRevoked) => {}
+            _ => {
+                panic!("token must be revoked")
+            }
+        }
     }
 }
