@@ -11,6 +11,7 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
+//! Token provider errors.
 
 use sea_orm::SqlErr;
 use std::num::TryFromIntError;
@@ -119,49 +120,49 @@ pub enum TokenProviderError {
     UnscopedBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::unscoped::UnscopedPayloadBuilderError,
+        source: crate::token::types::unscoped::UnscopedPayloadBuilderError,
     },
 
     #[error(transparent)]
     ProjectScopeBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::project_scoped::ProjectScopePayloadBuilderError,
+        source: crate::token::types::project_scoped::ProjectScopePayloadBuilderError,
     },
 
     #[error(transparent)]
     DomainScopeBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::domain_scoped::DomainScopePayloadBuilderError,
+        source: crate::token::types::domain_scoped::DomainScopePayloadBuilderError,
     },
 
     #[error(transparent)]
     FederationUnscopedBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::federation_unscoped::FederationUnscopedPayloadBuilderError,
+        source: crate::token::types::federation_unscoped::FederationUnscopedPayloadBuilderError,
     },
 
     #[error(transparent)]
     FederationProjectScopeBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::federation_project_scoped::FederationProjectScopePayloadBuilderError,
+        source: crate::token::types::federation_project_scoped::FederationProjectScopePayloadBuilderError,
     },
 
     #[error(transparent)]
     FederationDomainScopeBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::federation_domain_scoped::FederationDomainScopePayloadBuilderError,
+        source: crate::token::types::federation_domain_scoped::FederationDomainScopePayloadBuilderError,
     },
 
     #[error(transparent)]
     RestrictedBuilder {
         /// The source of the error.
         #[from]
-        source: crate::token::restricted::RestrictedPayloadBuilderError,
+        source: crate::token::types::restricted::RestrictedPayloadBuilderError,
     },
 
     #[error(transparent)]

@@ -30,14 +30,22 @@ use std::io::{Cursor, Write};
 use tracing::trace;
 
 use crate::config::Config;
+use crate::token::backend::TokenBackend;
 use crate::token::{
-    TokenProviderError, application_credential::ApplicationCredentialPayload,
-    domain_scoped::DomainScopePayload, federation_domain_scoped::FederationDomainScopePayload,
-    federation_project_scoped::FederationProjectScopePayload,
-    federation_unscoped::FederationUnscopedPayload, fernet_utils::FernetUtils,
-    project_scoped::ProjectScopePayload, restricted::RestrictedPayload, types::*,
-    unscoped::UnscopedPayload,
+    TokenProviderError,
+    types::{
+        application_credential::ApplicationCredentialPayload, domain_scoped::DomainScopePayload,
+        federation_domain_scoped::FederationDomainScopePayload,
+        federation_project_scoped::FederationProjectScopePayload,
+        federation_unscoped::FederationUnscopedPayload, project_scoped::ProjectScopePayload,
+        restricted::RestrictedPayload, unscoped::UnscopedPayload, *,
+    },
 };
+use utils::FernetUtils;
+
+mod application_credential;
+mod restricted;
+pub mod utils;
 
 #[derive(Clone)]
 pub struct FernetTokenProvider {
