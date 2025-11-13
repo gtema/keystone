@@ -22,16 +22,14 @@ use crate::assignment::types::Role;
 use crate::identity::types::UserResponse;
 use crate::resource::types::Domain;
 use crate::token::{
+    backend::fernet::{FernetTokenProvider, MsgPackToken, utils},
     error::TokenProviderError,
-    fernet::{FernetTokenProvider, MsgPackToken},
-    fernet_utils,
     types::Token,
 };
 
-/// Federated domain scope token payload
 #[derive(Builder, Clone, Debug, Default, PartialEq, Serialize)]
 #[builder(setter(into))]
-pub struct FederationDomainScopePayload {
+pub struct DomainScopePayload {
     pub user_id: String,
     #[builder(default, setter(name = _methods))]
     pub methods: Vec<String>,
@@ -39,9 +37,6 @@ pub struct FederationDomainScopePayload {
     pub audit_ids: Vec<String>,
     pub expires_at: DateTime<Utc>,
     pub domain_id: String,
-    pub idp_id: String,
-    pub protocol_id: String,
-    pub group_ids: Vec<String>,
 
     #[builder(default)]
     pub issued_at: DateTime<Utc>,
@@ -53,7 +48,7 @@ pub struct FederationDomainScopePayload {
     pub domain: Option<Domain>,
 }
 
-impl FederationDomainScopePayloadBuilder {
+impl DomainScopePayloadBuilder {
     pub fn methods<I, V>(&mut self, iter: I) -> &mut Self
     where
         I: Iterator<Item = V>,
@@ -77,13 +72,13 @@ impl FederationDomainScopePayloadBuilder {
     }
 }
 
-impl From<FederationDomainScopePayload> for Token {
-    fn from(value: FederationDomainScopePayload) -> Self {
-        Self::FederationDomainScope(value)
+impl From<DomainScopePayload> for Token {
+    fn from(value: DomainScopePayload) -> Self {
+        Self::DomainScope(value)
     }
 }
 
-impl MsgPackToken for FederationDomainScopePayload {
+impl MsgPackToken for DomainScopePayload {
     type Token = Self;
 
     fn assemble<W: Write>(
@@ -91,18 +86,15 @@ impl MsgPackToken for FederationDomainScopePayload {
         wd: &mut W,
         fernet_provider: &FernetTokenProvider,
     ) -> Result<(), TokenProviderError> {
-        fernet_utils::write_uuid(wd, &self.user_id)?;
+        utils::write_uuid(wd, &self.user_id)?;
         write_pfix(
             wd,
             fernet_provider.encode_auth_methods(self.methods.clone())?,
         )
         .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
-        fernet_utils::write_uuid(wd, &self.domain_id)?;
-        fernet_utils::write_list_of_uuids(wd, self.group_ids.iter())?;
-        fernet_utils::write_uuid(wd, &self.idp_id)?;
-        fernet_utils::write_str(wd, &self.protocol_id)?;
-        fernet_utils::write_time(wd, self.expires_at)?;
-        fernet_utils::write_audit_ids(wd, self.audit_ids.clone())?;
+        utils::write_uuid(wd, &self.domain_id)?;
+        utils::write_time(wd, self.expires_at)?;
+        utils::write_audit_ids(wd, self.audit_ids.clone())?;
 
         Ok(())
     }
@@ -112,26 +104,20 @@ impl MsgPackToken for FederationDomainScopePayload {
         fernet_provider: &FernetTokenProvider,
     ) -> Result<Self::Token, TokenProviderError> {
         // Order of reading is important
-        let user_id = fernet_utils::read_uuid(rd)?;
+        let user_id = utils::read_uuid(rd)?;
         let methods: Vec<String> = fernet_provider
             .decode_auth_methods(read_pfix(rd)?)?
             .into_iter()
             .collect();
-        let domain_id = fernet_utils::read_uuid(rd)?;
-        let group_ids = fernet_utils::read_list_of_uuids(rd)?;
-        let idp_id = fernet_utils::read_uuid(rd)?;
-        let protocol_id = fernet_utils::read_str(rd)?;
-        let expires_at = fernet_utils::read_time(rd)?;
-        let audit_ids: Vec<String> = fernet_utils::read_audit_ids(rd)?.into_iter().collect();
+        let domain_id = utils::read_uuid(rd)?;
+        let expires_at = utils::read_time(rd)?;
+        let audit_ids: Vec<String> = utils::read_audit_ids(rd)?.into_iter().collect();
         Ok(Self {
             user_id,
             methods,
             expires_at,
             audit_ids,
             domain_id,
-            group_ids: group_ids.into_iter().collect(),
-            idp_id,
-            protocol_id,
             ..Default::default()
         })
     }
@@ -142,20 +128,17 @@ mod tests {
     use chrono::{Local, SubsecRound};
     use uuid::Uuid;
 
-    use super::super::tests::setup_config;
     use super::*;
+    use crate::token::tests::setup_config;
 
     #[test]
     fn test_roundtrip() {
-        let token = FederationDomainScopePayload {
+        let token = DomainScopePayload {
             user_id: Uuid::new_v4().simple().to_string(),
-            methods: vec!["openid".into()],
+            methods: vec!["password".into()],
+            domain_id: Uuid::new_v4().simple().to_string(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Local::now().trunc_subsecs(0).into(),
-            domain_id: "pid".into(),
-            group_ids: vec!["g1".into()],
-            idp_id: "idp_id".into(),
-            protocol_id: "proto".into(),
             ..Default::default()
         };
 
@@ -165,8 +148,7 @@ mod tests {
         token.assemble(&mut buf, &provider).unwrap();
         let encoded_buf = buf.clone();
         let decoded =
-            FederationDomainScopePayload::disassemble(&mut encoded_buf.as_slice(), &provider)
-                .unwrap();
+            DomainScopePayload::disassemble(&mut encoded_buf.as_slice(), &provider).unwrap();
         assert_eq!(token, decoded);
     }
 }

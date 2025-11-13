@@ -11,36 +11,58 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
+//! Token provider types.
 
 use chrono::{DateTime, Utc};
-use derive_builder::Builder;
-use dyn_clone::DynClone;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::assignment::types::Role;
-use crate::config::Config;
 use crate::identity::types::UserResponse;
 use crate::resource::types::{Domain, Project};
-use crate::token::TokenProviderError;
-use crate::token::application_credential::ApplicationCredentialPayload;
-use crate::token::domain_scoped::DomainScopePayload;
-use crate::token::federation_domain_scoped::FederationDomainScopePayload;
-use crate::token::federation_project_scoped::FederationProjectScopePayload;
-use crate::token::federation_unscoped::FederationUnscopedPayload;
-use crate::token::project_scoped::ProjectScopePayload;
-use crate::token::restricted::RestrictedPayload;
-use crate::token::unscoped::UnscopedPayload;
 
+pub mod application_credential;
+pub mod domain_scoped;
+pub mod federation_domain_scoped;
+pub mod federation_project_scoped;
+pub mod federation_unscoped;
+pub mod project_scoped;
+pub mod provider_api;
+pub mod restricted;
+pub mod unscoped;
+
+pub use application_credential::ApplicationCredentialPayload;
+pub use domain_scoped::{DomainScopePayload, DomainScopePayloadBuilder};
+pub use federation_domain_scoped::{
+    FederationDomainScopePayload, FederationDomainScopePayloadBuilder,
+};
+pub use federation_project_scoped::{
+    FederationProjectScopePayload, FederationProjectScopePayloadBuilder,
+};
+pub use federation_unscoped::{FederationUnscopedPayload, FederationUnscopedPayloadBuilder};
+pub use project_scoped::{ProjectScopePayload, ProjectScopePayloadBuilder};
+pub use provider_api::TokenApi;
+pub use restricted::*;
+pub use unscoped::*;
+
+/// Fernet Token.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum Token {
+    /// Unscoped.
     Unscoped(UnscopedPayload),
+    /// Domain scoped.
     DomainScope(DomainScopePayload),
+    /// Project scoped.
     ProjectScope(ProjectScopePayload),
+    /// Federated unscoped.
     FederationUnscoped(FederationUnscopedPayload),
+    /// Federated project scoped.
     FederationProjectScope(FederationProjectScopePayload),
+    /// Federated domain scoped.
     FederationDomainScope(FederationDomainScopePayload),
+    /// Application credential.
     ApplicationCredential(ApplicationCredentialPayload),
+    /// Restricted.
     Restricted(RestrictedPayload),
 }
 
@@ -174,82 +196,3 @@ impl Token {
         }
     }
 }
-
-/// Token restriction information.
-#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct TokenRestriction {
-    /// Whether the restriction allows to rescope the token.
-    pub allow_rescope: bool,
-    /// Whether it is allowed to renew the token with this restriction.
-    pub allow_renew: bool,
-    /// Id.
-    pub id: String,
-    /// Domain Id the token restriction belongs to.
-    pub domain_id: String,
-    /// Optional project ID to be used with this restriction.
-    pub project_id: Option<String>,
-    /// Roles bound to the restriction.
-    pub role_ids: Vec<String>,
-    /// Optional list of full Role information.
-    pub roles: Option<Vec<crate::assignment::types::Role>>,
-    /// User id
-    pub user_id: Option<String>,
-}
-
-/// New token restriction information.
-#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct TokenRestrictionCreate {
-    /// Whether the restriction allows to rescope the token.
-    pub allow_rescope: bool,
-    /// Whether it is allowed to renew the token with this restriction.
-    pub allow_renew: bool,
-    /// Id.
-    pub id: String,
-    /// Domain Id the token restriction belongs to.
-    pub domain_id: String,
-    /// Optional project ID to be used with this restriction.
-    pub project_id: Option<String>,
-    /// Roles bound to the restriction.
-    pub role_ids: Vec<String>,
-    /// User id
-    pub user_id: Option<String>,
-}
-
-/// Token restriction update information.
-#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct TokenRestrictionUpdate {
-    /// Whether the restriction allows to rescope the token.
-    pub allow_rescope: Option<bool>,
-    /// Whether it is allowed to renew the token with this restriction.
-    pub allow_renew: Option<bool>,
-    /// Optional project ID to be used with this restriction.
-    pub project_id: Option<Option<String>>,
-    /// Roles bound to the restriction.
-    pub role_ids: Option<Vec<String>>,
-    /// User id.
-    pub user_id: Option<Option<String>>,
-}
-
-/// Token restriction list filters.
-#[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct TokenRestrictionListParameters {
-    /// Domain id.
-    pub domain_id: Option<String>,
-    /// User id.
-    pub user_id: Option<String>,
-    /// Project id.
-    pub project_id: Option<String>,
-}
-
-pub trait TokenBackend: DynClone + Send + Sync + std::fmt::Debug {
-    /// Set config
-    fn set_config(&mut self, g: Config);
-
-    /// Extract the token from string
-    fn decode(&self, credential: &str) -> Result<Token, TokenProviderError>;
-
-    /// Extract the token from string
-    fn encode(&self, token: &Token) -> Result<String, TokenProviderError>;
-}
-
-dyn_clone::clone_trait_object!(TokenBackend);

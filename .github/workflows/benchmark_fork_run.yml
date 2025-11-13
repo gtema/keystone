@@ -30,7 +30,7 @@ jobs:
 
       - name: Track base branch benchmarks with Bencher
         run: |
-          cargo bench > benchmark_results.log
+          cargo bench --features bench_internals > benchmark_results.log
 
       - name: Upload Benchmark Results
         uses: actions/upload-artifact@v5

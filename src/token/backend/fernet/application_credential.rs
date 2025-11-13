@@ -12,73 +12,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use chrono::{DateTime, Utc};
-use derive_builder::Builder;
 use rmp::{decode::read_pfix, encode::write_pfix};
-use serde::Serialize;
 use std::io::Write;
 
-use crate::assignment::types::Role;
-use crate::identity::types::UserResponse;
-use crate::resource::types::Project;
 use crate::token::{
+    backend::fernet::{FernetTokenProvider, MsgPackToken, utils},
     error::TokenProviderError,
-    fernet::{FernetTokenProvider, MsgPackToken},
-    fernet_utils,
-    types::Token,
+    types::ApplicationCredentialPayload,
 };
-
-#[derive(Builder, Clone, Debug, Default, PartialEq, Serialize)]
-#[builder(setter(into))]
-pub struct ApplicationCredentialPayload {
-    pub user_id: String,
-    #[builder(default, setter(name = _methods))]
-    pub methods: Vec<String>,
-    #[builder(default, setter(name = _audit_ids))]
-    pub audit_ids: Vec<String>,
-    pub expires_at: DateTime<Utc>,
-    pub project_id: String,
-    pub application_credential_id: String,
-
-    #[builder(default)]
-    pub issued_at: DateTime<Utc>,
-    #[builder(default)]
-    pub user: Option<UserResponse>,
-    #[builder(default)]
-    pub roles: Vec<Role>,
-    #[builder(default)]
-    pub project: Option<Project>,
-}
-
-impl ApplicationCredentialPayloadBuilder {
-    pub fn methods<I, V>(&mut self, iter: I) -> &mut Self
-    where
-        I: Iterator<Item = V>,
-        V: Into<String>,
-    {
-        self.methods
-            .get_or_insert_with(Vec::new)
-            .extend(iter.map(Into::into));
-        self
-    }
-
-    pub fn audit_ids<I, V>(&mut self, iter: I) -> &mut Self
-    where
-        I: Iterator<Item = V>,
-        V: Into<String>,
-    {
-        self.audit_ids
-            .get_or_insert_with(Vec::new)
-            .extend(iter.map(Into::into));
-        self
-    }
-}
-
-impl From<ApplicationCredentialPayload> for Token {
-    fn from(value: ApplicationCredentialPayload) -> Self {
-        Self::ApplicationCredential(value)
-    }
-}
 
 impl MsgPackToken for ApplicationCredentialPayload {
     type Token = Self;
@@ -88,16 +29,16 @@ impl MsgPackToken for ApplicationCredentialPayload {
         wd: &mut W,
         fernet_provider: &FernetTokenProvider,
     ) -> Result<(), TokenProviderError> {
-        fernet_utils::write_uuid(wd, &self.user_id)?;
+        utils::write_uuid(wd, &self.user_id)?;
         write_pfix(
             wd,
             fernet_provider.encode_auth_methods(self.methods.clone())?,
         )
         .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
-        fernet_utils::write_uuid(wd, &self.project_id)?;
-        fernet_utils::write_time(wd, self.expires_at)?;
-        fernet_utils::write_audit_ids(wd, self.audit_ids.clone())?;
-        fernet_utils::write_uuid(wd, &self.application_credential_id)?;
+        utils::write_uuid(wd, &self.project_id)?;
+        utils::write_time(wd, self.expires_at)?;
+        utils::write_audit_ids(wd, self.audit_ids.clone())?;
+        utils::write_uuid(wd, &self.application_credential_id)?;
 
         Ok(())
     }
@@ -107,15 +48,15 @@ impl MsgPackToken for ApplicationCredentialPayload {
         fernet_provider: &FernetTokenProvider,
     ) -> Result<Self::Token, TokenProviderError> {
         // Order of reading is important
-        let user_id = fernet_utils::read_uuid(rd)?;
+        let user_id = utils::read_uuid(rd)?;
         let methods: Vec<String> = fernet_provider
             .decode_auth_methods(read_pfix(rd)?)?
             .into_iter()
             .collect();
-        let project_id = fernet_utils::read_uuid(rd)?;
-        let expires_at = fernet_utils::read_time(rd)?;
-        let audit_ids: Vec<String> = fernet_utils::read_audit_ids(rd)?.into_iter().collect();
-        let application_credential_id = fernet_utils::read_uuid(rd)?;
+        let project_id = utils::read_uuid(rd)?;
+        let expires_at = utils::read_time(rd)?;
+        let audit_ids: Vec<String> = utils::read_audit_ids(rd)?.into_iter().collect();
+        let application_credential_id = utils::read_uuid(rd)?;
 
         Ok(Self {
             user_id,
@@ -134,8 +75,8 @@ mod tests {
     use chrono::{Local, SubsecRound};
     use uuid::Uuid;
 
-    use super::super::tests::setup_config;
     use super::*;
+    use crate::token::tests::setup_config;
 
     #[test]
     fn test_roundtrip() {

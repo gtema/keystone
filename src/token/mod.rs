@@ -11,28 +11,20 @@
 // limitations under the License.
 //
 // SPDX-License-Identifier: Apache-2.0
+//! Token provider.
 
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{Local, TimeDelta};
-#[cfg(test)]
-use mockall::mock;
 use sea_orm::DatabaseConnection;
 use uuid::Uuid;
 
-pub mod application_credential;
-pub mod domain_scoped;
+pub mod backend;
 pub mod error;
-pub mod federation_domain_scoped;
-pub mod federation_project_scoped;
-pub mod federation_unscoped;
-pub mod fernet;
-pub mod fernet_utils;
-pub mod project_scoped;
-pub mod restricted;
+#[cfg(test)]
+mod mock;
 mod token_restriction;
 pub mod types;
-pub mod unscoped;
 
 use crate::assignment::{
     AssignmentApi,
@@ -47,25 +39,12 @@ use crate::resource::{
     ResourceApi,
     types::{Domain, Project},
 };
+use backend::{TokenBackend, fernet::FernetTokenProvider};
 pub use error::TokenProviderError;
-use types::TokenBackend;
 
-pub use application_credential::ApplicationCredentialPayload;
-pub use domain_scoped::{DomainScopePayload, DomainScopePayloadBuilder};
-pub use federation_domain_scoped::{
-    FederationDomainScopePayload, FederationDomainScopePayloadBuilder,
-};
-pub use federation_project_scoped::{
-    FederationProjectScopePayload, FederationProjectScopePayloadBuilder,
-};
-pub use federation_unscoped::{FederationUnscopedPayload, FederationUnscopedPayloadBuilder};
-pub use project_scoped::{ProjectScopePayload, ProjectScopePayloadBuilder};
-pub use restricted::{RestrictedPayload, RestrictedPayloadBuilder};
-pub use types::{
-    Token, TokenRestriction, TokenRestrictionCreate, TokenRestrictionListParameters,
-    TokenRestrictionUpdate,
-};
-pub use unscoped::{UnscopedPayload, UnscopedPayloadBuilder};
+pub use crate::token::types::*;
+#[cfg(test)]
+pub use mock::MockTokenProvider;
 
 #[derive(Clone, Debug)]
 pub struct TokenProvider {
@@ -76,7 +55,7 @@ pub struct TokenProvider {
 impl TokenProvider {
     pub fn new(config: &Config) -> Result<Self, TokenProviderError> {
         let backend_driver = match config.token.provider {
-            TokenProviderType::Fernet => fernet::FernetTokenProvider::new(config.clone()),
+            TokenProviderType::Fernet => FernetTokenProvider::new(config.clone()),
         };
         Ok(Self {
             config: config.clone(),
@@ -347,89 +326,6 @@ impl TokenProvider {
         }
         Ok(())
     }
-}
-
-#[async_trait]
-pub trait TokenApi: Send + Sync + Clone {
-    async fn authenticate_by_token<'a>(
-        &self,
-        credential: &'a str,
-        allow_expired: Option<bool>,
-        window_seconds: Option<i64>,
-    ) -> Result<AuthenticatedInfo, TokenProviderError>;
-
-    /// Validate the token
-    async fn validate_token<'a>(
-        &self,
-        credential: &'a str,
-        allow_expired: Option<bool>,
-        window_seconds: Option<i64>,
-    ) -> Result<Token, TokenProviderError>;
-
-    /// Issue a token for given parameters
-    fn issue_token(
-        &self,
-        authentication_info: AuthenticatedInfo,
-        authz_info: AuthzInfo,
-        token_restriction: Option<&TokenRestriction>,
-    ) -> Result<Token, TokenProviderError>;
-
-    /// Encode the token into the X-SubjectToken String
-    fn encode_token(&self, token: &Token) -> Result<String, TokenProviderError>;
-
-    /// Populate role assignments in the token that support that information
-    async fn populate_role_assignments(
-        &self,
-        token: &mut Token,
-        db: &DatabaseConnection,
-        provider: &Provider,
-    ) -> Result<(), TokenProviderError>;
-
-    /// Populate additional information (project, domain, roles, etc) in the token that support
-    /// that information
-    async fn expand_token_information(
-        &self,
-        token: &Token,
-        db: &DatabaseConnection,
-        provider: &Provider,
-    ) -> Result<Token, TokenProviderError>;
-
-    /// Get the token restriction by the ID.
-    async fn get_token_restriction<'a>(
-        &self,
-        db: &DatabaseConnection,
-        id: &'a str,
-        expand_roles: bool,
-    ) -> Result<Option<TokenRestriction>, TokenProviderError>;
-
-    /// Create new token restriction.
-    async fn create_token_restriction<'a>(
-        &self,
-        db: &DatabaseConnection,
-        restriction: TokenRestrictionCreate,
-    ) -> Result<TokenRestriction, TokenProviderError>;
-
-    /// List token restrictions.
-    async fn list_token_restrictions<'a>(
-        &self,
-        db: &DatabaseConnection,
-        params: &TokenRestrictionListParameters,
-    ) -> Result<Vec<TokenRestriction>, TokenProviderError>;
-
-    /// Update token restriction by the ID.
-    async fn update_token_restriction<'a>(
-        &self,
-        db: &DatabaseConnection,
-        id: &'a str,
-        restriction: TokenRestrictionUpdate,
-    ) -> Result<TokenRestriction, TokenProviderError>;
-
-    /// Delete token restriction by the ID.
-    async fn delete_token_restriction<'a>(
-        &self,
-        db: &DatabaseConnection,
-        id: &'a str,
-    ) -> Result<(), TokenProviderError>;
 }
 
 #[async_trait]
@@ -826,91 +722,6 @@ impl TokenApi for TokenProvider {
     ) -> Result<(), TokenProviderError> {
         token_restriction::delete(db, id).await
     }
-}
-
-#[cfg(test)]
-mock! {
-    pub TokenProvider {
-        pub fn new(cfg: &Config) -> Result<Self, TokenProviderError>;
-    }
-
-    #[async_trait]
-    impl TokenApi for TokenProvider {
-        async fn authenticate_by_token<'a>(
-            &self,
-            credential: &'a str,
-            allow_expired: Option<bool>,
-            window_seconds: Option<i64>,
-        ) -> Result<AuthenticatedInfo, TokenProviderError>;
-
-        async fn validate_token<'a>(
-            &self,
-            credential: &'a str,
-            allow_expired: Option<bool>,
-            window_seconds: Option<i64>,
-        ) -> Result<Token, TokenProviderError>;
-
-        #[mockall::concretize]
-        fn issue_token(
-            &self,
-            authentication_info: AuthenticatedInfo,
-            authz_info: AuthzInfo,
-            token_restriction: Option<&TokenRestriction>
-        ) -> Result<Token, TokenProviderError>;
-
-        fn encode_token(&self, token: &Token) -> Result<String, TokenProviderError>;
-
-        async fn populate_role_assignments(
-            &self,
-            token: &mut Token,
-            db: &DatabaseConnection,
-            provider: &Provider,
-        ) -> Result<(), TokenProviderError>;
-
-        async fn expand_token_information(
-            &self,
-            token: &Token,
-            db: &DatabaseConnection,
-            provider: &Provider,
-        ) -> Result<Token, TokenProviderError>;
-
-        async fn get_token_restriction<'a>(
-            &self,
-            db: &DatabaseConnection,
-            id: &'a str,
-            expand_roles: bool,
-        ) -> Result<Option<TokenRestriction>, TokenProviderError>;
-
-        async fn list_token_restrictions<'a>(
-            &self,
-            db: &DatabaseConnection,
-            params: &TokenRestrictionListParameters,
-        ) -> Result<Vec<TokenRestriction>, TokenProviderError>;
-
-        async fn create_token_restriction<'a>(
-            &self,
-            db: &DatabaseConnection,
-            restriction: TokenRestrictionCreate,
-        ) -> Result<TokenRestriction, TokenProviderError>;
-
-        async fn update_token_restriction<'a>(
-            &self,
-            db: &DatabaseConnection,
-            id: &'a str,
-            restriction: TokenRestrictionUpdate,
-        ) -> Result<TokenRestriction, TokenProviderError>;
-
-        async fn delete_token_restriction<'a>(
-            &self,
-            db: &DatabaseConnection,
-            id: &'a str,
-        ) -> Result<(), TokenProviderError>;
-    }
-
-    impl Clone for TokenProvider {
-        fn clone(&self) -> Self;
-    }
-
 }
 
 #[cfg(test)]
