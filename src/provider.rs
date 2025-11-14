@@ -32,6 +32,9 @@ use crate::plugin_manager::PluginManager;
 use crate::resource::ResourceApi;
 #[double]
 use crate::resource::ResourceProvider;
+use crate::revoke::RevokeApi;
+#[double]
+use crate::revoke::RevokeProvider;
 use crate::token::TokenApi;
 #[double]
 use crate::token::TokenProvider;
@@ -41,6 +44,7 @@ use crate::token::TokenProvider;
 //    fn get_token_provider(&self) -> &impl TokenApi;
 //}
 
+/// Global provider manager.
 #[derive(Builder, Clone)]
 // It is necessary to use the owned pattern since otherwise builder invokes clone which immediately
 // confuses mockall used in tests
@@ -52,6 +56,8 @@ pub struct Provider {
     federation: FederationProvider,
     identity: IdentityProvider,
     resource: ResourceProvider,
+    /// Revoke provider.
+    revoke: RevokeProvider,
     token: TokenProvider,
 }
 
@@ -62,6 +68,7 @@ impl Provider {
         let federation_provider = FederationProvider::new(&cfg, &plugin_manager)?;
         let identity_provider = IdentityProvider::new(&cfg, &plugin_manager)?;
         let resource_provider = ResourceProvider::new(&cfg, &plugin_manager)?;
+        let revoke_provider = RevokeProvider::new(&cfg, &plugin_manager)?;
         let token_provider = TokenProvider::new(&cfg)?;
 
         Ok(Self {
@@ -71,6 +78,7 @@ impl Provider {
             federation: federation_provider,
             identity: identity_provider,
             resource: resource_provider,
+            revoke: revoke_provider,
             token: token_provider,
         })
     }
@@ -95,6 +103,10 @@ impl Provider {
         &self.resource
     }
 
+    pub fn get_revoke_provider(&self) -> &impl RevokeApi {
+        &self.revoke
+    }
+
     pub fn get_token_provider(&self) -> &impl TokenApi {
         &self.token
     }
@@ -110,6 +122,7 @@ impl Provider {
         let assignment_mock = crate::assignment::MockAssignmentProvider::default();
         let catalog_mock = crate::catalog::MockCatalogProvider::default();
         let federation_mock = crate::federation::MockFederationProvider::default();
+        let revoke_mock = crate::revoke::MockRevokeProvider::default();
 
         ProviderBuilder::default()
             .config(config.clone())
@@ -118,6 +131,7 @@ impl Provider {
             .identity(identity_mock)
             .federation(federation_mock)
             .resource(resource_mock)
+            .revoke(revoke_mock)
             .token(token_mock)
     }
 }

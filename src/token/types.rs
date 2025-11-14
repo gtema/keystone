@@ -177,6 +177,15 @@ impl Token {
         }
     }
 
+    pub const fn project_id(&self) -> Option<&String> {
+        match self {
+            Self::ProjectScope(x) => Some(&x.project_id),
+            Self::FederationProjectScope(x) => Some(&x.project_id),
+            Self::Restricted(x) => Some(&x.project_id),
+            _ => None,
+        }
+    }
+
     pub const fn domain(&self) -> Option<&Domain> {
         match self {
             Self::DomainScope(x) => x.domain.as_ref(),

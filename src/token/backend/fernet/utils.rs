@@ -263,8 +263,13 @@ pub fn write_audit_ids<W: RmpWrite, I: IntoIterator<Item = String>>(
     write_array_len(wd, vals.len() as u32)
         .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
     for val in vals.iter() {
-        write_bin(wd, &URL_SAFE.decode(val)?)
-            .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
+        write_bin(
+            wd,
+            &URL_SAFE
+                .decode(val)
+                .map_err(|_| TokenProviderError::AuditIdWrongFormat)?,
+        )
+        .map_err(|x| TokenProviderError::RmpEncode(x.to_string()))?;
     }
     Ok(())
 }

@@ -29,6 +29,7 @@ use crate::federation::error::FederationProviderError;
 use crate::identity::error::IdentityProviderError;
 use crate::policy::PolicyError;
 use crate::resource::error::ResourceProviderError;
+use crate::revoke::error::RevokeProviderError;
 use crate::token::error::TokenProviderError;
 
 /// Keystone API operation errors
@@ -116,6 +117,14 @@ pub enum KeystoneApiError {
         source: ResourceProviderError,
     },
 
+    /// Revoke provider error.
+    #[error(transparent)]
+    RevokeProvider {
+        /// The source of the error.
+        #[from]
+        source: RevokeProviderError,
+    },
+
     #[error(transparent)]
     TokenError { source: TokenProviderError },
 
@@ -190,6 +199,7 @@ impl IntoResponse for KeystoneApiError {
             | KeystoneApiError::AssignmentError { .. }
             | KeystoneApiError::TokenError { .. }
             | KeystoneApiError::Federation { .. }
+            | KeystoneApiError::RevokeProvider { .. }
             | KeystoneApiError::Other(..) => StatusCode::INTERNAL_SERVER_ERROR,
             _ =>
             // KeystoneApiError::SubjectTokenMissing | KeystoneApiError::InvalidHeader | KeystoneApiError::InvalidToken | KeystoneApiError::Token{..} | KeystoneApiError::WebAuthN{..} | KeystoneApiError::Uuid {..} | KeystoneApiError::Serde {..} | KeystoneApiError::DomainIdOrName | KeystoneApiError::ProjectIdOrName | KeystoneApiError::ProjectDomain =>

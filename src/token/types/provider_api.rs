@@ -27,6 +27,8 @@ use super::*;
 pub trait TokenApi: Send + Sync + Clone {
     async fn authenticate_by_token<'a>(
         &self,
+        provider: &Provider,
+        db: &DatabaseConnection,
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
@@ -35,6 +37,8 @@ pub trait TokenApi: Send + Sync + Clone {
     /// Validate the token
     async fn validate_token<'a>(
         &self,
+        provider: &Provider,
+        db: &DatabaseConnection,
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,

@@ -76,7 +76,7 @@ async fn authenticate_request(
             let mut authz = state
                 .provider
                 .get_token_provider()
-                .authenticate_by_token(&token.id, Some(false), None)
+                .authenticate_by_token(&state.provider, &state.db, &token.id, Some(false), None)
                 .await?;
             // Resolve the user
             authz.user = Some(
@@ -247,7 +247,13 @@ async fn show(
     let mut token = state
         .provider
         .get_token_provider()
-        .validate_token(&subject_token, query.allow_expired, None)
+        .validate_token(
+            &state.provider,
+            &state.db,
+            &subject_token,
+            query.allow_expired,
+            None,
+        )
         .await
         .inspect_err(|e| error!("{:?}", e.to_string()))
         .map_err(|_| KeystoneApiError::NotFound {
@@ -414,11 +420,13 @@ mod tests {
         token_mock
             .expect_authenticate_by_token()
             .withf(
-                |id: &'_ str, allow_expired: &Option<bool>, window: &Option<i64>| {
+                |_, _, id: &'_ str, allow_expired: &Option<bool>, window: &Option<i64>| {
                     id == "fake_token" && *allow_expired == Some(false) && window.is_none()
                 },
             )
-            .returning(|_, _, _| Ok(AuthenticatedInfo::builder().user_id("uid").build().unwrap()));
+            .returning(|_, _, _, _, _| {
+                Ok(AuthenticatedInfo::builder().user_id("uid").build().unwrap())
+            });
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
@@ -541,12 +549,14 @@ mod tests {
                 }))
             });
         let mut token_mock = MockTokenProvider::default();
-        token_mock.expect_validate_token().returning(|_, _, _| {
-            Ok(ProviderToken::Unscoped(UnscopedPayload {
-                user_id: "bar".into(),
-                ..Default::default()
-            }))
-        });
+        token_mock
+            .expect_validate_token()
+            .returning(|_, _, _, _, _| {
+                Ok(ProviderToken::Unscoped(UnscopedPayload {
+                    user_id: "bar".into(),
+                    ..Default::default()
+                }))
+            });
         token_mock
             .expect_populate_role_assignments()
             .returning(|_, _, _| Ok(()));
@@ -642,8 +652,8 @@ mod tests {
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_validate_token()
-            .withf(|token: &'_ str, _, _| token == "foo")
-            .returning(|_, _, _| {
+            .withf(|_, _, token: &'_ str, _, _| token == "foo")
+            .returning(|_, _, _, _, _| {
                 Ok(ProviderToken::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
                     ..Default::default()
@@ -651,10 +661,10 @@ mod tests {
             });
         token_mock
             .expect_validate_token()
-            .withf(|token: &'_ str, allow_expired: &Option<bool>, _| {
+            .withf(|_, _, token: &'_ str, allow_expired: &Option<bool>, _| {
                 token == "bar" && *allow_expired == Some(true)
             })
-            .returning(|_, _, _| {
+            .returning(|_, _, _, _, _| {
                 Ok(ProviderToken::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
                     ..Default::default()
@@ -719,8 +729,8 @@ mod tests {
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_validate_token()
-            .withf(|token: &'_ str, _, _| token == "foo")
-            .returning(|_, _, _| {
+            .withf(|_, _, token: &'_ str, _, _| token == "foo")
+            .returning(|_, _, _, _, _| {
                 Ok(ProviderToken::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
                     ..Default::default()
@@ -737,8 +747,8 @@ mod tests {
             });
         token_mock
             .expect_validate_token()
-            .withf(|token: &'_ str, _, _| token == "baz")
-            .returning(|_, _, _| Err(TokenProviderError::Expired));
+            .withf(|_, _, token: &'_ str, _, _| token == "baz")
+            .returning(|_, _, _, _, _| Err(TokenProviderError::Expired));
 
         let provider = Provider::mocked_builder()
             .token(token_mock)

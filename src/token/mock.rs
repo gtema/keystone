@@ -36,6 +36,8 @@ mock! {
     impl TokenApi for TokenProvider {
         async fn authenticate_by_token<'a>(
             &self,
+            provider: &Provider,
+            db: &DatabaseConnection,
             credential: &'a str,
             allow_expired: Option<bool>,
             window_seconds: Option<i64>,
@@ -43,6 +45,8 @@ mock! {
 
         async fn validate_token<'a>(
             &self,
+            provider: &Provider,
+            db: &DatabaseConnection,
             credential: &'a str,
             allow_expired: Option<bool>,
             window_seconds: Option<i64>,
