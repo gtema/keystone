@@ -17,10 +17,10 @@ pub mod role;
 
 use async_trait::async_trait;
 use dyn_clone::DynClone;
-use sea_orm::DatabaseConnection;
 
 use crate::assignment::AssignmentProviderError;
 use crate::config::Config;
+use crate::keystone::ServiceState;
 
 pub use crate::assignment::types::assignment::{
     Assignment, AssignmentBuilder, AssignmentBuilderError, AssignmentType,
@@ -39,21 +39,21 @@ pub trait AssignmentBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// List Roles
     async fn list_roles(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &RoleListParameters,
     ) -> Result<Vec<Role>, AssignmentProviderError>;
 
     /// Get single role by ID
     async fn get_role<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Role>, AssignmentProviderError>;
 
     /// List Role assignments
     async fn list_assignments(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &RoleAssignmentListParameters,
     ) -> Result<Vec<Assignment>, AssignmentProviderError>;
 
@@ -64,7 +64,7 @@ pub trait AssignmentBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// the role can be inherited from)
     async fn list_assignments_for_multiple_actors_and_targets(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &RoleAssignmentListForMultipleActorTargetParameters,
     ) -> Result<Vec<Assignment>, AssignmentProviderError>;
 }

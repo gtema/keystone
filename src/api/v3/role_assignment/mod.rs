@@ -55,7 +55,7 @@ async fn list(
     let assignments: Result<Vec<Assignment>, _> = state
         .provider
         .get_assignment_provider()
-        .list_role_assignments(&state.db, &state.provider, &query.try_into()?)
+        .list_role_assignments(&state, &query.try_into()?)
         .await
         .map_err(KeystoneApiError::assignment)?
         .into_iter()
@@ -136,8 +136,8 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .withf(|_, _, _s| true)
-            .returning(|_, _, _| {
+            .withf(|_, _s| true)
+            .returning(|_, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     role_name: Some("rn".into()),
@@ -191,7 +191,7 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .withf(|_, _, qp: &RoleAssignmentListParameters| {
+            .withf(|_, qp: &RoleAssignmentListParameters| {
                 RoleAssignmentListParameters {
                     role_id: Some("role".into()),
                     user_id: Some("user1".into()),
@@ -199,7 +199,7 @@ mod tests {
                     ..Default::default()
                 } == *qp
             })
-            .returning(|_, _, _| {
+            .returning(|_, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     role_name: None,
@@ -212,7 +212,7 @@ mod tests {
 
         assignment_mock
             .expect_list_role_assignments()
-            .withf(|_, _, qp: &RoleAssignmentListParameters| {
+            .withf(|_, qp: &RoleAssignmentListParameters| {
                 RoleAssignmentListParameters {
                     role_id: Some("role".into()),
                     user_id: Some("user2".into()),
@@ -220,7 +220,7 @@ mod tests {
                     ..Default::default()
                 } == *qp
             })
-            .returning(|_, _, _| {
+            .returning(|_, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     role_name: None,
@@ -233,14 +233,14 @@ mod tests {
 
         assignment_mock
             .expect_list_role_assignments()
-            .withf(|_, _, qp: &RoleAssignmentListParameters| {
+            .withf(|_, qp: &RoleAssignmentListParameters| {
                 RoleAssignmentListParameters {
                     group_id: Some("group3".into()),
                     project_id: Some("project3".into()),
                     ..Default::default()
                 } == *qp
             })
-            .returning(|_, _, _| {
+            .returning(|_, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     role_name: None,

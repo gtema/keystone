@@ -217,7 +217,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(UserResponse {
                     id: "bar".into(),
@@ -229,7 +229,7 @@ mod tests {
         let mut resource_mock = MockResourceProvider::default();
         resource_mock
             .expect_get_domain()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "user_domain_id")
+            .withf(|_, id: &'_ str| id == "user_domain_id")
             .returning(|_, _| {
                 Ok(Some(Domain {
                     id: "user_domain_id".into(),
@@ -272,7 +272,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(UserResponse {
                     id: "bar".into(),
@@ -331,7 +331,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(UserResponse {
                     id: "bar".into(),
@@ -360,7 +360,7 @@ mod tests {
             });
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock.expect_list_role_assignments().returning(
-            |_, _, q: &RoleAssignmentListParameters| {
+            |_, q: &RoleAssignmentListParameters| {
                 Ok(vec![Assignment {
                     role_id: "rid".into(),
                     role_name: Some("role_name".into()),

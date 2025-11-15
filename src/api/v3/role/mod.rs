@@ -53,7 +53,7 @@ async fn list(
     let roles: Vec<Role> = state
         .provider
         .get_assignment_provider()
-        .list_roles(&state.db, &query.into())
+        .list_roles(&state, &query.into())
         .await
         .map_err(KeystoneApiError::assignment)?
         .into_iter()
@@ -83,7 +83,7 @@ async fn show(
     state
         .provider
         .get_assignment_provider()
-        .get_role(&state.db, &role_id)
+        .get_role(&state, &role_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -166,7 +166,7 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_roles()
-            .withf(|_: &DatabaseConnection, _: &RoleListParameters| true)
+            .withf(|_, _: &RoleListParameters| true)
             .returning(|_, _| {
                 Ok(vec![Role {
                     id: "1".into(),
@@ -215,7 +215,7 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_roles()
-            .withf(|_: &DatabaseConnection, qp: &RoleListParameters| {
+            .withf(|_, qp: &RoleListParameters| {
                 RoleListParameters {
                     domain_id: Some("domain".into()),
                     name: Some("name".into()),
@@ -269,12 +269,12 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_get_role()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
 
         assignment_mock
             .expect_get_role()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(Role {
                     id: "bar".into(),

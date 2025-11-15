@@ -13,11 +13,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use sea_orm::DatabaseConnection;
 
 use super::super::types::*;
 use crate::assignment::AssignmentProviderError;
 use crate::config::Config;
+use crate::keystone::ServiceState;
 
 mod assignment;
 mod implied_role;
@@ -38,42 +38,45 @@ impl AssignmentBackend for SqlBackend {
     }
 
     /// List roles
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn list_roles(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &RoleListParameters,
     ) -> Result<Vec<Role>, AssignmentProviderError> {
-        Ok(role::list(&self.config, db, params).await?)
+        Ok(role::list(&self.config, &state.db, params).await?)
     }
 
     /// Get single role by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_role<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Role>, AssignmentProviderError> {
-        Ok(role::get(&self.config, db, id).await?)
+        Ok(role::get(&self.config, &state.db, id).await?)
     }
 
     /// List role assignments
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_assignments(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &RoleAssignmentListParameters,
     ) -> Result<Vec<Assignment>, AssignmentProviderError> {
-        Ok(assignment::list(&self.config, db, params).await?)
+        Ok(assignment::list(&self.config, &state.db, params).await?)
     }
 
     /// List role assignments for multiple actors/targets
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_assignments_for_multiple_actors_and_targets(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &RoleAssignmentListForMultipleActorTargetParameters,
     ) -> Result<Vec<Assignment>, AssignmentProviderError> {
-        Ok(assignment::list_for_multiple_actors_and_targets(&self.config, db, params).await?)
+        Ok(
+            assignment::list_for_multiple_actors_and_targets(&self.config, &state.db, params)
+                .await?,
+        )
     }
 }

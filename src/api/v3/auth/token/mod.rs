@@ -818,7 +818,7 @@ mod tests {
         let mut catalog_mock = MockCatalogProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .returning(|_, _, _| Ok(Vec::new()));
+            .returning(|_, _| Ok(Vec::new()));
 
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
@@ -844,15 +844,15 @@ mod tests {
         let mut resource_mock = MockResourceProvider::default();
         resource_mock
             .expect_get_project()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "pid")
+            .withf(|_, id: &'_ str| id == "pid")
             .returning(move |_, _| Ok(Some(project.clone())));
         resource_mock
             .expect_get_domain()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "user_domain_id")
+            .withf(|_, id: &'_ str| id == "user_domain_id")
             .returning(move |_, _| Ok(Some(user_domain.clone())));
         resource_mock
             .expect_get_domain()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "pdid")
+            .withf(|_, id: &'_ str| id == "pdid")
             .returning(move |_, _| Ok(Some(project_domain.clone())));
         let mut token_mock = MockTokenProvider::default();
         token_mock.expect_issue_token().returning(|_, _, _| {
@@ -995,7 +995,7 @@ mod tests {
         let mut resource_mock = MockResourceProvider::default();
         resource_mock
             .expect_get_project()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "pid")
+            .withf(|_, id: &'_ str| id == "pid")
             .returning(move |_, _| {
                 Ok(Some(Project {
                     id: "pid".into(),
