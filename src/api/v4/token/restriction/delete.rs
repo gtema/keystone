@@ -60,7 +60,7 @@ pub(super) async fn remove(
     let current = state
         .provider
         .get_token_provider()
-        .get_token_restriction(&state.db, &id, false)
+        .get_token_restriction(&state, &id, false)
         .await?;
 
     policy
@@ -76,7 +76,7 @@ pub(super) async fn remove(
         state
             .provider
             .get_token_provider()
-            .delete_token_restriction(&state.db, &id)
+            .delete_token_restriction(&state, &id)
             .await
             .map_err(KeystoneApiError::token)?;
     } else {
@@ -94,7 +94,6 @@ mod tests {
         body::Body,
         http::{Request, StatusCode},
     };
-    use sea_orm::DatabaseConnection;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
@@ -111,11 +110,11 @@ mod tests {
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_get_token_restriction()
-            .withf(|_: &DatabaseConnection, id: &'_ str, expand: &bool| id == "foo" && !expand)
+            .withf(|_, id: &'_ str, expand: &bool| id == "foo" && !expand)
             .returning(|_, _, _| Ok(None));
         token_mock
             .expect_get_token_restriction()
-            .withf(|_: &DatabaseConnection, id: &'_ str, expand: &bool| id == "bar" && !expand)
+            .withf(|_, id: &'_ str, expand: &bool| id == "bar" && !expand)
             .returning(|_, _, _| {
                 Ok(Some(provider_types::TokenRestriction {
                     user_id: Some("uid".into()),
@@ -139,12 +138,12 @@ mod tests {
             });
         token_mock
             .expect_delete_token_restriction()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| Err(TokenProviderError::TokenRestrictionNotFound("foo".into())));
 
         token_mock
             .expect_delete_token_restriction()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| Ok(()));
 
         let state = get_mocked_state(token_mock, true, None);

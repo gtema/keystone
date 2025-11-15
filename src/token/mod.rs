@@ -16,7 +16,6 @@
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{Local, TimeDelta};
-use sea_orm::DatabaseConnection;
 use uuid::Uuid;
 
 pub mod backend;
@@ -34,7 +33,7 @@ use crate::assignment::{
 use crate::auth::{AuthenticatedInfo, AuthenticationError, AuthzInfo};
 use crate::config::{Config, TokenProvider as TokenProviderType};
 use crate::identity::IdentityApi;
-use crate::provider::Provider;
+use crate::keystone::ServiceState;
 use crate::resource::{
     ResourceApi,
     types::{Domain, Project},
@@ -291,14 +290,14 @@ impl TokenProvider {
     /// Expand user information in the token.
     async fn expand_user_information(
         &self,
+        state: &ServiceState,
         token: &mut Token,
-        db: &DatabaseConnection,
-        provider: &Provider,
     ) -> Result<(), TokenProviderError> {
         if token.user().is_none() {
-            let user = provider
+            let user = state
+                .provider
                 .get_identity_provider()
-                .get_user(db, token.user_id())
+                .get_user(&state.db, token.user_id())
                 .await?;
             match token {
                 Token::ApplicationCredential(data) => {
@@ -334,17 +333,16 @@ impl TokenProvider {
 #[async_trait]
 impl TokenApi for TokenProvider {
     /// Authenticate by token
-    #[tracing::instrument(level = "info", skip(self, credential, provider))]
+    #[tracing::instrument(level = "info", skip(self, state, credential))]
     async fn authenticate_by_token<'a>(
         &self,
-        provider: &Provider,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
     ) -> Result<AuthenticatedInfo, TokenProviderError> {
         let token = self
-            .validate_token(provider, db, credential, allow_expired, window_seconds)
+            .validate_token(state, credential, allow_expired, window_seconds)
             .await?;
         tracing::debug!("The token is {:?}", token);
         if let Token::Restricted(restriction) = &token
@@ -365,11 +363,10 @@ impl TokenApi for TokenProvider {
     }
 
     /// Validate token
-    #[tracing::instrument(level = "info", skip(self, credential, provider))]
+    #[tracing::instrument(level = "info", skip(self, state, credential))]
     async fn validate_token<'a>(
         &self,
-        provider: &Provider,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
@@ -385,9 +382,10 @@ impl TokenApi for TokenProvider {
             return Err(TokenProviderError::Expired);
         }
 
-        if provider
+        if state
+            .provider
             .get_revoke_provider()
-            .is_token_revoked(db, &token)
+            .is_token_revoked(state, &token)
             .await?
         {
             return Err(TokenProviderError::TokenRevoked);
@@ -450,18 +448,18 @@ impl TokenApi for TokenProvider {
     /// Populate role assignments in the token that support that information
     async fn populate_role_assignments(
         &self,
+        state: &ServiceState,
         token: &mut Token,
-        db: &DatabaseConnection,
-        provider: &Provider,
     ) -> Result<(), TokenProviderError> {
         match token {
             Token::ProjectScope(data) => {
                 data.roles = Some(
-                    provider
+                    state
+                        .provider
                         .get_assignment_provider()
                         .list_role_assignments(
-                            db,
-                            provider,
+                            &state.db,
+                            &state.provider,
                             &RoleAssignmentListParametersBuilder::default()
                                 .user_id(&data.user_id)
                                 .project_id(&data.project_id)
@@ -485,11 +483,12 @@ impl TokenApi for TokenProvider {
             }
             Token::DomainScope(data) => {
                 data.roles = Some(
-                    provider
+                    state
+                        .provider
                         .get_assignment_provider()
                         .list_role_assignments(
-                            db,
-                            provider,
+                            &state.db,
+                            &state.provider,
                             &RoleAssignmentListParametersBuilder::default()
                                 .user_id(&data.user_id)
                                 .domain_id(&data.domain_id)
@@ -512,11 +511,12 @@ impl TokenApi for TokenProvider {
                 }
             }
             Token::ApplicationCredential(data) => {
-                data.roles = provider
+                data.roles = state
+                    .provider
                     .get_assignment_provider()
                     .list_role_assignments(
-                        db,
-                        provider,
+                        &state.db,
+                        &state.provider,
                         &RoleAssignmentListParametersBuilder::default()
                             .user_id(&data.user_id)
                             .project_id(&data.project_id)
@@ -539,11 +539,12 @@ impl TokenApi for TokenProvider {
             }
             Token::FederationProjectScope(data) => {
                 data.roles = Some(
-                    provider
+                    state
+                        .provider
                         .get_assignment_provider()
                         .list_role_assignments(
-                            db,
-                            provider,
+                            &state.db,
+                            &state.provider,
                             &RoleAssignmentListParametersBuilder::default()
                                 .user_id(&data.user_id)
                                 .project_id(&data.project_id)
@@ -567,11 +568,12 @@ impl TokenApi for TokenProvider {
             }
             Token::FederationDomainScope(data) => {
                 data.roles = Some(
-                    provider
+                    state
+                        .provider
                         .get_assignment_provider()
                         .list_role_assignments(
-                            db,
-                            provider,
+                            &state.db,
+                            &state.provider,
                             &RoleAssignmentListParametersBuilder::default()
                                 .user_id(&data.user_id)
                                 .domain_id(&data.domain_id)
@@ -595,7 +597,7 @@ impl TokenApi for TokenProvider {
             }
             Token::Restricted(data) => {
                 if data.roles.is_none() {
-                    self.get_token_restriction(db, &data.token_restriction_id, true)
+                    self.get_token_restriction(state, &data.token_restriction_id, true)
                         .await?
                         .inspect(|restrictions| data.roles = restrictions.roles.clone())
                         .ok_or(TokenProviderError::TokenRestrictionNotFound(
@@ -611,17 +613,17 @@ impl TokenApi for TokenProvider {
 
     async fn expand_token_information(
         &self,
+        state: &ServiceState,
         token: &Token,
-        db: &DatabaseConnection,
-        provider: &Provider,
     ) -> Result<Token, TokenProviderError> {
         let mut new_token = token.clone();
         match new_token {
             Token::ProjectScope(ref mut data) => {
                 if data.project.is_none() {
-                    let project = provider
+                    let project = state
+                        .provider
                         .get_resource_provider()
-                        .get_project(db, &data.project_id)
+                        .get_project(&state.db, &data.project_id)
                         .await?;
 
                     data.project = project;
@@ -629,9 +631,10 @@ impl TokenApi for TokenProvider {
             }
             Token::ApplicationCredential(ref mut data) => {
                 if data.project.is_none() {
-                    let project = provider
+                    let project = state
+                        .provider
                         .get_resource_provider()
-                        .get_project(db, &data.project_id)
+                        .get_project(&state.db, &data.project_id)
                         .await?;
 
                     data.project = project;
@@ -639,9 +642,10 @@ impl TokenApi for TokenProvider {
             }
             Token::FederationProjectScope(ref mut data) => {
                 if data.project.is_none() {
-                    let project = provider
+                    let project = state
+                        .provider
                         .get_resource_provider()
-                        .get_project(db, &data.project_id)
+                        .get_project(&state.db, &data.project_id)
                         .await?;
 
                     data.project = project;
@@ -649,9 +653,10 @@ impl TokenApi for TokenProvider {
             }
             Token::DomainScope(ref mut data) => {
                 if data.domain.is_none() {
-                    let domain = provider
+                    let domain = state
+                        .provider
                         .get_resource_provider()
-                        .get_domain(db, &data.domain_id)
+                        .get_domain(&state.db, &data.domain_id)
                         .await?;
 
                     data.domain = domain;
@@ -659,9 +664,10 @@ impl TokenApi for TokenProvider {
             }
             Token::FederationDomainScope(ref mut data) => {
                 if data.domain.is_none() {
-                    let domain = provider
+                    let domain = state
+                        .provider
                         .get_resource_provider()
-                        .get_domain(db, &data.domain_id)
+                        .get_domain(&state.db, &data.domain_id)
                         .await?;
 
                     data.domain = domain;
@@ -669,9 +675,10 @@ impl TokenApi for TokenProvider {
             }
             Token::Restricted(ref mut data) => {
                 if data.project.is_none() {
-                    let project = provider
+                    let project = state
+                        .provider
                         .get_resource_provider()
-                        .get_project(db, &data.project_id)
+                        .get_project(&state.db, &data.project_id)
                         .await?;
 
                     data.project = project;
@@ -680,9 +687,8 @@ impl TokenApi for TokenProvider {
 
             _ => {}
         };
-        self.expand_user_information(&mut new_token, db, provider)
-            .await?;
-        self.populate_role_assignments(&mut new_token, db, provider)
+        self.expand_user_information(state, &mut new_token).await?;
+        self.populate_role_assignments(state, &mut new_token)
             .await?;
         Ok(new_token)
     }
@@ -690,52 +696,52 @@ impl TokenApi for TokenProvider {
     /// Get the token restriction by the ID.
     async fn get_token_restriction<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         expand_roles: bool,
     ) -> Result<Option<TokenRestriction>, TokenProviderError> {
-        token_restriction::get(db, id, expand_roles).await
+        token_restriction::get(&state.db, id, expand_roles).await
     }
 
     /// Create new token restriction.
     async fn create_token_restriction<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         restriction: TokenRestrictionCreate,
     ) -> Result<TokenRestriction, TokenProviderError> {
         let mut restriction = restriction;
         if restriction.id.is_empty() {
             restriction.id = Uuid::new_v4().simple().to_string();
         }
-        token_restriction::create(db, restriction).await
+        token_restriction::create(&state.db, restriction).await
     }
 
     /// List token restrictions.
     async fn list_token_restrictions<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &TokenRestrictionListParameters,
     ) -> Result<Vec<TokenRestriction>, TokenProviderError> {
-        token_restriction::list(db, params).await
+        token_restriction::list(&state.db, params).await
     }
 
     /// Update existing token restriction.
     async fn update_token_restriction<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         restriction: TokenRestrictionUpdate,
     ) -> Result<TokenRestriction, TokenProviderError> {
-        token_restriction::update(db, id, restriction).await
+        token_restriction::update(&state.db, id, restriction).await
     }
 
     /// Delete token restriction by the ID.
     async fn delete_token_restriction<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), TokenProviderError> {
-        token_restriction::delete(db, id).await
+        token_restriction::delete(&state.db, id).await
     }
 }
 
@@ -746,6 +752,7 @@ mod tests {
     use sea_orm::DatabaseConnection;
     use std::fs::File;
     use std::io::Write;
+    use std::sync::Arc;
     use tempfile::tempdir;
     use uuid::Uuid;
 
@@ -754,10 +761,10 @@ mod tests {
         MockAssignmentProvider,
         types::{Assignment, AssignmentType, Role, RoleAssignmentListParameters},
     };
-    use crate::revoke::MockRevokeProvider;
-
     use crate::config::Config;
-
+    use crate::keystone::Service;
+    use crate::provider::Provider;
+    use crate::revoke::MockRevokeProvider;
     use crate::token::{DomainScopePayload, ProjectScopePayload, Token, UnscopedPayload};
 
     pub(super) fn setup_config() -> Config {
@@ -797,7 +804,6 @@ mod tests {
     #[tokio::test]
     async fn test_populate_role_assignments() {
         let token_provider = TokenProvider::new(&Config::default()).unwrap();
-        let db = DatabaseConnection::Disconnected;
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_role_assignments()
@@ -834,13 +840,23 @@ mod tests {
             .build()
             .unwrap();
 
+        let state = Arc::new(
+            Service::new(
+                Config::default(),
+                DatabaseConnection::Disconnected,
+                provider,
+                crate::policy::MockPolicyFactory::new(),
+            )
+            .unwrap(),
+        );
+
         let mut ptoken = Token::ProjectScope(ProjectScopePayload {
             user_id: "bar".into(),
             project_id: "project_id".into(),
             ..Default::default()
         });
         token_provider
-            .populate_role_assignments(&mut ptoken, &db, &provider)
+            .populate_role_assignments(&state, &mut ptoken)
             .await
             .unwrap();
 
@@ -863,7 +879,7 @@ mod tests {
             ..Default::default()
         });
         token_provider
-            .populate_role_assignments(&mut dtoken, &db, &provider)
+            .populate_role_assignments(&state, &mut dtoken)
             .await
             .unwrap();
 
@@ -886,7 +902,7 @@ mod tests {
         });
         assert!(
             token_provider
-                .populate_role_assignments(&mut utoken, &db, &provider)
+                .populate_role_assignments(&state, &mut utoken)
                 .await
                 .is_ok()
         );
@@ -908,15 +924,23 @@ mod tests {
             //    *t == token_clone
             //})
             .returning(|_, _| Ok(true));
-        let db = DatabaseConnection::Disconnected;
         let provider = Provider::mocked_builder()
             .revoke(revoke_provider)
             .build()
             .unwrap();
+        let state = Arc::new(
+            Service::new(
+                config,
+                DatabaseConnection::Disconnected,
+                provider,
+                crate::policy::MockPolicyFactory::new(),
+            )
+            .unwrap(),
+        );
 
         let credential = token_provider.encode_token(&token).unwrap();
         match token_provider
-            .validate_token(&provider, &db, &credential, Some(false), None)
+            .validate_token(&state, &credential, Some(false), None)
             .await
         {
             Err(TokenProviderError::TokenRevoked) => {}

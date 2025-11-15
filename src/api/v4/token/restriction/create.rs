@@ -64,7 +64,7 @@ pub(super) async fn create(
     let res = state
         .provider
         .get_token_provider()
-        .create_token_restriction(&state.db, req.into())
+        .create_token_restriction(&state, req.into())
         .await
         .map_err(KeystoneApiError::token)?;
     Ok((StatusCode::CREATED, res).into_response())
@@ -77,7 +77,7 @@ mod tests {
         http::{Request, StatusCode, header},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
+
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
     use tracing_test::traced_test;
@@ -96,19 +96,17 @@ mod tests {
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_create_token_restriction()
-            .withf(
-                |_: &DatabaseConnection, req: &provider_types::TokenRestrictionCreate| {
-                    provider_types::TokenRestrictionCreate {
-                        id: String::new(),
-                        domain_id: "did".into(),
-                        user_id: Some("uid".into()),
-                        project_id: Some("pid".into()),
-                        allow_renew: true,
-                        allow_rescope: true,
-                        role_ids: vec!["r1".into()],
-                    } == *req
-                },
-            )
+            .withf(|_, req: &provider_types::TokenRestrictionCreate| {
+                provider_types::TokenRestrictionCreate {
+                    id: String::new(),
+                    domain_id: "did".into(),
+                    user_id: Some("uid".into()),
+                    project_id: Some("pid".into()),
+                    allow_renew: true,
+                    allow_rescope: true,
+                    role_ids: vec!["r1".into()],
+                } == *req
+            })
             .returning(|_, _| {
                 Ok(provider_types::TokenRestriction {
                     user_id: Some("uid".into()),

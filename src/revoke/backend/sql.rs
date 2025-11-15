@@ -16,12 +16,12 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use derive_builder::Builder;
-use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 
 use super::RevokeBackend;
 use crate::config::Config;
 use crate::db::entity::revocation_event as db_revocation_event;
+use crate::keystone::ServiceState;
 use crate::revoke::RevokeProviderError;
 use crate::revoke::backend::error::RevokeDatabaseError;
 use crate::token::types::Token;
@@ -69,11 +69,11 @@ impl RevokeBackend for SqlBackend {
     /// at least one such record.
     async fn is_token_revoked(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         token: &Token,
     ) -> Result<bool, RevokeProviderError> {
         // Check for the token revocation events.
-        if list::count(db, &token.try_into()?).await? > 0 {
+        if list::count(&state.db, &token.try_into()?).await? > 0 {
             Ok(true)
         } else {
             Ok(false)

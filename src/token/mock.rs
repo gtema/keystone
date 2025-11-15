@@ -15,12 +15,11 @@
 
 use async_trait::async_trait;
 use mockall::mock;
-use sea_orm::DatabaseConnection;
 
 use super::error::TokenProviderError;
 use crate::auth::{AuthenticatedInfo, AuthzInfo};
 use crate::config::Config;
-use crate::provider::Provider;
+use crate::keystone::ServiceState;
 
 use super::{
     Token, TokenApi, TokenRestriction, TokenRestrictionCreate, TokenRestrictionListParameters,
@@ -36,8 +35,7 @@ mock! {
     impl TokenApi for TokenProvider {
         async fn authenticate_by_token<'a>(
             &self,
-            provider: &Provider,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             credential: &'a str,
             allow_expired: Option<bool>,
             window_seconds: Option<i64>,
@@ -45,8 +43,7 @@ mock! {
 
         async fn validate_token<'a>(
             &self,
-            provider: &Provider,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             credential: &'a str,
             allow_expired: Option<bool>,
             window_seconds: Option<i64>,
@@ -64,47 +61,45 @@ mock! {
 
         async fn populate_role_assignments(
             &self,
+            state: &ServiceState,
             token: &mut Token,
-            db: &DatabaseConnection,
-            provider: &Provider,
         ) -> Result<(), TokenProviderError>;
 
         async fn expand_token_information(
             &self,
+            state: &ServiceState,
             token: &Token,
-            db: &DatabaseConnection,
-            provider: &Provider,
         ) -> Result<Token, TokenProviderError>;
 
         async fn get_token_restriction<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
             expand_roles: bool,
         ) -> Result<Option<TokenRestriction>, TokenProviderError>;
 
         async fn list_token_restrictions<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             params: &TokenRestrictionListParameters,
         ) -> Result<Vec<TokenRestriction>, TokenProviderError>;
 
         async fn create_token_restriction<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             restriction: TokenRestrictionCreate,
         ) -> Result<TokenRestriction, TokenProviderError>;
 
         async fn update_token_restriction<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
             restriction: TokenRestrictionUpdate,
         ) -> Result<TokenRestriction, TokenProviderError>;
 
         async fn delete_token_restriction<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<(), TokenProviderError>;
     }
@@ -112,5 +107,4 @@ mock! {
     impl Clone for TokenProvider {
         fn clone(&self) -> Self;
     }
-
 }
