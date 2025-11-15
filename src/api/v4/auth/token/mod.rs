@@ -658,7 +658,7 @@ mod tests {
         let mut catalog_mock = MockCatalogProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .returning(|_, _, _| Ok(Vec::new()));
+            .returning(|_, _| Ok(Vec::new()));
 
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock

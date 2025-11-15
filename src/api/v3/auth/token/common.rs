@@ -362,7 +362,7 @@ mod tests {
             });
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock.expect_list_role_assignments().returning(
-            |_, _, q: &RoleAssignmentListParameters| {
+            |_, q: &RoleAssignmentListParameters| {
                 Ok(vec![Assignment {
                     role_id: "rid".into(),
                     role_name: Some("role_name".into()),

@@ -458,8 +458,7 @@ impl TokenApi for TokenProvider {
                         .provider
                         .get_assignment_provider()
                         .list_role_assignments(
-                            &state.db,
-                            &state.provider,
+                            state,
                             &RoleAssignmentListParametersBuilder::default()
                                 .user_id(&data.user_id)
                                 .project_id(&data.project_id)
@@ -487,8 +486,7 @@ impl TokenApi for TokenProvider {
                         .provider
                         .get_assignment_provider()
                         .list_role_assignments(
-                            &state.db,
-                            &state.provider,
+                            state,
                             &RoleAssignmentListParametersBuilder::default()
                                 .user_id(&data.user_id)
                                 .domain_id(&data.domain_id)
@@ -515,8 +513,7 @@ impl TokenApi for TokenProvider {
                     .provider
                     .get_assignment_provider()
                     .list_role_assignments(
-                        &state.db,
-                        &state.provider,
+                        state,
                         &RoleAssignmentListParametersBuilder::default()
                             .user_id(&data.user_id)
                             .project_id(&data.project_id)
@@ -543,8 +540,7 @@ impl TokenApi for TokenProvider {
                         .provider
                         .get_assignment_provider()
                         .list_role_assignments(
-                            &state.db,
-                            &state.provider,
+                            state,
                             &RoleAssignmentListParametersBuilder::default()
                                 .user_id(&data.user_id)
                                 .project_id(&data.project_id)
@@ -572,8 +568,7 @@ impl TokenApi for TokenProvider {
                         .provider
                         .get_assignment_provider()
                         .list_role_assignments(
-                            &state.db,
-                            &state.provider,
+                            state,
                             &RoleAssignmentListParametersBuilder::default()
                                 .user_id(&data.user_id)
                                 .domain_id(&data.domain_id)
@@ -807,10 +802,10 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .withf(|_, _, q: &RoleAssignmentListParameters| {
+            .withf(|_, q: &RoleAssignmentListParameters| {
                 q.project_id == Some("project_id".to_string())
             })
-            .returning(|_, _, q: &RoleAssignmentListParameters| {
+            .returning(|_, q: &RoleAssignmentListParameters| {
                 Ok(vec![Assignment {
                     role_id: "rid".into(),
                     role_name: Some("role_name".into()),
@@ -822,10 +817,10 @@ mod tests {
             });
         assignment_mock
             .expect_list_role_assignments()
-            .withf(|_, _, q: &RoleAssignmentListParameters| {
+            .withf(|_, q: &RoleAssignmentListParameters| {
                 q.domain_id == Some("domain_id".to_string())
             })
-            .returning(|_, _, q: &RoleAssignmentListParameters| {
+            .returning(|_, q: &RoleAssignmentListParameters| {
                 Ok(vec![Assignment {
                     role_id: "rid".into(),
                     role_name: Some("role_name".into()),

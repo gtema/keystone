@@ -14,7 +14,6 @@
 use async_trait::async_trait;
 #[cfg(test)]
 use mockall::mock;
-use sea_orm::DatabaseConnection;
 
 pub mod backends;
 pub mod error;
@@ -28,8 +27,8 @@ use crate::assignment::types::{
 };
 use crate::config::Config;
 use crate::identity::IdentityApi;
+use crate::keystone::ServiceState;
 use crate::plugin_manager::PluginManager;
-use crate::provider::Provider;
 
 #[derive(Clone, Debug)]
 pub struct AssignmentProvider {
@@ -41,22 +40,21 @@ pub trait AssignmentApi: Send + Sync + Clone {
     /// List Roles
     async fn list_roles(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &RoleListParameters,
     ) -> Result<impl IntoIterator<Item = Role>, AssignmentProviderError>;
 
     /// Get a single role
     async fn get_role<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         role_id: &'a str,
     ) -> Result<Option<Role>, AssignmentProviderError>;
 
     /// List role assignments for given target/role/actor
     async fn list_role_assignments(
         &self,
-        db: &DatabaseConnection,
-        provider: &Provider,
+        state: &ServiceState,
         params: &RoleAssignmentListParameters,
     ) -> Result<impl IntoIterator<Item = Assignment>, AssignmentProviderError>;
 }
@@ -71,20 +69,19 @@ mock! {
     impl AssignmentApi for AssignmentProvider {
         async fn list_roles(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             params: &RoleListParameters,
         ) -> Result<Vec<Role>, AssignmentProviderError>;
 
         async fn get_role<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<Option<Role>, AssignmentProviderError>;
 
         async fn list_role_assignments(
             &self,
-            db: &DatabaseConnection,
-            provider: &Provider,
+            state: &ServiceState,
             params: &RoleAssignmentListParameters,
         ) -> Result<Vec<Assignment>, AssignmentProviderError>;
     }
@@ -121,31 +118,30 @@ impl AssignmentProvider {
 #[async_trait]
 impl AssignmentApi for AssignmentProvider {
     /// List roles
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_roles(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &RoleListParameters,
     ) -> Result<impl IntoIterator<Item = Role>, AssignmentProviderError> {
-        self.backend_driver.list_roles(db, params).await
+        self.backend_driver.list_roles(state, params).await
     }
 
     /// Get single role
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_role<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Role>, AssignmentProviderError> {
-        self.backend_driver.get_role(db, id).await
+        self.backend_driver.get_role(state, id).await
     }
 
     /// List role assignments
-    #[tracing::instrument(level = "info", skip(self, db, provider))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_role_assignments(
         &self,
-        db: &DatabaseConnection,
-        provider: &Provider,
+        state: &ServiceState,
         params: &RoleAssignmentListParameters,
     ) -> Result<impl IntoIterator<Item = Assignment>, AssignmentProviderError> {
         if let Some(true) = &params.effective {
@@ -161,9 +157,10 @@ impl AssignmentApi for AssignmentProvider {
             if let Some(true) = &params.effective
                 && let Some(uid) = &params.user_id
             {
-                let users = provider
+                let users = state
+                    .provider
                     .get_identity_provider()
-                    .list_groups_of_user(db, uid)
+                    .list_groups_of_user(&state.db, uid)
                     .await?;
                 actors.extend(users.into_iter().map(|x| x.id));
             };
@@ -176,10 +173,10 @@ impl AssignmentApi for AssignmentProvider {
             request.targets(targets);
             request.actors(actors);
             self.backend_driver
-                .list_assignments_for_multiple_actors_and_targets(db, &request.build()?)
+                .list_assignments_for_multiple_actors_and_targets(state, &request.build()?)
                 .await
         } else {
-            self.backend_driver.list_assignments(db, params).await
+            self.backend_driver.list_assignments(state, params).await
         }
     }
 }

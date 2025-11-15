@@ -91,8 +91,8 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .withf(|_: &DatabaseConnection, _: &Provider, _: &RoleAssignmentListParameters| true)
-            .returning(|_, _, _| {
+            .withf(|_, _: &RoleAssignmentListParameters| true)
+            .returning(|_, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     role_name: Some("rn".into()),
@@ -146,17 +146,15 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .withf(
-                |_: &DatabaseConnection, _: &Provider, qp: &RoleAssignmentListParameters| {
-                    RoleAssignmentListParameters {
-                        role_id: Some("role".into()),
-                        user_id: Some("user1".into()),
-                        project_id: Some("project1".into()),
-                        ..Default::default()
-                    } == *qp
-                },
-            )
-            .returning(|_, _, _| {
+            .withf(|_, qp: &RoleAssignmentListParameters| {
+                RoleAssignmentListParameters {
+                    role_id: Some("role".into()),
+                    user_id: Some("user1".into()),
+                    project_id: Some("project1".into()),
+                    ..Default::default()
+                } == *qp
+            })
+            .returning(|_, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     role_name: None,
@@ -169,17 +167,15 @@ mod tests {
 
         assignment_mock
             .expect_list_role_assignments()
-            .withf(
-                |_: &DatabaseConnection, _: &Provider, qp: &RoleAssignmentListParameters| {
-                    RoleAssignmentListParameters {
-                        role_id: Some("role".into()),
-                        user_id: Some("user2".into()),
-                        domain_id: Some("domain2".into()),
-                        ..Default::default()
-                    } == *qp
-                },
-            )
-            .returning(|_, _, _| {
+            .withf(|_, qp: &RoleAssignmentListParameters| {
+                RoleAssignmentListParameters {
+                    role_id: Some("role".into()),
+                    user_id: Some("user2".into()),
+                    domain_id: Some("domain2".into()),
+                    ..Default::default()
+                } == *qp
+            })
+            .returning(|_, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     role_name: None,
@@ -192,16 +188,14 @@ mod tests {
 
         assignment_mock
             .expect_list_role_assignments()
-            .withf(
-                |_: &DatabaseConnection, _: &Provider, qp: &RoleAssignmentListParameters| {
-                    RoleAssignmentListParameters {
-                        group_id: Some("group3".into()),
-                        project_id: Some("project3".into()),
-                        ..Default::default()
-                    } == *qp
-                },
-            )
-            .returning(|_, _, _| {
+            .withf(|_, qp: &RoleAssignmentListParameters| {
+                RoleAssignmentListParameters {
+                    group_id: Some("group3".into()),
+                    project_id: Some("project3".into()),
+                    ..Default::default()
+                } == *qp
+            })
+            .returning(|_, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
                     role_name: None,
