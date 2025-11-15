@@ -14,8 +14,8 @@
 //! Token revocation types definitions.
 
 use async_trait::async_trait;
-use sea_orm::DatabaseConnection;
 
+use crate::keystone::ServiceState;
 use crate::revoke::RevokeProviderError;
 use crate::token::types::Token;
 
@@ -28,7 +28,7 @@ pub trait RevokeApi: Send + Sync + Clone {
     /// more than `0`.
     async fn is_token_revoked(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         token: &Token,
     ) -> Result<bool, RevokeProviderError>;
 }

@@ -64,7 +64,7 @@ pub(super) async fn update(
     let current = state
         .provider
         .get_token_provider()
-        .get_token_restriction(&state.db, &id, false)
+        .get_token_restriction(&state, &id, false)
         .await?;
 
     policy
@@ -79,7 +79,7 @@ pub(super) async fn update(
     let res = state
         .provider
         .get_token_provider()
-        .update_token_restriction(&state.db, &id, req.into())
+        .update_token_restriction(&state, &id, req.into())
         .await
         .map_err(KeystoneApiError::token)?;
     Ok(res.into_response())
@@ -92,7 +92,7 @@ mod tests {
         http::{Request, StatusCode, header},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
+
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
     use tracing_test::traced_test;
@@ -110,7 +110,7 @@ mod tests {
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_get_token_restriction()
-            .withf(|_: &DatabaseConnection, id: &'_ str, expand: &bool| id == "1" && !expand)
+            .withf(|_, id: &'_ str, expand: &bool| id == "1" && !expand)
             .returning(|_, _, _| {
                 Ok(Some(provider_types::TokenRestriction {
                     id: "1".into(),
@@ -126,9 +126,7 @@ mod tests {
         token_mock
             .expect_update_token_restriction()
             .withf(
-                |_: &DatabaseConnection,
-                 id: &'_ str,
-                 req: &provider_types::TokenRestrictionUpdate| {
+                |_, id: &'_ str, req: &provider_types::TokenRestrictionUpdate| {
                     id == "1"
                         && provider_types::TokenRestrictionUpdate {
                             project_id: Some(Some("new_pid".into())),

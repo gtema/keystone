@@ -99,17 +99,15 @@ mod tests {
 
     fn get_mocked_state(assignment_mock: MockAssignmentProvider) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
-        token_mock
-            .expect_validate_token()
-            .returning(|_, _, _, _, _| {
-                Ok(Token::Unscoped(UnscopedPayload {
-                    user_id: "bar".into(),
-                    ..Default::default()
-                }))
-            });
+        token_mock.expect_validate_token().returning(|_, _, _, _| {
+            Ok(Token::Unscoped(UnscopedPayload {
+                user_id: "bar".into(),
+                ..Default::default()
+            }))
+        });
         token_mock
             .expect_expand_token_information()
-            .returning(|_, _, _| {
+            .returning(|_, _| {
                 Ok(Token::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
                     ..Default::default()
@@ -138,7 +136,7 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .withf(|_: &DatabaseConnection, _: &Provider, _: &RoleAssignmentListParameters| true)
+            .withf(|_, _, _s| true)
             .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
@@ -193,16 +191,14 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_role_assignments()
-            .withf(
-                |_: &DatabaseConnection, _: &Provider, qp: &RoleAssignmentListParameters| {
-                    RoleAssignmentListParameters {
-                        role_id: Some("role".into()),
-                        user_id: Some("user1".into()),
-                        project_id: Some("project1".into()),
-                        ..Default::default()
-                    } == *qp
-                },
-            )
+            .withf(|_, _, qp: &RoleAssignmentListParameters| {
+                RoleAssignmentListParameters {
+                    role_id: Some("role".into()),
+                    user_id: Some("user1".into()),
+                    project_id: Some("project1".into()),
+                    ..Default::default()
+                } == *qp
+            })
             .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
@@ -216,16 +212,14 @@ mod tests {
 
         assignment_mock
             .expect_list_role_assignments()
-            .withf(
-                |_: &DatabaseConnection, _: &Provider, qp: &RoleAssignmentListParameters| {
-                    RoleAssignmentListParameters {
-                        role_id: Some("role".into()),
-                        user_id: Some("user2".into()),
-                        domain_id: Some("domain2".into()),
-                        ..Default::default()
-                    } == *qp
-                },
-            )
+            .withf(|_, _, qp: &RoleAssignmentListParameters| {
+                RoleAssignmentListParameters {
+                    role_id: Some("role".into()),
+                    user_id: Some("user2".into()),
+                    domain_id: Some("domain2".into()),
+                    ..Default::default()
+                } == *qp
+            })
             .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),
@@ -239,15 +233,13 @@ mod tests {
 
         assignment_mock
             .expect_list_role_assignments()
-            .withf(
-                |_: &DatabaseConnection, _: &Provider, qp: &RoleAssignmentListParameters| {
-                    RoleAssignmentListParameters {
-                        group_id: Some("group3".into()),
-                        project_id: Some("project3".into()),
-                        ..Default::default()
-                    } == *qp
-                },
-            )
+            .withf(|_, _, qp: &RoleAssignmentListParameters| {
+                RoleAssignmentListParameters {
+                    group_id: Some("group3".into()),
+                    project_id: Some("project3".into()),
+                    ..Default::default()
+                } == *qp
+            })
             .returning(|_, _, _| {
                 Ok(vec![Assignment {
                     role_id: "role".into(),

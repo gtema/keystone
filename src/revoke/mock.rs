@@ -16,13 +16,14 @@
 use async_trait::async_trait;
 #[cfg(test)]
 use mockall::mock;
-use sea_orm::DatabaseConnection;
 
 use crate::config::Config;
 use crate::plugin_manager::PluginManager;
 use crate::revoke::RevokeApi;
 use crate::revoke::error::RevokeProviderError;
 use crate::token::types::Token;
+
+use crate::keystone::ServiceState;
 
 #[cfg(test)]
 mock! {
@@ -34,7 +35,7 @@ mock! {
     impl RevokeApi for RevokeProvider {
         async fn is_token_revoked(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             token: &Token,
         ) -> Result<bool, RevokeProviderError>;
     }

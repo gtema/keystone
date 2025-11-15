@@ -72,7 +72,7 @@ pub(super) async fn list(
     let token_restrictions: Vec<TokenRestriction> = state
         .provider
         .get_token_provider()
-        .list_token_restrictions(&state.db, &provider_list_params)
+        .list_token_restrictions(&state, &provider_list_params)
         .await?
         .into_iter()
         .map(Into::into)
@@ -89,7 +89,6 @@ mod tests {
         http::{Request, StatusCode},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
@@ -109,9 +108,7 @@ mod tests {
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_list_token_restrictions()
-            .withf(
-                |_: &DatabaseConnection, _: &provider_types::TokenRestrictionListParameters| true,
-            )
+            .withf(|_, _: &provider_types::TokenRestrictionListParameters| true)
             .returning(|_, _| {
                 Ok(vec![provider_types::TokenRestriction {
                     user_id: Some("uid".into()),
@@ -186,15 +183,13 @@ mod tests {
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_list_token_restrictions()
-            .withf(
-                |_: &DatabaseConnection, qp: &provider_types::TokenRestrictionListParameters| {
-                    provider_types::TokenRestrictionListParameters {
-                        domain_id: Some("did".into()),
-                        user_id: Some("uid".into()),
-                        project_id: Some("pid".into()),
-                    } == *qp
-                },
-            )
+            .withf(|_, qp: &provider_types::TokenRestrictionListParameters| {
+                provider_types::TokenRestrictionListParameters {
+                    domain_id: Some("did".into()),
+                    user_id: Some("uid".into()),
+                    project_id: Some("pid".into()),
+                } == *qp
+            })
             .returning(|_, _| {
                 Ok(vec![provider_types::TokenRestriction {
                     user_id: Some("uid".into()),

@@ -15,9 +15,9 @@
 
 use async_trait::async_trait;
 use dyn_clone::DynClone;
-use sea_orm::DatabaseConnection;
 
 use crate::config::Config;
+use crate::keystone::ServiceState;
 use crate::revoke::RevokeProviderError;
 use crate::token::types::Token;
 
@@ -34,7 +34,7 @@ pub trait RevokeBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// Check whether there are existing revocation records that invalidate the token.
     async fn is_token_revoked(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         token: &Token,
     ) -> Result<bool, RevokeProviderError>;
 }

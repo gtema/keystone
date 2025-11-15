@@ -58,17 +58,15 @@ mod tests {
 
     fn get_mocked_state(assignment_mock: MockAssignmentProvider) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
-        token_mock
-            .expect_validate_token()
-            .returning(|_, _, _, _, _| {
-                Ok(Token::Unscoped(UnscopedPayload {
-                    user_id: "bar".into(),
-                    ..Default::default()
-                }))
-            });
+        token_mock.expect_validate_token().returning(|_, _, _, _| {
+            Ok(Token::Unscoped(UnscopedPayload {
+                user_id: "bar".into(),
+                ..Default::default()
+            }))
+        });
         token_mock
             .expect_expand_token_information()
-            .returning(|_, _, _| {
+            .returning(|_, _| {
                 Ok(Token::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
                     ..Default::default()
@@ -97,7 +95,7 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_roles()
-            .withf(|_: &DatabaseConnection, _: &RoleListParameters| true)
+            .withf(|_, _: &RoleListParameters| true)
             .returning(|_, _| {
                 Ok(vec![Role {
                     id: "1".into(),
@@ -146,7 +144,7 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_list_roles()
-            .withf(|_: &DatabaseConnection, qp: &RoleListParameters| {
+            .withf(|_, qp: &RoleListParameters| {
                 RoleListParameters {
                     domain_id: Some("domain".into()),
                     name: Some("name".into()),
@@ -200,12 +198,12 @@ mod tests {
         let mut assignment_mock = MockAssignmentProvider::default();
         assignment_mock
             .expect_get_role()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
 
         assignment_mock
             .expect_get_role()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(Role {
                     id: "bar".into(),

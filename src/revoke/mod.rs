@@ -37,7 +37,6 @@
 //!
 
 use async_trait::async_trait;
-use sea_orm::DatabaseConnection;
 
 pub mod backend;
 pub mod error;
@@ -46,6 +45,7 @@ mod mock;
 pub(crate) mod types;
 
 use crate::config::Config;
+use crate::keystone::ServiceState;
 use crate::plugin_manager::PluginManager;
 use crate::revoke::backend::{RevokeBackend, sql::SqlBackend};
 use crate::revoke::error::RevokeProviderError;
@@ -53,7 +53,6 @@ use crate::token::types::Token;
 
 #[cfg(test)]
 pub use mock::MockRevokeProvider;
-
 pub use types::*;
 
 /// Revoke provider.
@@ -92,12 +91,12 @@ impl RevokeApi for RevokeProvider {
     ///
     /// Checks revocation events matching the token parameters and return `false` if their count is
     /// more than `0`.
-    #[tracing::instrument(level = "info", skip(self, db, token))]
+    #[tracing::instrument(level = "info", skip(self, state, token))]
     async fn is_token_revoked(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         token: &Token,
     ) -> Result<bool, RevokeProviderError> {
-        self.backend_driver.is_token_revoked(db, token).await
+        self.backend_driver.is_token_revoked(state, token).await
     }
 }

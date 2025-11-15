@@ -14,10 +14,9 @@
 //! Token provider types.
 
 use async_trait::async_trait;
-use sea_orm::DatabaseConnection;
 
 use crate::auth::{AuthenticatedInfo, AuthzInfo};
-use crate::provider::Provider;
+use crate::keystone::ServiceState;
 use crate::token::TokenProviderError;
 
 use super::*;
@@ -25,10 +24,10 @@ use super::*;
 /// Token Provider interface.
 #[async_trait]
 pub trait TokenApi: Send + Sync + Clone {
+    /// Authenticate using the existing token.
     async fn authenticate_by_token<'a>(
         &self,
-        provider: &Provider,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
@@ -37,8 +36,7 @@ pub trait TokenApi: Send + Sync + Clone {
     /// Validate the token
     async fn validate_token<'a>(
         &self,
-        provider: &Provider,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
@@ -58,24 +56,22 @@ pub trait TokenApi: Send + Sync + Clone {
     /// Populate role assignments in the token that support that information
     async fn populate_role_assignments(
         &self,
+        state: &ServiceState,
         token: &mut Token,
-        db: &DatabaseConnection,
-        provider: &Provider,
     ) -> Result<(), TokenProviderError>;
 
     /// Populate additional information (project, domain, roles, etc) in the token that support
     /// that information
     async fn expand_token_information(
         &self,
+        state: &ServiceState,
         token: &Token,
-        db: &DatabaseConnection,
-        provider: &Provider,
     ) -> Result<Token, TokenProviderError>;
 
     /// Get the token restriction by the ID.
     async fn get_token_restriction<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         expand_roles: bool,
     ) -> Result<Option<TokenRestriction>, TokenProviderError>;
@@ -83,21 +79,21 @@ pub trait TokenApi: Send + Sync + Clone {
     /// Create new token restriction.
     async fn create_token_restriction<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         restriction: TokenRestrictionCreate,
     ) -> Result<TokenRestriction, TokenProviderError>;
 
     /// List token restrictions.
     async fn list_token_restrictions<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &TokenRestrictionListParameters,
     ) -> Result<Vec<TokenRestriction>, TokenProviderError>;
 
     /// Update token restriction by the ID.
     async fn update_token_restriction<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         restriction: TokenRestrictionUpdate,
     ) -> Result<TokenRestriction, TokenProviderError>;
@@ -105,7 +101,7 @@ pub trait TokenApi: Send + Sync + Clone {
     /// Delete token restriction by the ID.
     async fn delete_token_restriction<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), TokenProviderError>;
 }

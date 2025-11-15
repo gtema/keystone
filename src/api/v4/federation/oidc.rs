@@ -123,7 +123,7 @@ pub async fn callback(
         state
             .provider
             .get_token_provider()
-            .get_token_restriction(&state.db, tr_id, true)
+            .get_token_restriction(&state, tr_id, true)
             .await?
     } else {
         None
@@ -306,7 +306,7 @@ pub async fn callback(
     token = state
         .provider
         .get_token_provider()
-        .expand_token_information(&token, &state.db, &state.provider)
+        .expand_token_information(&state, &token)
         .await
         .map_err(|_| KeystoneApiError::Forbidden)?;
 

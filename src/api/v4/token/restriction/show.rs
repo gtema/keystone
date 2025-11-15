@@ -59,7 +59,7 @@ pub(super) async fn show(
     let current = state
         .provider
         .get_token_provider()
-        .get_token_restriction(&state.db, &id, true)
+        .get_token_restriction(&state, &id, true)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
