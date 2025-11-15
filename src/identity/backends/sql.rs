@@ -41,6 +41,7 @@ use crate::db::entity::{
 use crate::identity::IdentityProviderError;
 use crate::identity::backends::error::{IdentityDatabaseError, db_err};
 use crate::identity::password_hashing;
+use crate::keystone::ServiceState;
 
 #[derive(Clone, Debug, Default)]
 pub struct SqlBackend {
@@ -59,11 +60,11 @@ impl IdentityBackend for SqlBackend {
     /// Authenticate a user by a password
     async fn authenticate_by_password(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         auth: UserPasswordAuthRequest,
     ) -> Result<AuthenticatedInfo, IdentityProviderError> {
         let user_with_passwords = local_user::load_local_user_with_passwords(
-            db,
+            &state.db,
             auth.id,
             auth.name,
             auth.domain.and_then(|x| x.id),
@@ -74,10 +75,10 @@ impl IdentityBackend for SqlBackend {
             if let Some(latest_password) = passwords.first()
                 && let Some(expected_hash) = &latest_password.password_hash
             {
-                let user_opts = user_option::get(db, local_user.user_id.clone()).await?;
+                let user_opts = user_option::get(&state.db, local_user.user_id.clone()).await?;
 
                 if password_hashing::verify_password(&self.config, auth.password, expected_hash)? {
-                    if let Some(user) = user::get(db, &local_user.user_id).await? {
+                    if let Some(user) = user::get(&state.db, &local_user.user_id).await? {
                         // TODO: Check password is expired
                         // TODO: reset failed login attempt
                         let user_builder = common::get_local_user_builder(
@@ -104,242 +105,242 @@ impl IdentityBackend for SqlBackend {
     }
 
     /// Fetch users from the database
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn list_users(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &UserListParameters,
     ) -> Result<Vec<UserResponse>, IdentityProviderError> {
-        Ok(list_users(&self.config, db, params).await?)
+        Ok(list_users(&self.config, &state.db, params).await?)
     }
 
     /// Get single user by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Option<UserResponse>, IdentityProviderError> {
-        Ok(get_user(&self.config, db, user_id).await?)
+        Ok(get_user(&self.config, &state.db, user_id).await?)
     }
 
     /// Find federated user by IDP and Unique ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn find_federated_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         idp_id: &'a str,
         unique_id: &'a str,
     ) -> Result<Option<UserResponse>, IdentityProviderError> {
-        Ok(find_federated_user(&self.config, db, idp_id, unique_id).await?)
+        Ok(find_federated_user(&self.config, &state.db, idp_id, unique_id).await?)
     }
 
     /// Create user
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_user(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user: UserCreate,
     ) -> Result<UserResponse, IdentityProviderError> {
-        Ok(create_user(&self.config, db, user).await?)
+        Ok(create_user(&self.config, &state.db, user).await?)
     }
 
     /// Delete user
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        Ok(user::delete(&self.config, db, user_id).await?)
+        Ok(user::delete(&self.config, &state.db, user_id).await?)
     }
 
     /// List groups
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn list_groups(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &GroupListParameters,
     ) -> Result<Vec<Group>, IdentityProviderError> {
-        Ok(group::list(&self.config, db, params).await?)
+        Ok(group::list(&self.config, &state.db, params).await?)
     }
 
     /// Get single group by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         group_id: &'a str,
     ) -> Result<Option<Group>, IdentityProviderError> {
-        Ok(group::get(&self.config, db, group_id).await?)
+        Ok(group::get(&self.config, &state.db, group_id).await?)
     }
 
     /// Create group
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_group(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         group: GroupCreate,
     ) -> Result<Group, IdentityProviderError> {
-        Ok(group::create(&self.config, db, group).await?)
+        Ok(group::create(&self.config, &state.db, group).await?)
     }
 
     /// Delete group
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        Ok(group::delete(&self.config, db, group_id).await?)
+        Ok(group::delete(&self.config, &state.db, group_id).await?)
     }
 
     /// List groups a user is member of.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn list_groups_of_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Vec<Group>, IdentityProviderError> {
-        Ok(user_group::list_user_groups(db, user_id).await?)
+        Ok(user_group::list_user_groups(&state.db, user_id).await?)
     }
 
     /// Add the user into the group.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn add_user_to_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        Ok(user_group::add_user_to_group(db, user_id, group_id).await?)
+        Ok(user_group::add_user_to_group(&state.db, user_id, group_id).await?)
     }
 
     /// Add user group membership relations.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn add_users_to_groups<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         memberships: Vec<(&'a str, &'a str)>,
     ) -> Result<(), IdentityProviderError> {
-        Ok(user_group::add_users_to_groups(db, memberships).await?)
+        Ok(user_group::add_users_to_groups(&state.db, memberships).await?)
     }
 
     /// Remove the user from the group.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn remove_user_from_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        Ok(user_group::remove_user_from_group(db, user_id, group_id).await?)
+        Ok(user_group::remove_user_from_group(&state.db, user_id, group_id).await?)
     }
 
     /// Remove the user from multiple groups.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn remove_user_from_groups<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_ids: HashSet<&'a str>,
     ) -> Result<(), IdentityProviderError> {
-        Ok(user_group::remove_user_from_groups(db, user_id, group_ids).await?)
+        Ok(user_group::remove_user_from_groups(&state.db, user_id, group_ids).await?)
     }
 
     /// Set group memberships of the user.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn set_user_groups<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_ids: HashSet<&'a str>,
     ) -> Result<(), IdentityProviderError> {
-        Ok(user_group::set_user_groups(db, user_id, group_ids).await?)
+        Ok(user_group::set_user_groups(&state.db, user_id, group_ids).await?)
     }
 
     /// Create webauthn credential for the user.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_user_webauthn_credential<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         credential: &Passkey,
         description: Option<&'a str>,
     ) -> Result<WebauthnCredential, IdentityProviderError> {
-        Ok(webauthn::credential::create(db, user_id, credential, description, None).await?)
+        Ok(webauthn::credential::create(&state.db, user_id, credential, description, None).await?)
     }
 
     /// List user webauthn credentials.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn list_user_webauthn_credentials<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Vec<Passkey>, IdentityProviderError> {
-        Ok(webauthn::credential::list(db, user_id).await?)
+        Ok(webauthn::credential::list(&state.db, user_id).await?)
     }
 
     /// Save webauthn credential registration state.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_user_webauthn_credential_registration_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
-        state: PasskeyRegistration,
+        reg_state: PasskeyRegistration,
     ) -> Result<(), IdentityProviderError> {
-        Ok(webauthn::state::create_register(db, user_id, state).await?)
+        Ok(webauthn::state::create_register(&state.db, user_id, reg_state).await?)
     }
 
     /// Save webauthn credential auth state.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_user_webauthn_credential_authentication_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
-        state: PasskeyAuthentication,
+        auth_state: PasskeyAuthentication,
     ) -> Result<(), IdentityProviderError> {
-        Ok(webauthn::state::create_auth(db, user_id, state).await?)
+        Ok(webauthn::state::create_auth(&state.db, user_id, auth_state).await?)
     }
 
     /// Get webauthn credential registration state.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_user_webauthn_credential_registration_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Option<PasskeyRegistration>, IdentityProviderError> {
-        Ok(webauthn::state::get_register(db, user_id).await?)
+        Ok(webauthn::state::get_register(&state.db, user_id).await?)
     }
 
     /// Get webauthn credential auth state.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_user_webauthn_credential_authentication_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError> {
-        Ok(webauthn::state::get_auth(db, user_id).await?)
+        Ok(webauthn::state::get_auth(&state.db, user_id).await?)
     }
 
     /// Delete webauthn credential registration state for the user.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_user_webauthn_credential_registration_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        Ok(webauthn::state::delete(db, user_id).await?)
+        Ok(webauthn::state::delete(&state.db, user_id).await?)
     }
 
     /// Delete webauthn credential auth state for a user.
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_user_webauthn_credential_authentication_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        Ok(webauthn::state::delete(db, user_id).await?)
+        Ok(webauthn::state::delete(&state.db, user_id).await?)
     }
 }
 

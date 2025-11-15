@@ -17,11 +17,9 @@ use sea_orm::entity::*;
 
 use crate::catalog::backends::error::{CatalogDatabaseError, db_err};
 use crate::catalog::types::*;
-use crate::config::Config;
 use crate::db::entity::{endpoint as db_endpoint, prelude::Endpoint as DbEndpoint};
 
 pub async fn get<I: AsRef<str>>(
-    _conf: &Config,
     db: &DatabaseConnection,
     id: I,
 ) -> Result<Option<Endpoint>, CatalogDatabaseError> {
@@ -38,8 +36,6 @@ pub async fn get<I: AsRef<str>>(
 mod tests {
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
 
-    use crate::config::Config;
-
     use super::super::tests::get_endpoint_mock;
     use super::*;
 
@@ -52,9 +48,8 @@ mod tests {
                 vec![get_endpoint_mock("1".into())],
             ])
             .into_connection();
-        let config = Config::default();
         assert_eq!(
-            get(&config, &db, "1").await.unwrap().unwrap(),
+            get(&db, "1").await.unwrap().unwrap(),
             Endpoint {
                 id: "1".into(),
                 interface: "public".into(),

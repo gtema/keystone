@@ -43,7 +43,7 @@ impl Token {
             &state
                 .provider
                 .get_identity_provider()
-                .get_user(&state.db, token.user_id())
+                .get_user(state, token.user_id())
                 .await
                 .map_err(KeystoneApiError::identity)?
                 .ok_or_else(|| KeystoneApiError::NotFound {
@@ -88,7 +88,7 @@ impl Token {
                         state
                             .provider
                             .get_resource_provider()
-                            .get_project(&state.db, &token.project_id)
+                            .get_project(state, &token.project_id)
                             .await
                             .map_err(KeystoneApiError::resource)?
                             .ok_or_else(|| KeystoneApiError::NotFound {
@@ -104,7 +104,7 @@ impl Token {
                         state
                             .provider
                             .get_resource_provider()
-                            .get_project(&state.db, &token.project_id)
+                            .get_project(state, &token.project_id)
                             .await
                             .map_err(KeystoneApiError::resource)?
                             .ok_or_else(|| KeystoneApiError::NotFound {
@@ -128,7 +128,7 @@ impl Token {
                         state
                             .provider
                             .get_resource_provider()
-                            .get_project(&state.db, &token.project_id)
+                            .get_project(state, &token.project_id)
                             .await
                             .map_err(KeystoneApiError::resource)?
                             .ok_or_else(|| KeystoneApiError::NotFound {
@@ -144,7 +144,7 @@ impl Token {
                         state
                             .provider
                             .get_resource_provider()
-                            .get_project(&state.db, &token.project_id)
+                            .get_project(state, &token.project_id)
                             .await
                             .map_err(KeystoneApiError::resource)?
                             .ok_or_else(|| KeystoneApiError::NotFound {
@@ -219,7 +219,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(UserResponse {
                     id: "bar".into(),
@@ -231,7 +231,7 @@ mod tests {
         let mut resource_mock = MockResourceProvider::default();
         resource_mock
             .expect_get_domain()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "user_domain_id")
+            .withf(|_, id: &'_ str| id == "user_domain_id")
             .returning(|_, _| {
                 Ok(Some(Domain {
                     id: "user_domain_id".into(),
@@ -274,7 +274,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(UserResponse {
                     id: "bar".into(),
@@ -333,7 +333,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(UserResponse {
                     id: "bar".into(),

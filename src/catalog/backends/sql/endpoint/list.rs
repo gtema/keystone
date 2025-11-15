@@ -18,11 +18,9 @@ use sea_orm::query::*;
 
 use crate::catalog::backends::error::{CatalogDatabaseError, db_err};
 use crate::catalog::types::*;
-use crate::config::Config;
 use crate::db::entity::{endpoint as db_endpoint, prelude::Endpoint as DbEndpoint};
 
 pub async fn list(
-    _conf: &Config,
     db: &DatabaseConnection,
     params: &EndpointListParameters,
 ) -> Result<Vec<Endpoint>, CatalogDatabaseError> {
@@ -54,8 +52,6 @@ pub async fn list(
 mod tests {
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
 
-    use crate::config::Config;
-
     use super::super::tests::get_endpoint_mock;
     use super::*;
 
@@ -66,15 +62,9 @@ mod tests {
             .append_query_results([vec![get_endpoint_mock("1".into())]])
             .append_query_results([vec![get_endpoint_mock("1".into())]])
             .into_connection();
-        let config = Config::default();
-        assert!(
-            list(&config, &db, &EndpointListParameters::default())
-                .await
-                .is_ok()
-        );
+        assert!(list(&db, &EndpointListParameters::default()).await.is_ok());
         assert_eq!(
             list(
-                &config,
                 &db,
                 &EndpointListParameters {
                     interface: Some("public".into()),

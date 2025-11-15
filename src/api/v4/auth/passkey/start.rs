@@ -50,12 +50,12 @@ pub(super) async fn start(
     state
         .provider
         .get_identity_provider()
-        .delete_user_webauthn_credential_authentication_state(&state.db, &req.passkey.user_id)
+        .delete_user_webauthn_credential_authentication_state(&state, &req.passkey.user_id)
         .await?;
     let allow_credentials: Vec<Passkey> = state
         .provider
         .get_identity_provider()
-        .list_user_webauthn_credentials(&state.db, &req.passkey.user_id)
+        .list_user_webauthn_credentials(&state, &req.passkey.user_id)
         .await?
         .into_iter()
         .collect();
@@ -68,7 +68,7 @@ pub(super) async fn start(
                 .provider
                 .get_identity_provider()
                 .save_user_webauthn_credential_authentication_state(
-                    &state.db,
+                    &state,
                     &req.passkey.user_id,
                     auth_state,
                 )

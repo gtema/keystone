@@ -26,6 +26,7 @@ use crate::db::entity::{
     prelude::{Endpoint as DbEndpoint, Service as DbService},
     service as db_service,
 };
+use crate::keystone::ServiceState;
 
 mod endpoint;
 mod service;
@@ -45,53 +46,53 @@ impl CatalogBackend for SqlBackend {
     }
 
     /// List Services
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn list_services(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &ServiceListParameters,
     ) -> Result<Vec<Service>, CatalogProviderError> {
-        Ok(service::list(&self.config, db, params).await?)
+        Ok(service::list(&state.db, params).await?)
     }
 
     /// Get single service by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_service<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Service>, CatalogProviderError> {
-        Ok(service::get(&self.config, db, id).await?)
+        Ok(service::get(&state.db, id).await?)
     }
 
     /// List Endpoints
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn list_endpoints(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &EndpointListParameters,
     ) -> Result<Vec<Endpoint>, CatalogProviderError> {
-        Ok(endpoint::list(&self.config, db, params).await?)
+        Ok(endpoint::list(&state.db, params).await?)
     }
 
     /// Get single endpoint by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_endpoint<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Endpoint>, CatalogProviderError> {
-        Ok(endpoint::get(&self.config, db, id).await?)
+        Ok(endpoint::get(&state.db, id).await?)
     }
 
     /// Get Catalog (Services with Endpoints)
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_catalog(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         enabled: bool,
     ) -> Result<Vec<(Service, Vec<Endpoint>)>, CatalogProviderError> {
-        Ok(get_catalog(db, enabled).await?)
+        Ok(get_catalog(&state.db, enabled).await?)
     }
 }
 

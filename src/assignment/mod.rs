@@ -160,7 +160,7 @@ impl AssignmentApi for AssignmentProvider {
                 let users = state
                     .provider
                     .get_identity_provider()
-                    .list_groups_of_user(&state.db, uid)
+                    .list_groups_of_user(state, uid)
                     .await?;
                 actors.extend(users.into_iter().map(|x| x.id));
             };

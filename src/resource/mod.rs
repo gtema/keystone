@@ -15,13 +15,13 @@
 use async_trait::async_trait;
 #[cfg(test)]
 use mockall::mock;
-use sea_orm::DatabaseConnection;
 
 pub mod backends;
 pub mod error;
 pub(crate) mod types;
 
 use crate::config::Config;
+use crate::keystone::ServiceState;
 use crate::plugin_manager::PluginManager;
 use crate::resource::backends::sql::SqlBackend;
 use crate::resource::error::ResourceProviderError;
@@ -36,25 +36,25 @@ pub struct ResourceProvider {
 pub trait ResourceApi: Send + Sync + Clone {
     async fn get_domain<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError>;
 
     async fn find_domain_by_name<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         domain_name: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError>;
 
     async fn get_project<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         project_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError>;
 
     async fn get_project_by_name<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         name: &'a str,
         domain_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError>;
@@ -70,25 +70,25 @@ mock! {
     impl ResourceApi for ResourceProvider {
         async fn get_domain<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             domain_id: &'a str,
         ) -> Result<Option<Domain>, ResourceProviderError>;
 
-         async fn find_domain_by_name<'a>(
-             &self,
-             db: &DatabaseConnection,
-             domain_name: &'a str,
-         ) -> Result<Option<Domain>, ResourceProviderError>;
+        async fn find_domain_by_name<'a>(
+            &self,
+            state: &ServiceState,
+            domain_name: &'a str,
+        ) -> Result<Option<Domain>, ResourceProviderError>;
 
         async fn get_project<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             project_id: &'a str,
         ) -> Result<Option<Project>, ResourceProviderError>;
 
         async fn get_project_by_name<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             name: &'a str,
             domain_id: &'a str,
         ) -> Result<Option<Project>, ResourceProviderError>;
@@ -127,47 +127,47 @@ impl ResourceProvider {
 #[async_trait]
 impl ResourceApi for ResourceProvider {
     /// Get single domain
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_domain<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError> {
-        self.backend_driver.get_domain(db, domain_id).await
+        self.backend_driver.get_domain(state, domain_id).await
     }
 
     /// Get single domain by its name
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn find_domain_by_name<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         domain_name: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError> {
         self.backend_driver
-            .get_domain_by_name(db, domain_name)
+            .get_domain_by_name(state, domain_name)
             .await
     }
 
     /// Get single project
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_project<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         project_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError> {
-        self.backend_driver.get_project(db, project_id).await
+        self.backend_driver.get_project(state, project_id).await
     }
 
     /// Get single project by Name and Domain ID
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_project_by_name<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         name: &'a str,
         domain_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError> {
         self.backend_driver
-            .get_project_by_name(db, name, domain_id)
+            .get_project_by_name(state, name, domain_id)
             .await
     }
 }

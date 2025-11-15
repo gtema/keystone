@@ -43,7 +43,7 @@ impl Token {
             &state
                 .provider
                 .get_identity_provider()
-                .get_user(&state.db, token.user_id())
+                .get_user(state, token.user_id())
                 .await
                 .map_err(KeystoneApiError::identity)?
                 .ok_or_else(|| KeystoneApiError::NotFound {
@@ -86,7 +86,7 @@ impl Token {
                         state
                             .provider
                             .get_resource_provider()
-                            .get_project(&state.db, &token.project_id)
+                            .get_project(state, &token.project_id)
                             .await
                             .map_err(KeystoneApiError::resource)?
                             .ok_or_else(|| KeystoneApiError::NotFound {
@@ -102,7 +102,7 @@ impl Token {
                         state
                             .provider
                             .get_resource_provider()
-                            .get_project(&state.db, &token.project_id)
+                            .get_project(state, &token.project_id)
                             .await
                             .map_err(KeystoneApiError::resource)?
                             .ok_or_else(|| KeystoneApiError::NotFound {
@@ -126,7 +126,7 @@ impl Token {
                         state
                             .provider
                             .get_resource_provider()
-                            .get_project(&state.db, &token.project_id)
+                            .get_project(state, &token.project_id)
                             .await
                             .map_err(KeystoneApiError::resource)?
                             .ok_or_else(|| KeystoneApiError::NotFound {
@@ -142,7 +142,7 @@ impl Token {
                         state
                             .provider
                             .get_resource_provider()
-                            .get_project(&state.db, &token.project_id)
+                            .get_project(state, &token.project_id)
                             .await
                             .map_err(KeystoneApiError::resource)?
                             .ok_or_else(|| KeystoneApiError::NotFound {

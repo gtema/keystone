@@ -62,7 +62,7 @@ pub(super) async fn update(
     let current = state
         .provider
         .get_federation_provider()
-        .get_identity_provider(&state.db, &idp_id)
+        .get_identity_provider(&state, &idp_id)
         .await?;
 
     policy
@@ -77,7 +77,7 @@ pub(super) async fn update(
     let res = state
         .provider
         .get_federation_provider()
-        .update_identity_provider(&state.db, &idp_id, req.into())
+        .update_identity_provider(&state, &idp_id, req.into())
         .await
         .map_err(KeystoneApiError::federation)?;
     Ok(res.into_response())
@@ -90,7 +90,7 @@ mod tests {
         http::{Request, StatusCode, header},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
+
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
     use tracing_test::traced_test;
@@ -108,7 +108,7 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_get_identity_provider()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "1")
+            .withf(|_, id: &'_ str| id == "1")
             .returning(|_, _| {
                 Ok(Some(provider_types::IdentityProvider {
                     id: "bar".into(),
@@ -120,9 +120,7 @@ mod tests {
         federation_mock
             .expect_update_identity_provider()
             .withf(
-                |_: &DatabaseConnection,
-                 id: &'_ str,
-                 req: &provider_types::IdentityProviderUpdate| {
+                |_, id: &'_ str, req: &provider_types::IdentityProviderUpdate| {
                     id == "1" && req.name == Some("name".to_string())
                 },
             )

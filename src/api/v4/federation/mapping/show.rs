@@ -60,7 +60,7 @@ pub(super) async fn show(
     let current = state
         .provider
         .get_federation_provider()
-        .get_mapping(&state.db, &id)
+        .get_mapping(&state, &id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -87,7 +87,6 @@ mod tests {
         http::{Request, StatusCode},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
@@ -105,12 +104,12 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_get_mapping()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
 
         federation_mock
             .expect_get_mapping()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(provider_types::Mapping {
                     id: "bar".into(),

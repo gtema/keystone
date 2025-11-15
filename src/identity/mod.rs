@@ -15,7 +15,6 @@
 use async_trait::async_trait;
 #[cfg(test)]
 use mockall::mock;
-use sea_orm::DatabaseConnection;
 use std::collections::HashSet;
 use uuid::Uuid;
 use webauthn_rs::prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration};
@@ -33,8 +32,8 @@ use crate::identity::types::{
     Group, GroupCreate, GroupListParameters, IdentityBackend, UserCreate, UserListParameters,
     UserPasswordAuthRequest, UserResponse, WebauthnCredential,
 };
+use crate::keystone::ServiceState;
 use crate::plugin_manager::PluginManager;
-use crate::provider::Provider;
 use crate::resource::{ResourceApi, error::ResourceProviderError};
 
 #[derive(Clone, Debug)]
@@ -46,77 +45,76 @@ pub struct IdentityProvider {
 pub trait IdentityApi: Send + Sync + Clone {
     async fn authenticate_by_password(
         &self,
-        db: &DatabaseConnection,
-        provider: &Provider,
+        state: &ServiceState,
         auth: UserPasswordAuthRequest,
     ) -> Result<AuthenticatedInfo, IdentityProviderError>;
 
     async fn list_users(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &UserListParameters,
     ) -> Result<impl IntoIterator<Item = UserResponse>, IdentityProviderError>;
 
     async fn get_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Option<UserResponse>, IdentityProviderError>;
 
     async fn find_federated_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         idp_id: &'a str,
         unique_id: &'a str,
     ) -> Result<Option<UserResponse>, IdentityProviderError>;
 
     async fn create_user(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user: UserCreate,
     ) -> Result<UserResponse, IdentityProviderError>;
 
     async fn delete_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 
     async fn list_groups(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &GroupListParameters,
     ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError>;
 
     async fn get_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         group_id: &'a str,
     ) -> Result<Option<Group>, IdentityProviderError>;
 
     async fn create_group(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         group: GroupCreate,
     ) -> Result<Group, IdentityProviderError>;
 
     async fn delete_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 
     /// List groups the user is a member of.
     async fn list_groups_of_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError>;
 
     /// Add the user to the single group.
     async fn add_user_to_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
@@ -124,14 +122,14 @@ pub trait IdentityApi: Send + Sync + Clone {
     /// Add user group memberships as specified by (uid, gid) tuples.
     async fn add_users_to_groups<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         memberships: Vec<(&'a str, &'a str)>,
     ) -> Result<(), IdentityProviderError>;
 
     /// Remove the user from the single group.
     async fn remove_user_from_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
@@ -139,7 +137,7 @@ pub trait IdentityApi: Send + Sync + Clone {
     /// Remove the user from specified groups.
     async fn remove_user_from_groups<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_ids: HashSet<&'a str>,
     ) -> Result<(), IdentityProviderError>;
@@ -147,21 +145,21 @@ pub trait IdentityApi: Send + Sync + Clone {
     /// Set group memberships of the user.
     async fn set_user_groups<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_ids: HashSet<&'a str>,
     ) -> Result<(), IdentityProviderError>;
 
     async fn list_user_webauthn_credentials<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Passkey>, IdentityProviderError>;
 
     /// Create passkey.
     async fn create_user_webauthn_credential<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         passkey: &Passkey,
         description: Option<&'a str>,
@@ -169,41 +167,41 @@ pub trait IdentityApi: Send + Sync + Clone {
 
     async fn save_user_webauthn_credential_registration_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         state: PasskeyRegistration,
     ) -> Result<(), IdentityProviderError>;
 
     async fn save_user_webauthn_credential_authentication_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         state: PasskeyAuthentication,
     ) -> Result<(), IdentityProviderError>;
 
     async fn get_user_webauthn_credential_registration_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Option<PasskeyRegistration>, IdentityProviderError>;
 
     async fn get_user_webauthn_credential_authentication_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError>;
 
     /// Delete passkey registration state of a user
     async fn delete_user_webauthn_credential_registration_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 
     /// Delete passkey registration state of a user
     async fn delete_user_webauthn_credential_authentication_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError>;
 }
@@ -218,115 +216,114 @@ mock! {
     impl IdentityApi for IdentityProvider {
         async fn authenticate_by_password(
             &self,
-            db: &DatabaseConnection,
-            provider: &Provider,
+            state: &ServiceState,
             auth: UserPasswordAuthRequest,
         ) -> Result<AuthenticatedInfo, IdentityProviderError>;
 
         async fn list_users(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             params: &UserListParameters,
         ) -> Result<Vec<UserResponse>, IdentityProviderError>;
 
         async fn get_user<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
         ) -> Result<Option<UserResponse>, IdentityProviderError>;
 
         async fn find_federated_user<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             idp_id: &'a str,
             unique_id: &'a str,
         ) -> Result<Option<UserResponse>, IdentityProviderError>;
 
         async fn create_user(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user: UserCreate,
         ) -> Result<UserResponse, IdentityProviderError>;
 
         async fn delete_user<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
         ) -> Result<(), IdentityProviderError>;
 
         async fn list_groups(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             params: &GroupListParameters,
         ) -> Result<Vec<Group>, IdentityProviderError>;
 
         async fn get_group<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             group_id: &'a str,
         ) -> Result<Option<Group>, IdentityProviderError>;
 
         async fn create_group(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             group: GroupCreate,
         ) -> Result<Group, IdentityProviderError>;
 
         async fn delete_group<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             group_id: &'a str,
         ) -> Result<(), IdentityProviderError>;
 
         async fn list_groups_of_user<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
         ) -> Result<Vec<Group>, IdentityProviderError>;
 
         async fn add_user_to_group<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
             group_id: &'a str,
         ) -> Result<(), IdentityProviderError>;
 
         async fn add_users_to_groups<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             memberships: Vec<(&'a str, &'a str)>
         ) -> Result<(), IdentityProviderError>;
 
         async fn remove_user_from_group<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
             group_id: &'a str,
         ) -> Result<(), IdentityProviderError>;
 
         async fn remove_user_from_groups<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
             group_ids: HashSet<&'a str>,
         ) -> Result<(), IdentityProviderError>;
 
         async fn set_user_groups<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
             group_ids: HashSet<&'a str>,
         ) -> Result<(), IdentityProviderError>;
 
         async fn list_user_webauthn_credentials<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
         ) -> Result<Vec<Passkey>, IdentityProviderError>;
 
         async fn create_user_webauthn_credential<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
             passkey: &Passkey,
             description: Option<&'a str>
@@ -334,39 +331,39 @@ mock! {
 
         async fn save_user_webauthn_credential_registration_state<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
-            state: PasskeyRegistration,
+            auth_state: PasskeyRegistration,
         ) -> Result<(), IdentityProviderError>;
 
         async fn save_user_webauthn_credential_authentication_state<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
-            state: PasskeyAuthentication,
+            auth_state: PasskeyAuthentication,
         ) -> Result<(), IdentityProviderError>;
 
         async fn get_user_webauthn_credential_registration_state<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
         ) -> Result<Option<PasskeyRegistration>, IdentityProviderError>;
 
         async fn get_user_webauthn_credential_authentication_state<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
         ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError>;
 
         async fn delete_user_webauthn_credential_registration_state<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
         ) -> Result<(), IdentityProviderError>;
 
         async fn delete_user_webauthn_credential_authentication_state<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             user_id: &'a str,
         ) -> Result<(), IdentityProviderError>;
     }
@@ -404,11 +401,10 @@ impl IdentityProvider {
 #[async_trait]
 impl IdentityApi for IdentityProvider {
     /// Authenticate user with the password auth method
-    #[tracing::instrument(level = "info", skip(self, db, provider, auth))]
+    #[tracing::instrument(level = "info", skip(self, state, auth))]
     async fn authenticate_by_password(
         &self,
-        db: &DatabaseConnection,
-        provider: &Provider,
+        state: &ServiceState,
         auth: UserPasswordAuthRequest,
     ) -> Result<AuthenticatedInfo, IdentityProviderError> {
         let mut auth = auth;
@@ -419,9 +415,10 @@ impl IdentityApi for IdentityProvider {
 
             if let Some(ref mut domain) = auth.domain {
                 if let Some(dname) = &domain.name {
-                    let d = provider
+                    let d = state
+                        .provider
                         .get_resource_provider()
-                        .find_domain_by_name(db, dname)
+                        .find_domain_by_name(state, dname)
                         .await?
                         .ok_or(ResourceProviderError::DomainNotFound(dname.clone()))?;
                     domain.id = Some(d.id);
@@ -433,47 +430,49 @@ impl IdentityApi for IdentityProvider {
             }
         }
 
-        self.backend_driver.authenticate_by_password(db, auth).await
+        self.backend_driver
+            .authenticate_by_password(state, auth)
+            .await
     }
 
     /// List users
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_users(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &UserListParameters,
     ) -> Result<impl IntoIterator<Item = UserResponse>, IdentityProviderError> {
-        self.backend_driver.list_users(db, params).await
+        self.backend_driver.list_users(state, params).await
     }
 
     /// Get single user
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Option<UserResponse>, IdentityProviderError> {
-        self.backend_driver.get_user(db, user_id).await
+        self.backend_driver.get_user(state, user_id).await
     }
 
     /// Find federated user by IDP and Unique ID
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn find_federated_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         idp_id: &'a str,
         unique_id: &'a str,
     ) -> Result<Option<UserResponse>, IdentityProviderError> {
         self.backend_driver
-            .find_federated_user(db, idp_id, unique_id)
+            .find_federated_user(state, idp_id, unique_id)
             .await
     }
 
     /// Create user
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn create_user(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user: UserCreate,
     ) -> Result<UserResponse, IdentityProviderError> {
         let mut mod_user = user;
@@ -481,227 +480,229 @@ impl IdentityApi for IdentityProvider {
         if mod_user.enabled.is_none() {
             mod_user.enabled = Some(true);
         }
-        self.backend_driver.create_user(db, mod_user).await
+        self.backend_driver.create_user(state, mod_user).await
     }
 
     /// Delete user
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn delete_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        self.backend_driver.delete_user(db, user_id).await
+        self.backend_driver.delete_user(state, user_id).await
     }
 
     /// List groups
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_groups(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &GroupListParameters,
     ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError> {
-        self.backend_driver.list_groups(db, params).await
+        self.backend_driver.list_groups(state, params).await
     }
 
     /// Get single group
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         group_id: &'a str,
     ) -> Result<Option<Group>, IdentityProviderError> {
-        self.backend_driver.get_group(db, group_id).await
+        self.backend_driver.get_group(state, group_id).await
     }
 
     /// Create group
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn create_group(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         group: GroupCreate,
     ) -> Result<Group, IdentityProviderError> {
         let mut res = group;
         res.id = Some(Uuid::new_v4().simple().to_string());
-        self.backend_driver.create_group(db, res).await
+        self.backend_driver.create_group(state, res).await
     }
 
     /// Delete group
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn delete_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
-        self.backend_driver.delete_group(db, group_id).await
+        self.backend_driver.delete_group(state, group_id).await
     }
 
     /// List groups a user is a member of.
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_groups_of_user<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Group>, IdentityProviderError> {
-        self.backend_driver.list_groups_of_user(db, user_id).await
+        self.backend_driver
+            .list_groups_of_user(state, user_id)
+            .await
     }
 
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn add_user_to_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .add_user_to_group(db, user_id, group_id)
+            .add_user_to_group(state, user_id, group_id)
             .await
     }
 
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn add_users_to_groups<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         memberships: Vec<(&'a str, &'a str)>,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .add_users_to_groups(db, memberships)
+            .add_users_to_groups(state, memberships)
             .await
     }
 
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn remove_user_from_group<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .remove_user_from_group(db, user_id, group_id)
+            .remove_user_from_group(state, user_id, group_id)
             .await
     }
 
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn remove_user_from_groups<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_ids: HashSet<&'a str>,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .remove_user_from_groups(db, user_id, group_ids)
+            .remove_user_from_groups(state, user_id, group_ids)
             .await
     }
 
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn set_user_groups<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         group_ids: HashSet<&'a str>,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .set_user_groups(db, user_id, group_ids)
+            .set_user_groups(state, user_id, group_ids)
             .await
     }
 
     /// List user passkeys.
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_user_webauthn_credentials<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<impl IntoIterator<Item = Passkey>, IdentityProviderError> {
         self.backend_driver
-            .list_user_webauthn_credentials(db, user_id)
+            .list_user_webauthn_credentials(state, user_id)
             .await
     }
 
     /// Create passkey.
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn create_user_webauthn_credential<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
         credential: &Passkey,
         description: Option<&'a str>,
     ) -> Result<WebauthnCredential, IdentityProviderError> {
         self.backend_driver
-            .create_user_webauthn_credential(db, user_id, credential, description)
+            .create_user_webauthn_credential(state, user_id, credential, description)
             .await
     }
 
     /// Save passkey registration state
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn save_user_webauthn_credential_registration_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
-        state: PasskeyRegistration,
+        reg_state: PasskeyRegistration,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .create_user_webauthn_credential_registration_state(db, user_id, state)
+            .create_user_webauthn_credential_registration_state(state, user_id, reg_state)
             .await
     }
 
     /// Save passkey authentication state
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn save_user_webauthn_credential_authentication_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
-        state: PasskeyAuthentication,
+        auth_state: PasskeyAuthentication,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .create_user_webauthn_credential_authentication_state(db, user_id, state)
+            .create_user_webauthn_credential_authentication_state(state, user_id, auth_state)
             .await
     }
 
     /// Get passkey registration state
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_user_webauthn_credential_registration_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Option<PasskeyRegistration>, IdentityProviderError> {
         self.backend_driver
-            .get_user_webauthn_credential_registration_state(db, user_id)
+            .get_user_webauthn_credential_registration_state(state, user_id)
             .await
     }
 
     /// Get passkey authentication state
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_user_webauthn_credential_authentication_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<Option<PasskeyAuthentication>, IdentityProviderError> {
         self.backend_driver
-            .get_user_webauthn_credential_authentication_state(db, user_id)
+            .get_user_webauthn_credential_authentication_state(state, user_id)
             .await
     }
 
     /// Delete passkey registration state of a user
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn delete_user_webauthn_credential_registration_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .delete_user_webauthn_credential_authentication_state(db, user_id)
+            .delete_user_webauthn_credential_authentication_state(state, user_id)
             .await
     }
 
     /// Delete passkey authentication state of a user
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn delete_user_webauthn_credential_authentication_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         user_id: &'a str,
     ) -> Result<(), IdentityProviderError> {
         self.backend_driver
-            .delete_user_webauthn_credential_authentication_state(db, user_id)
+            .delete_user_webauthn_credential_authentication_state(state, user_id)
             .await
     }
 }

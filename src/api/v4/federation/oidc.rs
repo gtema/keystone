@@ -84,7 +84,7 @@ pub async fn callback(
     let auth_state = state
         .provider
         .get_federation_provider()
-        .get_auth_state(&state.db, &query.state)
+        .get_auth_state(&state, &query.state)
         .await?
         .ok_or_else(|| KeystoneApiError::NotFound {
             resource: "auth state".into(),
@@ -98,7 +98,7 @@ pub async fn callback(
     let idp = state
         .provider
         .get_federation_provider()
-        .get_identity_provider(&state.db, &auth_state.idp_id)
+        .get_identity_provider(&state, &auth_state.idp_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -110,7 +110,7 @@ pub async fn callback(
     let mapping = state
         .provider
         .get_federation_provider()
-        .get_mapping(&state.db, &auth_state.mapping_id)
+        .get_mapping(&state, &auth_state.mapping_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -190,7 +190,7 @@ pub async fn callback(
     let user = if let Some(existing_user) = state
         .provider
         .get_identity_provider()
-        .find_federated_user(&state.db, &idp.id, &mapped_user_data.unique_id)
+        .find_federated_user(&state, &idp.id, &mapped_user_data.unique_id)
         .await?
     {
         // The user exists already
@@ -219,7 +219,7 @@ pub async fn callback(
             .provider
             .get_identity_provider()
             .create_user(
-                &state.db,
+                &state,
                 user_builder.build().map_err(IdentityProviderError::from)?,
             )
             .await?
@@ -231,7 +231,7 @@ pub async fn callback(
                 .provider
                 .get_identity_provider()
                 .list_groups(
-                    &state.db,
+                    &state,
                     &GroupListParameters {
                         domain_id: Some(user.domain_id.clone()),
                         ..Default::default()
@@ -251,7 +251,7 @@ pub async fn callback(
                         .provider
                         .get_identity_provider()
                         .create_group(
-                            &state.db,
+                            &state,
                             GroupCreate {
                                 domain_id: user.domain_id.clone(),
                                 name: group_name.clone(),
@@ -268,7 +268,7 @@ pub async fn callback(
                 .provider
                 .get_identity_provider()
                 .set_user_groups(
-                    &state.db,
+                    &state,
                     &user.id,
                     HashSet::from_iter(group_ids.iter().map(|i| i.as_str())),
                 )
@@ -279,7 +279,7 @@ pub async fn callback(
         state
             .provider
             .get_identity_provider()
-            .list_groups_of_user(&state.db, &user.id)
+            .list_groups_of_user(&state, &user.id)
             .await?,
     );
 
@@ -316,7 +316,7 @@ pub async fn callback(
     let catalog: Catalog = state
         .provider
         .get_catalog_provider()
-        .get_catalog(&state.db, true)
+        .get_catalog(&state, true)
         .await?
         .into();
     api_token.token.catalog = Some(catalog);

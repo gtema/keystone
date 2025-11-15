@@ -297,7 +297,7 @@ impl TokenProvider {
             let user = state
                 .provider
                 .get_identity_provider()
-                .get_user(&state.db, token.user_id())
+                .get_user(state, token.user_id())
                 .await?;
             match token {
                 Token::ApplicationCredential(data) => {
@@ -618,7 +618,7 @@ impl TokenApi for TokenProvider {
                     let project = state
                         .provider
                         .get_resource_provider()
-                        .get_project(&state.db, &data.project_id)
+                        .get_project(state, &data.project_id)
                         .await?;
 
                     data.project = project;
@@ -629,7 +629,7 @@ impl TokenApi for TokenProvider {
                     let project = state
                         .provider
                         .get_resource_provider()
-                        .get_project(&state.db, &data.project_id)
+                        .get_project(state, &data.project_id)
                         .await?;
 
                     data.project = project;
@@ -640,7 +640,7 @@ impl TokenApi for TokenProvider {
                     let project = state
                         .provider
                         .get_resource_provider()
-                        .get_project(&state.db, &data.project_id)
+                        .get_project(state, &data.project_id)
                         .await?;
 
                     data.project = project;
@@ -651,7 +651,7 @@ impl TokenApi for TokenProvider {
                     let domain = state
                         .provider
                         .get_resource_provider()
-                        .get_domain(&state.db, &data.domain_id)
+                        .get_domain(state, &data.domain_id)
                         .await?;
 
                     data.domain = domain;
@@ -662,7 +662,7 @@ impl TokenApi for TokenProvider {
                     let domain = state
                         .provider
                         .get_resource_provider()
-                        .get_domain(&state.db, &data.domain_id)
+                        .get_domain(state, &data.domain_id)
                         .await?;
 
                     data.domain = domain;
@@ -673,7 +673,7 @@ impl TokenApi for TokenProvider {
                     let project = state
                         .provider
                         .get_resource_provider()
-                        .get_project(&state.db, &data.project_id)
+                        .get_project(state, &data.project_id)
                         .await?;
 
                     data.project = project;

@@ -91,7 +91,7 @@ pub(super) async fn list(
     let identity_providers: Vec<IdentityProvider> = state
         .provider
         .get_federation_provider()
-        .list_identity_providers(&state.db, &provider_list_params)
+        .list_identity_providers(&state, &provider_list_params)
         .await
         .map_err(KeystoneApiError::federation)?
         .into_iter()
@@ -107,7 +107,7 @@ mod tests {
         http::{Request, StatusCode},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
+
     use std::collections::HashSet;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
@@ -126,9 +126,7 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_list_identity_providers()
-            .withf(
-                |_: &DatabaseConnection, _: &provider_types::IdentityProviderListParameters| true,
-            )
+            .withf(|_, _: &provider_types::IdentityProviderListParameters| true)
             .returning(|_, _| {
                 Ok(vec![provider_types::IdentityProvider {
                     id: "id".into(),
@@ -185,14 +183,12 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_list_identity_providers()
-            .withf(
-                |_: &DatabaseConnection, qp: &provider_types::IdentityProviderListParameters| {
-                    provider_types::IdentityProviderListParameters {
-                        name: Some("name".into()),
-                        domain_ids: Some(HashSet::from([Some("did".into())])),
-                    } == *qp
-                },
-            )
+            .withf(|_, qp: &provider_types::IdentityProviderListParameters| {
+                provider_types::IdentityProviderListParameters {
+                    name: Some("name".into()),
+                    domain_ids: Some(HashSet::from([Some("did".into())])),
+                } == *qp
+            })
             .returning(|_, _| {
                 Ok(vec![provider_types::IdentityProvider {
                     id: "id".into(),
@@ -257,14 +253,12 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_list_identity_providers()
-            .withf(
-                |_: &DatabaseConnection, qp: &provider_types::IdentityProviderListParameters| {
-                    provider_types::IdentityProviderListParameters {
-                        name: Some("name".into()),
-                        domain_ids: Some(HashSet::from([None, Some("udid".into())])),
-                    } == *qp
-                },
-            )
+            .withf(|_, qp: &provider_types::IdentityProviderListParameters| {
+                provider_types::IdentityProviderListParameters {
+                    name: Some("name".into()),
+                    domain_ids: Some(HashSet::from([None, Some("udid".into())])),
+                } == *qp
+            })
             .returning(|_, _| {
                 Ok(vec![provider_types::IdentityProvider {
                     id: "id".into(),
@@ -306,14 +300,12 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_list_identity_providers()
-            .withf(
-                |_: &DatabaseConnection, qp: &provider_types::IdentityProviderListParameters| {
-                    provider_types::IdentityProviderListParameters {
-                        name: Some("name".into()),
-                        domain_ids: None,
-                    } == *qp
-                },
-            )
+            .withf(|_, qp: &provider_types::IdentityProviderListParameters| {
+                provider_types::IdentityProviderListParameters {
+                    name: Some("name".into()),
+                    domain_ids: None,
+                } == *qp
+            })
             .returning(|_, _| {
                 Ok(vec![provider_types::IdentityProvider {
                     id: "id".into(),

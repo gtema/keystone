@@ -15,7 +15,6 @@
 use async_trait::async_trait;
 #[cfg(test)]
 use mockall::mock;
-use sea_orm::DatabaseConnection;
 use uuid::Uuid;
 
 pub mod backends;
@@ -26,6 +25,7 @@ use crate::config::Config;
 use crate::federation::backends::sql::SqlBackend;
 use crate::federation::error::FederationProviderError;
 use crate::federation::types::*;
+use crate::keystone::ServiceState;
 use crate::plugin_manager::PluginManager;
 
 #[derive(Clone, Debug)]
@@ -37,86 +37,86 @@ pub struct FederationProvider {
 pub trait FederationApi: Send + Sync + Clone {
     async fn list_identity_providers(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &IdentityProviderListParameters,
     ) -> Result<Vec<IdentityProvider>, FederationProviderError>;
 
     async fn get_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<IdentityProvider>, FederationProviderError>;
 
     async fn create_identity_provider(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         idp: IdentityProvider,
     ) -> Result<IdentityProvider, FederationProviderError>;
 
     async fn update_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         idp: IdentityProviderUpdate,
     ) -> Result<IdentityProvider, FederationProviderError>;
 
     async fn delete_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError>;
 
     async fn list_mappings(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &MappingListParameters,
     ) -> Result<Vec<Mapping>, FederationProviderError>;
 
     async fn get_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Mapping>, FederationProviderError>;
 
     async fn create_mapping(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         mapping: Mapping,
     ) -> Result<Mapping, FederationProviderError>;
 
     async fn update_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         mapping: MappingUpdate,
     ) -> Result<Mapping, FederationProviderError>;
 
     async fn delete_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError>;
 
     async fn get_auth_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<AuthState>, FederationProviderError>;
 
     async fn create_auth_state(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         state: AuthState,
     ) -> Result<AuthState, FederationProviderError>;
 
     async fn delete_auth_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError>;
 
     /// Cleanup expired resources
-    async fn cleanup(&self, db: &DatabaseConnection) -> Result<(), FederationProviderError>;
+    async fn cleanup(&self, state: &ServiceState) -> Result<(), FederationProviderError>;
 }
 
 #[cfg(test)]
@@ -129,59 +129,59 @@ mock! {
     impl FederationApi for FederationProvider {
         async fn list_identity_providers(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             params: &IdentityProviderListParameters,
         ) -> Result<Vec<IdentityProvider>, FederationProviderError>;
 
         async fn get_identity_provider<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<Option<IdentityProvider>, FederationProviderError>;
 
         async fn create_identity_provider(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             idp: IdentityProvider,
         ) -> Result<IdentityProvider, FederationProviderError>;
 
         async fn update_identity_provider<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
             idp: IdentityProviderUpdate,
         ) -> Result<IdentityProvider, FederationProviderError>;
 
         async fn delete_identity_provider<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<(), FederationProviderError>;
 
         async fn list_mappings(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             params: &MappingListParameters,
         ) -> Result<Vec<Mapping>, FederationProviderError>;
 
         /// Get single mapping by ID
         async fn get_mapping<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<Option<Mapping>, FederationProviderError>;
 
         /// Create mapping
         async fn create_mapping(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             mapping: Mapping,
         ) -> Result<Mapping, FederationProviderError>;
 
         /// Update mapping
         async fn update_mapping<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
             mapping: MappingUpdate,
         ) -> Result<Mapping, FederationProviderError>;
@@ -189,31 +189,31 @@ mock! {
         /// Delete mapping
         async fn delete_mapping<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<(), FederationProviderError>;
 
         async fn get_auth_state<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<Option<AuthState>, FederationProviderError>;
 
         async fn create_auth_state(
             &self,
-            db: &DatabaseConnection,
-            state: AuthState,
+            state: &ServiceState,
+            auth_state: AuthState,
         ) -> Result<AuthState, FederationProviderError>;
 
         async fn delete_auth_state<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<(), FederationProviderError>;
 
         async fn cleanup(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
         ) -> Result<(), FederationProviderError>;
 
     }
@@ -250,32 +250,32 @@ impl FederationProvider {
 #[async_trait]
 impl FederationApi for FederationProvider {
     /// List IDP
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_identity_providers(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &IdentityProviderListParameters,
     ) -> Result<Vec<IdentityProvider>, FederationProviderError> {
         self.backend_driver
-            .list_identity_providers(db, params)
+            .list_identity_providers(state, params)
             .await
     }
 
     /// Get single IDP by ID
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<IdentityProvider>, FederationProviderError> {
-        self.backend_driver.get_identity_provider(db, id).await
+        self.backend_driver.get_identity_provider(state, id).await
     }
 
     /// Create Identity provider
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_identity_provider(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         idp: IdentityProvider,
     ) -> Result<IdentityProvider, FederationProviderError> {
         let mut mod_idp = idp;
@@ -284,58 +284,60 @@ impl FederationApi for FederationProvider {
         }
 
         self.backend_driver
-            .create_identity_provider(db, mod_idp)
+            .create_identity_provider(state, mod_idp)
             .await
     }
 
     /// Update Identity provider
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn update_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         idp: IdentityProviderUpdate,
     ) -> Result<IdentityProvider, FederationProviderError> {
         self.backend_driver
-            .update_identity_provider(db, id, idp)
+            .update_identity_provider(state, id, idp)
             .await
     }
 
     /// Delete identity provider
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
-        self.backend_driver.delete_identity_provider(db, id).await
+        self.backend_driver
+            .delete_identity_provider(state, id)
+            .await
     }
 
     /// List mappings
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_mappings(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &MappingListParameters,
     ) -> Result<Vec<Mapping>, FederationProviderError> {
-        self.backend_driver.list_mappings(db, params).await
+        self.backend_driver.list_mappings(state, params).await
     }
 
     /// Get single mapping by ID
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Mapping>, FederationProviderError> {
-        self.backend_driver.get_mapping(db, id).await
+        self.backend_driver.get_mapping(state, id).await
     }
 
     /// Create mapping
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_mapping(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         mapping: Mapping,
     ) -> Result<Mapping, FederationProviderError> {
         let mut mod_mapping = mapping;
@@ -350,20 +352,20 @@ impl FederationApi for FederationProvider {
             // TODO: ensure current user has access to the project
         }
 
-        self.backend_driver.create_mapping(db, mod_mapping).await
+        self.backend_driver.create_mapping(state, mod_mapping).await
     }
 
     /// Update mapping
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn update_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         mapping: MappingUpdate,
     ) -> Result<Mapping, FederationProviderError> {
         let current = self
             .backend_driver
-            .get_mapping(db, id)
+            .get_mapping(state, id)
             .await?
             .ok_or_else(|| FederationProviderError::MappingNotFound(id.to_string()))?;
 
@@ -381,52 +383,54 @@ impl FederationApi for FederationProvider {
             // TODO: ensure current user has access to the project
         }
         // TODO: Pass current to the backend to skip re-fetching
-        self.backend_driver.update_mapping(db, id, mapping).await
+        self.backend_driver.update_mapping(state, id, mapping).await
     }
 
     /// Delete identity provider
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
-        self.backend_driver.delete_mapping(db, id).await
+        self.backend_driver.delete_mapping(state, id).await
     }
 
     /// Get auth state by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_auth_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<AuthState>, FederationProviderError> {
-        self.backend_driver.get_auth_state(db, id).await
+        self.backend_driver.get_auth_state(state, id).await
     }
 
     /// Create new auth state
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_auth_state(
         &self,
-        db: &DatabaseConnection,
-        state: AuthState,
+        state: &ServiceState,
+        auth_state: AuthState,
     ) -> Result<AuthState, FederationProviderError> {
-        self.backend_driver.create_auth_state(db, state).await
+        self.backend_driver
+            .create_auth_state(state, auth_state)
+            .await
     }
 
     /// Delete auth state
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_auth_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
-        self.backend_driver.delete_auth_state(db, id).await
+        self.backend_driver.delete_auth_state(state, id).await
     }
 
     /// Cleanup expired resources
-    #[tracing::instrument(level = "info", skip(self, db))]
-    async fn cleanup(&self, db: &DatabaseConnection) -> Result<(), FederationProviderError> {
-        self.backend_driver.cleanup(db).await
+    #[tracing::instrument(level = "info", skip(self, state))]
+    async fn cleanup(&self, state: &ServiceState) -> Result<(), FederationProviderError> {
+        self.backend_driver.cleanup(state).await
     }
 }

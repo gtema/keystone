@@ -57,7 +57,7 @@ async fn list(
     let users: Vec<User> = state
         .provider
         .get_identity_provider()
-        .list_users(&state.db, &query.into())
+        .list_users(&state, &query.into())
         .await
         .map_err(KeystoneApiError::identity)?
         .into_iter()
@@ -86,7 +86,7 @@ async fn show(
     state
         .provider
         .get_identity_provider()
-        .get_user(&state.db, &user_id)
+        .get_user(&state, &user_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -116,7 +116,7 @@ async fn create(
     let user = state
         .provider
         .get_identity_provider()
-        .create_user(&state.db, req.into())
+        .create_user(&state, req.into())
         .await
         .map_err(KeystoneApiError::identity)?;
     Ok((StatusCode::CREATED, user).into_response())
@@ -143,7 +143,7 @@ async fn remove(
     state
         .provider
         .get_identity_provider()
-        .delete_user(&state.db, &user_id)
+        .delete_user(&state, &user_id)
         .await
         .map_err(KeystoneApiError::identity)?;
     Ok((StatusCode::NO_CONTENT).into_response())
@@ -169,7 +169,7 @@ async fn groups(
     let groups: Vec<Group> = state
         .provider
         .get_identity_provider()
-        .list_groups_of_user(&state.db, &user_id)
+        .list_groups_of_user(&state, &user_id)
         .await
         .map_err(KeystoneApiError::identity)?
         .into_iter()
@@ -185,7 +185,7 @@ mod tests {
         http::{self, Request, StatusCode},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
+
     use serde_json::json;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
@@ -210,7 +210,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_list_users()
-            .withf(|_: &DatabaseConnection, _: &UserListParameters| true)
+            .withf(|_, _: &UserListParameters| true)
             .returning(|_, _| {
                 Ok(vec![UserResponse {
                     id: "1".into(),
@@ -258,7 +258,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_list_users()
-            .withf(|_: &DatabaseConnection, qp: &UserListParameters| {
+            .withf(|_, qp: &UserListParameters| {
                 UserListParameters {
                     domain_id: Some("domain".into()),
                     name: Some("name".into()),
@@ -312,9 +312,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_create_user()
-            .withf(|_: &DatabaseConnection, req: &UserCreate| {
-                req.domain_id == "domain" && req.name == "name"
-            })
+            .withf(|_, req: &UserCreate| req.domain_id == "domain" && req.name == "name")
             .returning(|_, req| {
                 Ok(UserResponse {
                     id: "bar".into(),
@@ -364,12 +362,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
 
         identity_mock
             .expect_get_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(UserResponse {
                     id: "bar".into(),
@@ -428,12 +426,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_delete_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| Err(IdentityProviderError::UserNotFound("foo".into())));
 
         identity_mock
             .expect_delete_user()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| Ok(()));
 
         let state = get_mocked_state(identity_mock);
@@ -478,7 +476,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_list_groups_of_user()
-            .withf(|_: &DatabaseConnection, uid: &str| uid == "foo")
+            .withf(|_, uid: &str| uid == "foo")
             .returning(|_, _| {
                 Ok(vec![Group {
                     id: "1".into(),

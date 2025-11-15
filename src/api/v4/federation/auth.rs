@@ -88,7 +88,7 @@ pub async fn post(
     let idp = state
         .provider
         .get_federation_provider()
-        .get_identity_provider(&state.db, &idp_id)
+        .get_identity_provider(&state, &idp_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -101,7 +101,7 @@ pub async fn post(
         state
             .provider
             .get_federation_provider()
-            .get_mapping(&state.db, &mapping_id)
+            .get_mapping(&state, &mapping_id)
             .await
             .map(|x| {
                 x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -114,7 +114,7 @@ pub async fn post(
             .provider
             .get_federation_provider()
             .list_mappings(
-                &state.db,
+                &state,
                 &ProviderMappingListParameters {
                     idp_id: Some(idp.id.clone()),
                     name: Some(mapping_name.clone()),
@@ -182,7 +182,7 @@ pub async fn post(
         .provider
         .get_federation_provider()
         .create_auth_state(
-            &state.db,
+            &state,
             AuthState {
                 state: csrf_token.secret().clone(),
                 nonce: nonce.secret().clone(),

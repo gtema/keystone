@@ -64,7 +64,7 @@ pub(super) async fn finish(
     let user = state
         .provider
         .get_identity_provider()
-        .get_user(&state.db, &user_id)
+        .get_user(&state, &user_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -85,7 +85,7 @@ pub(super) async fn finish(
     if let Some(s) = state
         .provider
         .get_identity_provider()
-        .get_user_webauthn_credential_registration_state(&state.db, &user_id)
+        .get_user_webauthn_credential_registration_state(&state, &user_id)
         .await?
     {
         let credential_description = req.description.clone();
@@ -98,7 +98,7 @@ pub(super) async fn finish(
                     .provider
                     .get_identity_provider()
                     .create_user_webauthn_credential(
-                        &state.db,
+                        &state,
                         &user_id,
                         &sk,
                         credential_description.as_deref(),
@@ -113,7 +113,7 @@ pub(super) async fn finish(
         state
             .provider
             .get_identity_provider()
-            .delete_user_webauthn_credential_registration_state(&state.db, &user_id)
+            .delete_user_webauthn_credential_registration_state(&state, &user_id)
             .await?;
         Ok((StatusCode::CREATED, Json(PasskeyResponse::from(passkey))).into_response())
     } else {

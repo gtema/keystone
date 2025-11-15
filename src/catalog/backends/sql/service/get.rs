@@ -16,11 +16,9 @@ use sea_orm::entity::*;
 
 use crate::catalog::backends::error::{CatalogDatabaseError, db_err};
 use crate::catalog::types::*;
-use crate::config::Config;
 use crate::db::entity::{prelude::Service as DbService, service as db_service};
 
 pub async fn get<I: AsRef<str>>(
-    _conf: &Config,
     db: &DatabaseConnection,
     id: I,
 ) -> Result<Option<Service>, CatalogDatabaseError> {
@@ -38,8 +36,6 @@ mod tests {
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
     use serde_json::json;
 
-    use crate::config::Config;
-
     use super::super::tests::get_service_mock;
     use super::*;
 
@@ -52,9 +48,8 @@ mod tests {
                 vec![get_service_mock("1".into())],
             ])
             .into_connection();
-        let config = Config::default();
         assert_eq!(
-            get(&config, &db, "1").await.unwrap().unwrap(),
+            get(&db, "1").await.unwrap().unwrap(),
             Service {
                 id: "1".into(),
                 r#type: Some("type".into()),

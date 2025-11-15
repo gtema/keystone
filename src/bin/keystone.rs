@@ -242,7 +242,7 @@ async fn cleanup(cancel: CancellationToken, state: ServiceState) {
         tokio::select! {
             _ = interval.tick() => {
                 trace!("cleanup job tick");
-                if let Err(e) = state.provider.get_federation_provider().cleanup(&state.db).await {
+                if let Err(e) = state.provider.get_federation_provider().cleanup(&state).await {
                     error!("Error during cleanup job: {}", e);
                 }
             },

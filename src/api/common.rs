@@ -39,7 +39,7 @@ pub async fn get_domain<I: AsRef<str>, N: AsRef<str>>(
         state
             .provider
             .get_resource_provider()
-            .get_domain(&state.db, did.as_ref())
+            .get_domain(state, did.as_ref())
             .await?
             .ok_or_else(|| KeystoneApiError::NotFound {
                 resource: "domain".into(),
@@ -49,7 +49,7 @@ pub async fn get_domain<I: AsRef<str>, N: AsRef<str>>(
         state
             .provider
             .get_resource_provider()
-            .find_domain_by_name(&state.db, name.as_ref())
+            .find_domain_by_name(state, name.as_ref())
             .await?
             .ok_or_else(|| KeystoneApiError::NotFound {
                 resource: "domain".into(),
@@ -76,7 +76,7 @@ pub async fn find_project_from_scope(
         state
             .provider
             .get_resource_provider()
-            .get_project(&state.db, pid)
+            .get_project(state, pid)
             .await?
     } else if let Some(name) = &scope.name {
         if let Some(domain) = &scope.domain {
@@ -87,7 +87,7 @@ pub async fn find_project_from_scope(
                         .provider
                         .get_resource_provider()
                         .find_domain_by_name(
-                            &state.db,
+                            state,
                             &domain
                                 .name
                                 .clone()
@@ -107,7 +107,7 @@ pub async fn find_project_from_scope(
             state
                 .provider
                 .get_resource_provider()
-                .get_project_by_name(&state.db, name, &domain_id)
+                .get_project_by_name(state, name, &domain_id)
                 .await?
         } else {
             return Err(KeystoneApiError::ProjectDomain);
@@ -137,7 +137,7 @@ mod tests {
         let mut resource_mock = MockResourceProvider::default();
         resource_mock
             .expect_get_domain()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "domain_id")
+            .withf(|_, id: &'_ str| id == "domain_id")
             .returning(|_, _| {
                 Ok(Some(Domain {
                     id: "domain_id".into(),
@@ -147,7 +147,7 @@ mod tests {
             });
         resource_mock
             .expect_find_domain_by_name()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "domain_name")
+            .withf(|_, id: &'_ str| id == "domain_name")
             .returning(|_, _| {
                 Ok(Some(Domain {
                     id: "domain_id".into(),

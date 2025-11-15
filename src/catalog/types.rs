@@ -17,7 +17,6 @@ pub mod service;
 
 use async_trait::async_trait;
 use dyn_clone::DynClone;
-use sea_orm::DatabaseConnection;
 
 use crate::catalog::CatalogProviderError;
 use crate::config::Config;
@@ -28,6 +27,7 @@ pub use crate::catalog::types::endpoint::{
 pub use crate::catalog::types::service::{
     Service, ServiceBuilder, ServiceBuilderError, ServiceListParameters,
 };
+use crate::keystone::ServiceState;
 
 #[async_trait]
 pub trait CatalogBackend: DynClone + Send + Sync + std::fmt::Debug {
@@ -37,35 +37,35 @@ pub trait CatalogBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// List services
     async fn list_services(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &ServiceListParameters,
     ) -> Result<Vec<Service>, CatalogProviderError>;
 
     /// Get single service by ID
     async fn get_service<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Service>, CatalogProviderError>;
 
     /// List Endpoints
     async fn list_endpoints(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &EndpointListParameters,
     ) -> Result<Vec<Endpoint>, CatalogProviderError>;
 
     /// Get single endpoint by ID
     async fn get_endpoint<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Endpoint>, CatalogProviderError>;
 
     /// Get Catalog (Services with Endpoints)
     async fn get_catalog(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         enabled: bool,
     ) -> Result<Vec<(Service, Vec<Endpoint>)>, CatalogProviderError>;
 }
