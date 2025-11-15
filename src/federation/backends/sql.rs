@@ -13,11 +13,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use sea_orm::DatabaseConnection;
 
 use super::super::types::*;
 use crate::config::Config;
 use crate::federation::FederationProviderError;
+use crate::keystone::ServiceState;
 
 mod auth_state;
 mod identity_provider;
@@ -36,141 +36,141 @@ impl FederationBackend for SqlBackend {
     }
 
     /// List IDPs
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn list_identity_providers(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &IdentityProviderListParameters,
     ) -> Result<Vec<IdentityProvider>, FederationProviderError> {
-        Ok(identity_provider::list(&self.config, db, params).await?)
+        Ok(identity_provider::list(&self.config, &state.db, params).await?)
     }
 
     /// Get single IDP by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<IdentityProvider>, FederationProviderError> {
-        Ok(identity_provider::get(&self.config, db, id).await?)
+        Ok(identity_provider::get(&self.config, &state.db, id).await?)
     }
 
     /// Create Identity provider
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_identity_provider(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         idp: IdentityProvider,
     ) -> Result<IdentityProvider, FederationProviderError> {
-        Ok(identity_provider::create(&self.config, db, idp).await?)
+        Ok(identity_provider::create(&self.config, &state.db, idp).await?)
     }
 
     /// Update Identity provider
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn update_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         idp: IdentityProviderUpdate,
     ) -> Result<IdentityProvider, FederationProviderError> {
-        Ok(identity_provider::update(&self.config, db, id, idp).await?)
+        Ok(identity_provider::update(&self.config, &state.db, id, idp).await?)
     }
 
     /// Delete identity provider
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
-        Ok(identity_provider::delete(&self.config, db, id).await?)
+        Ok(identity_provider::delete(&self.config, &state.db, id).await?)
     }
 
     /// List Mapping
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn list_mappings(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &MappingListParameters,
     ) -> Result<Vec<Mapping>, FederationProviderError> {
-        Ok(mapping::list(&self.config, db, params).await?)
+        Ok(mapping::list(&self.config, &state.db, params).await?)
     }
 
     /// Get single mapping by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Mapping>, FederationProviderError> {
-        Ok(mapping::get(&self.config, db, id).await?)
+        Ok(mapping::get(&self.config, &state.db, id).await?)
     }
 
     /// Create mapping
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_mapping(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         idp: Mapping,
     ) -> Result<Mapping, FederationProviderError> {
-        Ok(mapping::create(&self.config, db, idp).await?)
+        Ok(mapping::create(&self.config, &state.db, idp).await?)
     }
 
     /// Update mapping
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn update_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         idp: MappingUpdate,
     ) -> Result<Mapping, FederationProviderError> {
-        Ok(mapping::update(&self.config, db, id, idp).await?)
+        Ok(mapping::update(&self.config, &state.db, id, idp).await?)
     }
 
     /// Delete mapping
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
-        Ok(mapping::delete(&self.config, db, id).await?)
+        Ok(mapping::delete(&self.config, &state.db, id).await?)
     }
 
     /// Get auth state by ID
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn get_auth_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<AuthState>, FederationProviderError> {
-        Ok(auth_state::get(&self.config, db, id).await?)
+        Ok(auth_state::get(&self.config, &state.db, id).await?)
     }
 
     /// Create new auth state
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn create_auth_state(
         &self,
-        db: &DatabaseConnection,
-        state: AuthState,
+        state: &ServiceState,
+        auth_state: AuthState,
     ) -> Result<AuthState, FederationProviderError> {
-        Ok(auth_state::create(&self.config, db, state).await?)
+        Ok(auth_state::create(&self.config, &state.db, auth_state).await?)
     }
 
     /// Delete auth state
-    #[tracing::instrument(level = "debug", skip(self, db))]
+    #[tracing::instrument(level = "debug", skip(self, state))]
     async fn delete_auth_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError> {
-        Ok(auth_state::delete(&self.config, db, id).await?)
+        Ok(auth_state::delete(&self.config, &state.db, id).await?)
     }
 
     /// Cleanup expired resources
-    #[tracing::instrument(level = "debug", skip(self, db))]
-    async fn cleanup(&self, db: &DatabaseConnection) -> Result<(), FederationProviderError> {
-        Ok(auth_state::delete_expired(&self.config, db).await?)
+    #[tracing::instrument(level = "debug", skip(self, state))]
+    async fn cleanup(&self, state: &ServiceState) -> Result<(), FederationProviderError> {
+        Ok(auth_state::delete_expired(&self.config, &state.db).await?)
     }
 }
 

@@ -15,7 +15,6 @@
 use async_trait::async_trait;
 #[cfg(test)]
 use mockall::mock;
-use sea_orm::DatabaseConnection;
 
 pub mod backends;
 pub mod error;
@@ -27,6 +26,7 @@ use crate::catalog::types::{
     CatalogBackend, Endpoint, EndpointListParameters, Service, ServiceListParameters,
 };
 use crate::config::Config;
+use crate::keystone::ServiceState;
 use crate::plugin_manager::PluginManager;
 
 #[derive(Clone, Debug)]
@@ -38,31 +38,31 @@ pub struct CatalogProvider {
 pub trait CatalogApi: Send + Sync + Clone {
     async fn list_services(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &ServiceListParameters,
     ) -> Result<Vec<Service>, CatalogProviderError>;
 
     async fn get_service<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Service>, CatalogProviderError>;
 
     async fn list_endpoints(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &EndpointListParameters,
     ) -> Result<Vec<Endpoint>, CatalogProviderError>;
 
     async fn get_endpoint<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Endpoint>, CatalogProviderError>;
 
     async fn get_catalog(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         enabled: bool,
     ) -> Result<Vec<(Service, Vec<Endpoint>)>, CatalogProviderError>;
 }
@@ -77,31 +77,31 @@ mock! {
     impl CatalogApi for CatalogProvider {
         async fn list_services(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             params: &ServiceListParameters
         ) -> Result<Vec<Service>, CatalogProviderError>;
 
         async fn get_service<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<Option<Service>, CatalogProviderError>;
 
         async fn list_endpoints(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             params: &EndpointListParameters,
         ) -> Result<Vec<Endpoint>, CatalogProviderError>;
 
         async fn get_endpoint<'a>(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             id: &'a str,
         ) -> Result<Option<Endpoint>, CatalogProviderError>;
 
         async fn get_catalog(
             &self,
-            db: &DatabaseConnection,
+            state: &ServiceState,
             enabled: bool,
         ) -> Result<Vec<(Service, Vec<Endpoint>)>, CatalogProviderError>;
 
@@ -139,52 +139,52 @@ impl CatalogProvider {
 #[async_trait]
 impl CatalogApi for CatalogProvider {
     /// List services
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_services(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &ServiceListParameters,
     ) -> Result<Vec<Service>, CatalogProviderError> {
-        self.backend_driver.list_services(db, params).await
+        self.backend_driver.list_services(state, params).await
     }
 
     /// Get single service by ID
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_service<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Service>, CatalogProviderError> {
-        self.backend_driver.get_service(db, id).await
+        self.backend_driver.get_service(state, id).await
     }
 
     /// List Endpoints
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn list_endpoints(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &EndpointListParameters,
     ) -> Result<Vec<Endpoint>, CatalogProviderError> {
-        self.backend_driver.list_endpoints(db, params).await
+        self.backend_driver.list_endpoints(state, params).await
     }
 
     /// Get single endpoint by ID
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_endpoint<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Endpoint>, CatalogProviderError> {
-        self.backend_driver.get_endpoint(db, id).await
+        self.backend_driver.get_endpoint(state, id).await
     }
 
     /// Get catalog
-    #[tracing::instrument(level = "info", skip(self, db))]
+    #[tracing::instrument(level = "info", skip(self, state))]
     async fn get_catalog(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         enabled: bool,
     ) -> Result<Vec<(Service, Vec<Endpoint>)>, CatalogProviderError> {
-        self.backend_driver.get_catalog(db, enabled).await
+        self.backend_driver.get_catalog(state, enabled).await
     }
 }

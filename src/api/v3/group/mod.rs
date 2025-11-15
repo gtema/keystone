@@ -55,7 +55,7 @@ async fn list(
     let groups: Vec<Group> = state
         .provider
         .get_identity_provider()
-        .list_groups(&state.db, &query.into())
+        .list_groups(&state, &query.into())
         .await
         .map_err(KeystoneApiError::identity)?
         .into_iter()
@@ -85,7 +85,7 @@ async fn show(
     state
         .provider
         .get_identity_provider()
-        .get_group(&state.db, &group_id)
+        .get_group(&state, &group_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -115,7 +115,7 @@ async fn create(
     let res = state
         .provider
         .get_identity_provider()
-        .create_group(&state.db, req.into())
+        .create_group(&state, req.into())
         .await
         .map_err(KeystoneApiError::identity)?;
     Ok((StatusCode::CREATED, res).into_response())
@@ -142,7 +142,7 @@ async fn remove(
     state
         .provider
         .get_identity_provider()
-        .delete_group(&state.db, &group_id)
+        .delete_group(&state, &group_id)
         .await
         .map_err(KeystoneApiError::identity)?;
     Ok((StatusCode::NO_CONTENT).into_response())
@@ -155,7 +155,7 @@ mod tests {
         http::{Request, StatusCode, header},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
+
     use serde_json::json;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
@@ -179,7 +179,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_list_groups()
-            .withf(|_: &DatabaseConnection, _: &GroupListParameters| true)
+            .withf(|_, _: &GroupListParameters| true)
             .returning(|_, _| {
                 Ok(vec![Group {
                     id: "1".into(),
@@ -228,7 +228,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_list_groups()
-            .withf(|_: &DatabaseConnection, qp: &GroupListParameters| {
+            .withf(|_, qp: &GroupListParameters| {
                 GroupListParameters {
                     domain_id: Some("domain".into()),
                     name: Some("name".into()),
@@ -282,12 +282,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_get_group()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
 
         identity_mock
             .expect_get_group()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(Group {
                     id: "bar".into(),
@@ -346,9 +346,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_create_group()
-            .withf(|_: &DatabaseConnection, req: &GroupCreate| {
-                req.domain_id == "domain" && req.name == "name"
-            })
+            .withf(|_, req: &GroupCreate| req.domain_id == "domain" && req.name == "name")
             .returning(|_, req| {
                 Ok(Group {
                     id: "bar".into(),
@@ -399,12 +397,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_delete_group()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| Err(IdentityProviderError::GroupNotFound("foo".into())));
 
         identity_mock
             .expect_delete_group()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| Ok(()));
 
         let state = get_mocked_state(identity_mock);

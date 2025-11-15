@@ -64,7 +64,7 @@ pub(super) async fn create(
     let res = state
         .provider
         .get_federation_provider()
-        .create_identity_provider(&state.db, req.into())
+        .create_identity_provider(&state, req.into())
         .await
         .map_err(KeystoneApiError::federation)?;
     Ok((StatusCode::CREATED, res).into_response())
@@ -77,7 +77,7 @@ mod tests {
         http::{Request, StatusCode, header},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
+
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
     use tracing_test::traced_test;
@@ -95,9 +95,7 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_create_identity_provider()
-            .withf(
-                |_: &DatabaseConnection, req: &provider_types::IdentityProvider| req.name == "name",
-            )
+            .withf(|_, req: &provider_types::IdentityProvider| req.name == "name")
             .returning(|_, _| {
                 Ok(provider_types::IdentityProvider {
                     id: "bar".into(),

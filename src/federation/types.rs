@@ -18,10 +18,10 @@ pub mod mapping;
 
 use async_trait::async_trait;
 use dyn_clone::DynClone;
-use sea_orm::DatabaseConnection;
 
 use crate::config::Config;
 use crate::federation::FederationProviderError;
+use crate::keystone::ServiceState;
 
 pub use auth_state::*;
 pub use identity_provider::*;
@@ -35,28 +35,28 @@ pub trait FederationBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// List Identity Providers
     async fn list_identity_providers(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &IdentityProviderListParameters,
     ) -> Result<Vec<IdentityProvider>, FederationProviderError>;
 
     /// Get single identity provider by ID
     async fn get_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<IdentityProvider>, FederationProviderError>;
 
     /// Create Identity provider
     async fn create_identity_provider(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         idp: IdentityProvider,
     ) -> Result<IdentityProvider, FederationProviderError>;
 
     /// Update Identity provider
     async fn update_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         idp: IdentityProviderUpdate,
     ) -> Result<IdentityProvider, FederationProviderError>;
@@ -64,35 +64,35 @@ pub trait FederationBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// Delete identity provider
     async fn delete_identity_provider<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError>;
 
     /// List Identity Providers
     async fn list_mappings(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         params: &MappingListParameters,
     ) -> Result<Vec<Mapping>, FederationProviderError>;
 
     /// Get single mapping by ID
     async fn get_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Mapping>, FederationProviderError>;
 
     /// Create mapping
     async fn create_mapping(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         idp: Mapping,
     ) -> Result<Mapping, FederationProviderError>;
 
     /// Update mapping
     async fn update_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
         idp: MappingUpdate,
     ) -> Result<Mapping, FederationProviderError>;
@@ -100,33 +100,33 @@ pub trait FederationBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// Delete mapping
     async fn delete_mapping<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError>;
 
     /// Get authentication state
     async fn get_auth_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<AuthState>, FederationProviderError>;
 
     /// Create new authentication state
     async fn create_auth_state(
         &self,
-        db: &DatabaseConnection,
-        state: AuthState,
+        state: &ServiceState,
+        auth_state: AuthState,
     ) -> Result<AuthState, FederationProviderError>;
 
     /// Delete authentication state
     async fn delete_auth_state<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         id: &'a str,
     ) -> Result<(), FederationProviderError>;
 
     /// Cleanup expired resources
-    async fn cleanup(&self, db: &DatabaseConnection) -> Result<(), FederationProviderError>;
+    async fn cleanup(&self, state: &ServiceState) -> Result<(), FederationProviderError>;
 }
 
 dyn_clone::clone_trait_object!(FederationBackend);

@@ -61,7 +61,7 @@ pub(super) async fn remove(
     let current = state
         .provider
         .get_federation_provider()
-        .get_identity_provider(&state.db, &id)
+        .get_identity_provider(&state, &id)
         .await?;
 
     policy
@@ -79,7 +79,7 @@ pub(super) async fn remove(
         state
             .provider
             .get_federation_provider()
-            .delete_identity_provider(&state.db, &id)
+            .delete_identity_provider(&state, &id)
             .await
             .map_err(KeystoneApiError::federation)?;
     } else {
@@ -98,7 +98,6 @@ mod tests {
         http::{Request, StatusCode},
     };
     // for `collect`
-    use sea_orm::DatabaseConnection;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
@@ -116,11 +115,11 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_get_identity_provider()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| Ok(None));
         federation_mock
             .expect_get_identity_provider()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| {
                 Ok(Some(provider_types::IdentityProvider {
                     id: "bar".into(),
@@ -131,7 +130,7 @@ mod tests {
             });
         federation_mock
             .expect_delete_identity_provider()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "foo")
+            .withf(|_, id: &'_ str| id == "foo")
             .returning(|_, _| {
                 Err(FederationProviderError::IdentityProviderNotFound(
                     "foo".into(),
@@ -140,7 +139,7 @@ mod tests {
 
         federation_mock
             .expect_delete_identity_provider()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "bar")
+            .withf(|_, id: &'_ str| id == "bar")
             .returning(|_, _| Ok(()));
 
         let state = get_mocked_state(federation_mock, true, None);

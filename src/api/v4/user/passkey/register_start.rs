@@ -72,7 +72,7 @@ pub(super) async fn start(
     let user = state
         .provider
         .get_identity_provider()
-        .get_user(&state.db, &user_id)
+        .get_user(&state, &user_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -93,7 +93,7 @@ pub(super) async fn start(
     state
         .provider
         .get_identity_provider()
-        .delete_user_webauthn_credential_registration_state(&state.db, &user_id)
+        .delete_user_webauthn_credential_registration_state(&state, &user_id)
         .await?;
     let res = match state.webauthn.start_passkey_registration(
         Uuid::parse_str(&user_id)?,
@@ -107,7 +107,7 @@ pub(super) async fn start(
             state
                 .provider
                 .get_identity_provider()
-                .save_user_webauthn_credential_registration_state(&state.db, &user_id, reg_state)
+                .save_user_webauthn_credential_registration_state(&state, &user_id, reg_state)
                 .await?;
             Json(UserPasskeyRegistrationStartResponse::try_from(ccr)?)
         }

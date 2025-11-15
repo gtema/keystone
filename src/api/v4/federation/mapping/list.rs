@@ -67,7 +67,7 @@ pub(super) async fn list(
     let mappings: Vec<Mapping> = state
         .provider
         .get_federation_provider()
-        .list_mappings(&state.db, &query.try_into()?)
+        .list_mappings(&state, &query.try_into()?)
         .await
         .map_err(KeystoneApiError::federation)?
         .into_iter()
@@ -83,7 +83,6 @@ mod tests {
         http::{Request, StatusCode},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
@@ -101,7 +100,7 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_list_mappings()
-            .withf(|_: &DatabaseConnection, _: &provider_types::MappingListParameters| true)
+            .withf(|_, _: &provider_types::MappingListParameters| true)
             .returning(|_, _| {
                 Ok(vec![provider_types::Mapping {
                     id: "id".into(),
@@ -166,16 +165,14 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_list_mappings()
-            .withf(
-                |_: &DatabaseConnection, qp: &provider_types::MappingListParameters| {
-                    provider_types::MappingListParameters {
-                        name: Some("name".into()),
-                        domain_id: Some("did".into()),
-                        idp_id: Some("idp".into()),
-                        ..Default::default()
-                    } == *qp
-                },
-            )
+            .withf(|_, qp: &provider_types::MappingListParameters| {
+                provider_types::MappingListParameters {
+                    name: Some("name".into()),
+                    domain_id: Some("did".into()),
+                    idp_id: Some("idp".into()),
+                    ..Default::default()
+                } == *qp
+            })
             .returning(|_, _| {
                 Ok(vec![provider_types::Mapping {
                     id: "id".into(),

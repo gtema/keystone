@@ -61,7 +61,7 @@ pub(super) async fn finish(
     if let Some(s) = state
         .provider
         .get_identity_provider()
-        .get_user_webauthn_credential_authentication_state(&state.db, &user_id)
+        .get_user_webauthn_credential_authentication_state(&state, &user_id)
         .await?
     {
         // We explicitly try to deserealize the request data directly into the underlying
@@ -81,7 +81,7 @@ pub(super) async fn finish(
         state
             .provider
             .get_identity_provider()
-            .delete_user_webauthn_credential_authentication_state(&state.db, &user_id)
+            .delete_user_webauthn_credential_authentication_state(&state, &user_id)
             .await?;
     }
     let authed_info = AuthenticatedInfo::builder()
@@ -90,7 +90,7 @@ pub(super) async fn finish(
             state
                 .provider
                 .get_identity_provider()
-                .get_user(&state.db, &user_id)
+                .get_user(&state, &user_id)
                 .await
                 .map(|x| {
                     x.ok_or_else(|| KeystoneApiError::NotFound {

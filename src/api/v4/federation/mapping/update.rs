@@ -61,7 +61,7 @@ pub(super) async fn update(
     let current = state
         .provider
         .get_federation_provider()
-        .get_mapping(&state.db, &id)
+        .get_mapping(&state, &id)
         .await?;
 
     policy
@@ -76,7 +76,7 @@ pub(super) async fn update(
     let res = state
         .provider
         .get_federation_provider()
-        .update_mapping(&state.db, &id, req.into())
+        .update_mapping(&state, &id, req.into())
         .await
         .map_err(KeystoneApiError::federation)?;
     Ok(res.into_response())
@@ -89,7 +89,6 @@ mod tests {
         http::{Request, StatusCode, header},
     };
     use http_body_util::BodyExt; // for `collect`
-    use sea_orm::DatabaseConnection;
 
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
@@ -107,7 +106,7 @@ mod tests {
         let mut federation_mock = MockFederationProvider::default();
         federation_mock
             .expect_get_mapping()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "1")
+            .withf(|_, id: &'_ str| id == "1")
             .returning(|_, _| {
                 Ok(Some(provider_types::Mapping {
                     id: "bar".into(),
@@ -119,11 +118,9 @@ mod tests {
 
         federation_mock
             .expect_update_mapping()
-            .withf(
-                |_: &DatabaseConnection, id: &'_ str, req: &provider_types::MappingUpdate| {
-                    id == "1" && req.name == Some("name".to_string())
-                },
-            )
+            .withf(|_, id: &'_ str, req: &provider_types::MappingUpdate| {
+                id == "1" && req.name == Some("name".to_string())
+            })
             .returning(|_, _, _| {
                 Ok(provider_types::Mapping {
                     id: "bar".into(),

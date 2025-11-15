@@ -132,7 +132,7 @@ pub async fn login(
     let idp = state
         .provider
         .get_federation_provider()
-        .get_identity_provider(&state.db, &idp_id)
+        .get_identity_provider(&state, &idp_id)
         .await
         .map(|x| {
             x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -145,7 +145,7 @@ pub async fn login(
         .provider
         .get_federation_provider()
         .list_mappings(
-            &state.db,
+            &state,
             &ProviderMappingListParameters {
                 idp_id: Some(idp_id.clone()),
                 name: Some(mapping.clone()),
@@ -245,7 +245,7 @@ pub async fn login(
     let user = if let Some(existing_user) = state
         .provider
         .get_identity_provider()
-        .find_federated_user(&state.db, &idp.id, &mapped_user_data.unique_id)
+        .find_federated_user(&state, &idp.id, &mapped_user_data.unique_id)
         .await?
     {
         // The user exists already
@@ -274,7 +274,7 @@ pub async fn login(
             .provider
             .get_identity_provider()
             .create_user(
-                &state.db,
+                &state,
                 user_builder.build().map_err(IdentityProviderError::from)?,
             )
             .await?
@@ -326,7 +326,7 @@ pub async fn login(
     let catalog: Catalog = state
         .provider
         .get_catalog_provider()
-        .get_catalog(&state.db, true)
+        .get_catalog(&state, true)
         .await?
         .into();
     api_token.token.catalog = Some(catalog);

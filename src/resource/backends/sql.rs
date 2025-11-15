@@ -22,6 +22,7 @@ use tracing::error;
 use super::super::types::*;
 use crate::config::Config;
 use crate::db::entity::{prelude::Project as DbProject, project as db_project};
+use crate::keystone::ServiceState;
 use crate::resource::ResourceProviderError;
 use crate::resource::backends::error::{ResourceDatabaseError, db_err};
 
@@ -42,38 +43,38 @@ impl ResourceBackend for SqlBackend {
     /// Get single domain by ID
     async fn get_domain<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         domain_id: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError> {
-        Ok(get_domain_by_id(&self.config, db, domain_id).await?)
+        Ok(get_domain_by_id(&self.config, &state.db, domain_id).await?)
     }
 
     /// Get single domain by Name
     async fn get_domain_by_name<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         domain_name: &'a str,
     ) -> Result<Option<Domain>, ResourceProviderError> {
-        Ok(get_domain_by_name(&self.config, db, domain_name).await?)
+        Ok(get_domain_by_name(&self.config, &state.db, domain_name).await?)
     }
 
     /// Get single project by ID
     async fn get_project<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         project_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError> {
-        Ok(get_project(&self.config, db, project_id).await?)
+        Ok(get_project(&self.config, &state.db, project_id).await?)
     }
 
     /// Get single project by Name and Domain ID
     async fn get_project_by_name<'a>(
         &self,
-        db: &DatabaseConnection,
+        state: &ServiceState,
         name: &'a str,
         domain_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError> {
-        Ok(get_project_by_name(&self.config, db, name, domain_id).await?)
+        Ok(get_project_by_name(&self.config, &state.db, name, domain_id).await?)
     }
 }
 

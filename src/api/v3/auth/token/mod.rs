@@ -66,7 +66,7 @@ async fn authenticate_request(
                     state
                         .provider
                         .get_identity_provider()
-                        .authenticate_by_password(&state.db, &state.provider, req)
+                        .authenticate_by_password(state, req)
                         .await?,
                 );
             }
@@ -83,7 +83,7 @@ async fn authenticate_request(
                 state
                     .provider
                     .get_identity_provider()
-                    .get_user(&state.db, &authz.user_id)
+                    .get_user(state, &authz.user_id)
                     .await
                     .map(|x| {
                         x.ok_or_else(|| KeystoneApiError::NotFound {
@@ -196,7 +196,7 @@ async fn post(
         let catalog: Catalog = state
             .provider
             .get_catalog_provider()
-            .get_catalog(&state.db, true)
+            .get_catalog(&state, true)
             .await?
             .into();
         api_token.token.catalog = Some(catalog);
@@ -277,7 +277,7 @@ async fn show(
         let catalog: Catalog = state
             .provider
             .get_catalog_provider()
-            .get_catalog(&state.db, true)
+            .get_catalog(&state, true)
             .await?
             .into();
         response_token.catalog = Some(catalog);
@@ -356,12 +356,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_authenticate_by_password()
-            .withf(|_, _, req: &UserPasswordAuthRequest| {
+            .withf(|_, req: &UserPasswordAuthRequest| {
                 req.id == Some("uid".to_string())
                     && req.password == "pwd"
                     && req.name == Some("uname".to_string())
             })
-            .returning(move |_, _, _| Ok(auth_clone.clone()));
+            .returning(move |_, _| Ok(auth_clone.clone()));
 
         let provider = Provider::mocked_builder()
             .config(config.clone())
@@ -535,7 +535,7 @@ mod tests {
         let mut resource_mock = MockResourceProvider::default();
         resource_mock
             .expect_get_domain()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "user_domain_id")
+            .withf(|_, id: &'_ str| id == "user_domain_id")
             .returning(|_, _| {
                 Ok(Some(Domain {
                     id: "user_domain_id".into(),
@@ -634,7 +634,7 @@ mod tests {
         let mut resource_mock = MockResourceProvider::default();
         resource_mock
             .expect_get_domain()
-            .withf(|_: &DatabaseConnection, id: &'_ str| id == "user_domain_id")
+            .withf(|_, id: &'_ str| id == "user_domain_id")
             .returning(|_, _| {
                 Ok(Some(Domain {
                     id: "user_domain_id".into(),
@@ -823,12 +823,12 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_authenticate_by_password()
-            .withf(|_, _, req: &UserPasswordAuthRequest| {
+            .withf(|_, req: &UserPasswordAuthRequest| {
                 req.id == Some("uid".to_string())
                     && req.password == "pass"
                     && req.name == Some("uname".to_string())
             })
-            .returning(|_, _, _| {
+            .returning(|_, _| {
                 Ok(AuthenticatedInfo::builder()
                     .user_id("uid")
                     .user(UserResponse {
@@ -979,7 +979,7 @@ mod tests {
         let mut identity_mock = MockIdentityProvider::default();
         identity_mock
             .expect_authenticate_by_password()
-            .returning(|_, _, _| {
+            .returning(|_, _| {
                 Ok(AuthenticatedInfo::builder()
                     .user_id("uid")
                     .user(UserResponse {
