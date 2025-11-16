@@ -74,8 +74,8 @@ pub struct PublicKeyCredentialRequestOptions {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum Mediation {
     /// Discovered credentials are presented to the user in a dialog. Conditional UI is used. See
-    /// https://github.com/w3c/webauthn/wiki/Explainer:-WebAuthn-Conditional-UI
-    /// https://w3c.github.io/webappsec-credential-management/#enumdef-credentialmediationrequirement
+    /// <https://github.com/w3c/webauthn/wiki/Explainer:-WebAuthn-Conditional-UI>
+    /// <https://w3c.github.io/webappsec-credential-management/#enumdef-credentialmediationrequirement>
     Conditional,
 }
 
@@ -85,7 +85,7 @@ pub struct AllowCredentials {
     /// The id of the credential.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
     pub id: String,
-    /// https://www.w3.org/TR/webauthn/#transport may be usb, nfc, ble, internal
+    /// <https://www.w3.org/TR/webauthn/#transport> may be usb, nfc, ble, internal
     #[schema(nullable = false)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transports: Option<Vec<AuthenticatorTransport>>,
@@ -93,27 +93,27 @@ pub struct AllowCredentials {
     pub type_: String,
 }
 
-/// https://www.w3.org/TR/webauthn/#enumdef-authenticatortransport
+/// <https://www.w3.org/TR/webauthn/#enumdef-authenticatortransport>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum AuthenticatorTransport {
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-ble
+    /// <https://www.w3.org/TR/webauthn/#dom-authenticatortransport-ble>
     Ble,
-    /// Hybrid transport, formerly caBLE. Part of the level 3 draft specification. https://w3c.github.io/webauthn/#dom-authenticatortransport-hybrid
+    /// Hybrid transport, formerly caBLE. Part of the level 3 draft specification. <https://w3c.github.io/webauthn/#dom-authenticatortransport-hybrid>
     Hybrid,
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-internal
+    /// <https://www.w3.org/TR/webauthn/#dom-authenticatortransport-internal>
     Internal,
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-nfc
+    /// <https://www.w3.org/TR/webauthn/#dom-authenticatortransport-nfc>
     Nfc,
     /// Test transport; used for Windows 10.
     Test,
     /// An unknown transport was provided - it will be ignored.
     Unknown,
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-usb
+    /// <https://www.w3.org/TR/webauthn/#dom-authenticatortransport-usb>
     Usb,
 }
 
 /// Defines the User Authenticator Verification policy. This is documented
-/// https://w3c.github.io/webauthn/#enumdef-userverificationrequirement, and each variant lists
+/// <https://w3c.github.io/webauthn/#enumdef-userverificationrequirement>, and each variant lists
 /// it’s effects.
 ///
 /// To be clear, Verification means that the Authenticator perform extra or supplementary
@@ -167,7 +167,7 @@ pub enum UserVerificationPolicy {
 
 /// A hint as to the class of device that is expected to fufil this operation.
 ///
-/// https://www.w3.org/TR/webauthn-3/#enumdef-publickeycredentialhints
+/// <https://www.w3.org/TR/webauthn-3/#enumdef-publickeycredentialhints>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum PublicKeyCredentialHint {
     /// The credential is a platform authenticator.
@@ -180,7 +180,7 @@ pub enum PublicKeyCredentialHint {
 
 /// Extension option inputs for PublicKeyCredentialRequestOptions
 ///
-/// Implements [AuthenticatorExtensionsClientInputs] from the spec
+/// Implements AuthenticatorExtensionsClientInputs from the spec
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct RequestAuthenticationExtensions {
     /// The appid extension options.
@@ -188,7 +188,7 @@ pub struct RequestAuthenticationExtensions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub appid: Option<String>,
     /// ⚠️ - Browsers do not support this!
-    /// https://bugs.chromium.org/p/chromium/issues/detail?id=1023225 Hmac get secret.
+    /// <https://bugs.chromium.org/p/chromium/issues/detail?id=1023225> Hmac get secret.
     #[schema(nullable = false)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hmac_get_secret: Option<HmacGetSecretInput>,
@@ -200,7 +200,7 @@ pub struct RequestAuthenticationExtensions {
 
 /// The inputs to the hmac secret if it was created during registration.
 ///
-/// https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#sctn-hmac-secret-extension
+/// <https://fidoalliance.org/specs/fido-v2.1-ps-20210615/fido-client-to-authenticator-protocol-v2.1-ps-20210615.html#sctn-hmac-secret-extension>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct HmacGetSecretInput {
     /// Retrieve a symmetric secrets from the authenticator with this input.
