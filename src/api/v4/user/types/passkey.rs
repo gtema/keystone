@@ -137,7 +137,7 @@ pub struct PubKeyCredParams {
     pub type_: String,
 }
 
-/// https://www.w3.org/TR/webauthn/#dictdef-publickeycredentialdescriptor
+/// <https://www.w3.org/TR/webauthn/#dictdef-publickeycredentialdescriptor>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct PublicKeyCredentialDescriptor {
     /// The type of credential.
@@ -156,8 +156,8 @@ pub struct PublicKeyCredentialDescriptor {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum Mediation {
     /// Discovered credentials are presented to the user in a dialog. Conditional UI is used. See
-    /// https://github.com/w3c/webauthn/wiki/Explainer:-WebAuthn-Conditional-UI
-    /// https://w3c.github.io/webappsec-credential-management/#enumdef-credentialmediationrequirement
+    /// <https://github.com/w3c/webauthn/wiki/Explainer:-WebAuthn-Conditional-UI>
+    /// <https://w3c.github.io/webappsec-credential-management/#enumdef-credentialmediationrequirement>
     Conditional,
 }
 
@@ -169,50 +169,50 @@ pub struct AllowCredentials {
     /// The id of the credential.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
     pub id: String,
-    /// https://www.w3.org/TR/webauthn/#transport may be usb, nfc, ble, internal
+    /// <https://www.w3.org/TR/webauthn/#transport> may be usb, nfc, ble, internal
     #[schema(nullable = false)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transports: Option<Vec<AuthenticatorTransport>>,
 }
 
-/// https://www.w3.org/TR/webauthn/#enumdef-authenticatortransport
+/// <https://www.w3.org/TR/webauthn/#enumdef-authenticatortransport>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum AuthenticatorTransport {
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-ble
+    /// <https://www.w3.org/TR/webauthn/#dom-authenticatortransport-ble>
     Ble,
     /// Hybrid transport, formerly caBLE. Part of the level 3 draft specification.
-    /// https://w3c.github.io/webauthn/#dom-authenticatortransport-hybrid
+    /// <https://w3c.github.io/webauthn/#dom-authenticatortransport-hybrid>
     Hybrid,
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-internal
+    /// <https://www.w3.org/TR/webauthn/#dom-authenticatortransport-internal>
     Internal,
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-nfc
+    /// <https://www.w3.org/TR/webauthn/#dom-authenticatortransport-nfc>
     Nfc,
     /// Test transport; used for Windows 10.
     Test,
     /// An unknown transport was provided - it will be ignored.
     Unknown,
-    /// https://www.w3.org/TR/webauthn/#dom-authenticatortransport-usb
+    /// <https://www.w3.org/TR/webauthn/#dom-authenticatortransport-usb>
     Usb,
 }
 
-/// https://www.w3.org/TR/webauthn/#dictdef-authenticatorselectioncriteria
+/// <https://www.w3.org/TR/webauthn/#dictdef-authenticatorselectioncriteria>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct AuthenticatorSelectionCriteria {
     /// How the authenticator should be attached to the client machine. Note this is only a hint.
-    /// It is not enforced in anyway shape or form. https://www.w3.org/TR/webauthn/#attachment.
+    /// It is not enforced in anyway shape or form. <https://www.w3.org/TR/webauthn/#attachment>.
     #[schema(nullable = false)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub authenticator_attachment: Option<AuthenticatorAttachment>,
     /// Hint to the credential to create a resident key. Note this value should be a member of
     /// ResidentKeyRequirement, but client must ignore unknown values, treating an unknown value as
     /// if the member does not exist.
-    /// https://www.w3.org/TR/webauthn-2/#dom-authenticatorselectioncriteria-residentkey.
+    /// <https://www.w3.org/TR/webauthn-2/#dom-authenticatorselectioncriteria-residentkey>.
     #[schema(nullable = false)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resident_key: Option<ResidentKeyRequirement>,
     /// Hint to the credential to create a resident key. Note this can not be enforced or
     /// validated, so the authenticator may choose to ignore this parameter.
-    /// https://www.w3.org/TR/webauthn/#resident-credential.
+    /// <https://www.w3.org/TR/webauthn/#resident-credential>.
     pub require_resident_key: bool,
     /// The user verification level to request during registration. Depending on if this
     /// authenticator provides verification may affect future interactions as this is associated to
@@ -223,34 +223,34 @@ pub struct AuthenticatorSelectionCriteria {
 /// The authenticator attachment hint. This is NOT enforced, and is only used to help a user select
 /// a relevant authenticator type.
 ///
-/// https://www.w3.org/TR/webauthn/#attachment
+/// <https://www.w3.org/TR/webauthn/#attachment>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum AuthenticatorAttachment {
     /// Request a device that is part of the machine aka inseparable.
-    /// https://www.w3.org/TR/webauthn/#attachment.
+    /// <https://www.w3.org/TR/webauthn/#attachment>.
     Platform,
     /// Request a device that can be separated from the machine aka an external token.
-    /// https://www.w3.org/TR/webauthn/#attachment.
+    /// <https://www.w3.org/TR/webauthn/#attachment>.
     CrossPlatform,
 }
 
 /// The Relying Party’s requirements for client-side discoverable credentials.
 ///
-/// https://www.w3.org/TR/webauthn-2/#enumdef-residentkeyrequirement
+/// <https://www.w3.org/TR/webauthn-2/#enumdef-residentkeyrequirement>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum ResidentKeyRequirement {
-    /// https://www.w3.org/TR/webauthn-2/#dom-residentkeyrequirement-discouraged.
+    /// <https://www.w3.org/TR/webauthn-2/#dom-residentkeyrequirement-discouraged>.
     Discouraged,
     /// ⚠️ In all major browsers preferred is identical in behaviour to required. You should use
-    /// required instead. https://www.w3.org/TR/webauthn-2/#dom-residentkeyrequirement-preferred.
+    /// required instead. <https://www.w3.org/TR/webauthn-2/#dom-residentkeyrequirement-preferred>.
     Preferred,
-    /// https://www.w3.org/TR/webauthn-2/#dom-residentkeyrequirement-required.
+    /// <https://www.w3.org/TR/webauthn-2/#dom-residentkeyrequirement-required>.
     Required,
 }
 
 /// A hint as to the class of device that is expected to fufil this operation.
 ///
-/// https://www.w3.org/TR/webauthn-3/#enumdef-publickeycredentialhints
+/// <https://www.w3.org/TR/webauthn-3/#enumdef-publickeycredentialhints>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum PublicKeyCredentialHints {
     /// The credential is a platform authenticator.
@@ -261,23 +261,23 @@ pub enum PublicKeyCredentialHints {
     SecurityKey,
 }
 
-/// https://www.w3.org/TR/webauthn/#enumdef-attestationconveyancepreference
+/// <https://www.w3.org/TR/webauthn/#enumdef-attestationconveyancepreference>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum AttestationConveyancePreference {
     /// Do not request attestation.
-    /// https://www.w3.org/TR/webauthn/#dom-attestationconveyancepreference-none.
+    /// <https://www.w3.org/TR/webauthn/#dom-attestationconveyancepreference-none>.
     None,
     /// Request attestation in a semi-anonymized form.
-    /// https://www.w3.org/TR/webauthn/#dom-attestationconveyancepreference-indirect.
+    /// <https://www.w3.org/TR/webauthn/#dom-attestationconveyancepreference-indirect>.
     Indirect,
     /// Request attestation in a direct form.
-    /// https://www.w3.org/TR/webauthn/#dom-attestationconveyancepreference-direct.
+    /// <https://www.w3.org/TR/webauthn/#dom-attestationconveyancepreference-direct>.
     Direct,
 }
 
 /// The type of attestation on the credential.
 ///
-/// https://www.iana.org/assignments/webauthn/webauthn.xhtml
+/// <https://www.iana.org/assignments/webauthn/webauthn.xhtml>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub enum AttestationFormat {
     /// Packed attestation.
@@ -298,7 +298,7 @@ pub enum AttestationFormat {
 
 /// Extension option inputs for PublicKeyCredentialCreationOptions.
 ///
-/// Implements [AuthenticatorExtensionsClientInputs] from the spec.
+/// Implements `AuthenticatorExtensionsClientInputs` from the spec.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct RequestRegistrationExtensions {
     /// ⚠️ - This extension result is always unsigned, and only indicates if the browser requests a
@@ -327,7 +327,7 @@ pub struct RequestRegistrationExtensions {
 
 /// The desired options for the client’s use of the credProtect extension
 ///
-/// https://fidoalliance.org/specs/fido-v2.1-rd-20210309/fido-client-to-authenticator-protocol-v2.1-rd-20210309.html#sctn-credProtect-extension
+/// <https://fidoalliance.org/specs/fido-v2.1-rd-20210309/fido-client-to-authenticator-protocol-v2.1-rd-20210309.html#sctn-credProtect-extension>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct CredProtect {
     /// The credential policy to enact.
@@ -356,7 +356,7 @@ pub enum CredentialProtectionPolicy {
 }
 
 /// Defines the User Authenticator Verification policy. This is documented
-/// https://w3c.github.io/webauthn/#enumdef-userverificationrequirement, and each variant lists
+/// <https://w3c.github.io/webauthn/#enumdef-userverificationrequirement>, and each variant lists
 /// it’s effects.
 ///
 /// To be clear, Verification means that the Authenticator perform extra or supplementary
@@ -413,7 +413,7 @@ pub enum UserVerificationPolicy {
 ///
 /// You should not need to handle the inner content of this structure - you should provide this to
 /// the correctly handling function of Webauthn only.
-/// https://w3c.github.io/webauthn/#iface-pkcredential
+/// <https://w3c.github.io/webauthn/#iface-pkcredential>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct UserPasskeyRegistrationFinishRequest {
     /// Optional credential description.
@@ -431,7 +431,7 @@ pub struct UserPasskeyRegistrationFinishRequest {
     /// from the attestation data.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
     pub raw_id: String,
-    /// https://w3c.github.io/webauthn/#dom-publickeycredential-response.
+    /// <https://w3c.github.io/webauthn/#dom-publickeycredential-response>.
     pub response: AuthenticatorAttestationResponseRaw,
     /// The type of credential.
     pub type_: String,
@@ -439,22 +439,22 @@ pub struct UserPasskeyRegistrationFinishRequest {
     pub extensions: RegistrationExtensionsClientOutputs,
 }
 
-/// https://w3c.github.io/webauthn/#authenticatorattestationresponse
+/// <https://w3c.github.io/webauthn/#authenticatorattestationresponse>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct AuthenticatorAttestationResponseRaw {
-    /// https://w3c.github.io/webauthn/#dom-authenticatorattestationresponse-attestationobject.
+    /// <https://w3c.github.io/webauthn/#dom-authenticatorattestationresponse-attestationobject>.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
     pub attestation_object: String,
-    /// https://w3c.github.io/webauthn/#dom-authenticatorresponse-clientdatajson.
+    /// <https://w3c.github.io/webauthn/#dom-authenticatorresponse-clientdatajson>.
     #[schema(value_type = String, format = Binary, content_encoding = "base64")]
     pub client_data_json: String,
-    /// https://w3c.github.io/webauthn/#dom-authenticatorattestationresponse-gettransports.
+    /// <https://w3c.github.io/webauthn/#dom-authenticatorattestationresponse-gettransports>.
     #[schema(nullable = false)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transports: Option<Vec<AuthenticatorTransport>>,
 }
 
-/// https://w3c.github.io/webauthn/#dictdef-authenticationextensionsclientoutputs The default
+/// <https://w3c.github.io/webauthn/#dictdef-authenticationextensionsclientoutputs> The default
 /// option here for Options are None, so it can be derived
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct RegistrationExtensionsClientOutputs {
@@ -481,7 +481,7 @@ pub struct RegistrationExtensionsClientOutputs {
     pub min_pin_length: Option<u32>,
 }
 
-/// https://www.w3.org/TR/webauthn-3/#sctn-authenticator-credential-properties-extension
+/// <https://www.w3.org/TR/webauthn-3/#sctn-authenticator-credential-properties-extension>
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, ToSchema)]
 pub struct CredProps {
     /// A user agent supplied hint that this credential may have created a resident key. It is
