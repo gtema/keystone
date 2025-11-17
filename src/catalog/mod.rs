@@ -13,103 +13,28 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-#[cfg(test)]
-use mockall::mock;
 
 pub mod backends;
 pub mod error;
+#[cfg(test)]
+mod mock;
 pub(crate) mod types;
 
+use crate::catalog::backends::CatalogBackend;
 use crate::catalog::backends::sql::SqlBackend;
 use crate::catalog::error::CatalogProviderError;
-use crate::catalog::types::{
-    CatalogBackend, Endpoint, EndpointListParameters, Service, ServiceListParameters,
-};
 use crate::config::Config;
 use crate::keystone::ServiceState;
 use crate::plugin_manager::PluginManager;
 
+#[cfg(test)]
+pub use mock::MockCatalogProvider;
+
+pub use types::*;
+
 #[derive(Clone, Debug)]
 pub struct CatalogProvider {
     backend_driver: Box<dyn CatalogBackend>,
-}
-
-#[async_trait]
-pub trait CatalogApi: Send + Sync + Clone {
-    async fn list_services(
-        &self,
-        state: &ServiceState,
-        params: &ServiceListParameters,
-    ) -> Result<Vec<Service>, CatalogProviderError>;
-
-    async fn get_service<'a>(
-        &self,
-        state: &ServiceState,
-        id: &'a str,
-    ) -> Result<Option<Service>, CatalogProviderError>;
-
-    async fn list_endpoints(
-        &self,
-        state: &ServiceState,
-        params: &EndpointListParameters,
-    ) -> Result<Vec<Endpoint>, CatalogProviderError>;
-
-    async fn get_endpoint<'a>(
-        &self,
-        state: &ServiceState,
-        id: &'a str,
-    ) -> Result<Option<Endpoint>, CatalogProviderError>;
-
-    async fn get_catalog(
-        &self,
-        state: &ServiceState,
-        enabled: bool,
-    ) -> Result<Vec<(Service, Vec<Endpoint>)>, CatalogProviderError>;
-}
-
-#[cfg(test)]
-mock! {
-    pub CatalogProvider {
-        pub fn new(cfg: &Config, plugin_manager: &PluginManager) -> Result<Self, CatalogProviderError>;
-    }
-
-    #[async_trait]
-    impl CatalogApi for CatalogProvider {
-        async fn list_services(
-            &self,
-            state: &ServiceState,
-            params: &ServiceListParameters
-        ) -> Result<Vec<Service>, CatalogProviderError>;
-
-        async fn get_service<'a>(
-            &self,
-            state: &ServiceState,
-            id: &'a str,
-        ) -> Result<Option<Service>, CatalogProviderError>;
-
-        async fn list_endpoints(
-            &self,
-            state: &ServiceState,
-            params: &EndpointListParameters,
-        ) -> Result<Vec<Endpoint>, CatalogProviderError>;
-
-        async fn get_endpoint<'a>(
-            &self,
-            state: &ServiceState,
-            id: &'a str,
-        ) -> Result<Option<Endpoint>, CatalogProviderError>;
-
-        async fn get_catalog(
-            &self,
-            state: &ServiceState,
-            enabled: bool,
-        ) -> Result<Vec<(Service, Vec<Endpoint>)>, CatalogProviderError>;
-
-    }
-
-    impl Clone for CatalogProvider {
-        fn clone(&self) -> Self;
-    }
 }
 
 impl CatalogProvider {
