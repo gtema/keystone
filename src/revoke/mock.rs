@@ -38,6 +38,12 @@ mock! {
             state: &ServiceState,
             token: &Token,
         ) -> Result<bool, RevokeProviderError>;
+
+        async fn revoke_token(
+            &self,
+            state: &ServiceState,
+            token: &Token,
+        ) -> Result<(), RevokeProviderError>;
     }
 
     impl Clone for RevokeProvider {
