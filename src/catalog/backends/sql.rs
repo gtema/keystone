@@ -19,6 +19,7 @@ use sea_orm::query::*;
 
 use super::super::types::*;
 use crate::catalog::CatalogProviderError;
+use crate::catalog::backends::CatalogBackend;
 use crate::catalog::backends::error::{CatalogDatabaseError, db_err};
 use crate::config::Config;
 use crate::db::entity::{

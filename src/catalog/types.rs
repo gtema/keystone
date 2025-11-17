@@ -12,15 +12,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use async_trait::async_trait;
+
 pub mod endpoint;
 pub mod service;
 
-use async_trait::async_trait;
-use dyn_clone::DynClone;
-
 use crate::catalog::CatalogProviderError;
-use crate::config::Config;
-
 pub use crate::catalog::types::endpoint::{
     Endpoint, EndpointBuilder, EndpointBuilderError, EndpointListParameters,
 };
@@ -30,44 +27,34 @@ pub use crate::catalog::types::service::{
 use crate::keystone::ServiceState;
 
 #[async_trait]
-pub trait CatalogBackend: DynClone + Send + Sync + std::fmt::Debug {
-    /// Set config
-    fn set_config(&mut self, config: Config);
-
-    /// List services
+pub trait CatalogApi: Send + Sync + Clone {
     async fn list_services(
         &self,
         state: &ServiceState,
         params: &ServiceListParameters,
     ) -> Result<Vec<Service>, CatalogProviderError>;
 
-    /// Get single service by ID
     async fn get_service<'a>(
         &self,
         state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Service>, CatalogProviderError>;
 
-    /// List Endpoints
     async fn list_endpoints(
         &self,
         state: &ServiceState,
         params: &EndpointListParameters,
     ) -> Result<Vec<Endpoint>, CatalogProviderError>;
 
-    /// Get single endpoint by ID
     async fn get_endpoint<'a>(
         &self,
         state: &ServiceState,
         id: &'a str,
     ) -> Result<Option<Endpoint>, CatalogProviderError>;
 
-    /// Get Catalog (Services with Endpoints)
     async fn get_catalog(
         &self,
         state: &ServiceState,
         enabled: bool,
     ) -> Result<Vec<(Service, Vec<Endpoint>)>, CatalogProviderError>;
 }
-
-dyn_clone::clone_trait_object!(CatalogBackend);
