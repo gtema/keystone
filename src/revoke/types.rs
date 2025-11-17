@@ -12,8 +12,12 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //! Token revocation types definitions.
+//! Revocation provider types.
 
 use async_trait::async_trait;
+use chrono::{DateTime, Timelike, Utc};
+use derive_builder::Builder;
+use serde::{Deserialize, Serialize};
 
 use crate::keystone::ServiceState;
 use crate::revoke::RevokeProviderError;
@@ -31,4 +35,170 @@ pub trait RevokeApi: Send + Sync + Clone {
         state: &ServiceState,
         token: &Token,
     ) -> Result<bool, RevokeProviderError>;
+
+    /// Revoke the token.
+    ///
+    /// Mark the token as revoked to prohibit from being used even while not expired.
+    async fn revoke_token(
+        &self,
+        state: &ServiceState,
+        token: &Token,
+    ) -> Result<(), RevokeProviderError>;
+}
+
+/// Revocation event.
+#[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[builder(setter(strip_option, into))]
+pub struct RevocationEvent {
+    pub domain_id: Option<String>,
+    pub project_id: Option<String>,
+    pub user_id: Option<String>,
+    pub role_id: Option<String>,
+    pub trust_id: Option<String>,
+    pub consumer_id: Option<String>,
+    pub access_token_id: Option<String>,
+    pub issued_before: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub revoked_at: DateTime<Utc>,
+    pub audit_id: Option<String>,
+    pub audit_chain_id: Option<String>,
+}
+
+/// Revocation event creation data.
+#[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[builder(setter(strip_option, into))]
+pub struct RevocationEventCreate {
+    pub domain_id: Option<String>,
+    pub project_id: Option<String>,
+    pub user_id: Option<String>,
+    pub role_id: Option<String>,
+    pub trust_id: Option<String>,
+    pub consumer_id: Option<String>,
+    pub access_token_id: Option<String>,
+    pub issued_before: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub revoked_at: DateTime<Utc>,
+    pub audit_id: Option<String>,
+    pub audit_chain_id: Option<String>,
+}
+
+/// Revocation list parameters.
+///
+/// It may be necessary to list revocation events not related to the certain token.
+#[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[builder(setter(strip_option, into))]
+pub struct RevocationEventListParameters {
+    //pub access_token_id: Option<String>,
+    //pub audit_chain_id: Option<String>,
+    #[builder(default)]
+    pub audit_id: Option<String>,
+    //pub consumer_id: Option<String>,
+    #[builder(default)]
+    pub domain_id: Option<String>,
+    #[builder(default)]
+    pub expires_at: Option<DateTime<Utc>>,
+    #[builder(default)]
+    pub issued_before: Option<DateTime<Utc>>,
+    #[builder(default)]
+    pub project_id: Option<String>,
+    #[builder(default)]
+    pub revoked_at: Option<DateTime<Utc>>,
+    //pub role_id: Option<String>,
+    //pub trust_id: Option<String>,
+    #[builder(default)]
+    pub user_id: Option<Vec<String>>,
+}
+
+impl TryFrom<&Token> for RevocationEventListParameters {
+    type Error = RevokeProviderError;
+    fn try_from(value: &Token) -> Result<Self, Self::Error> {
+        // TODO: for trust token user_id can be trustee_id or trustor_id
+        Ok(Self {
+            //access_token_id: None,
+            //audit_chain_id: None,
+            audit_id: Some(
+                value
+                    .audit_ids()
+                    .first()
+                    .ok_or_else(|| RevokeProviderError::TokenHasNoAuditId)?,
+            )
+            .cloned(),
+            //consumer_id: None,
+            domain_id: value.domain().map(|domain| domain.id.clone()),
+            expires_at: None,
+            issued_before: Some(*value.issued_at()),
+            project_id: value.project_id().cloned(),
+            revoked_at: None,
+            //role_id: None,
+            //trust_id: None,
+            user_id: Some(vec![value.user_id().clone()]),
+        })
+    }
+}
+
+impl TryFrom<&Token> for RevocationEventCreate {
+    type Error = RevokeProviderError;
+    fn try_from(value: &Token) -> Result<Self, Self::Error> {
+        let now = Utc::now();
+        Ok(Self {
+            access_token_id: None,
+            audit_chain_id: None,
+            audit_id: Some(
+                value
+                    .audit_ids()
+                    .first()
+                    .ok_or_else(|| RevokeProviderError::TokenHasNoAuditId)?,
+            )
+            .cloned(),
+            consumer_id: None,
+            domain_id: None,
+            expires_at: value.expires_at().with_nanosecond(0),
+            issued_before: now,
+            project_id: None,
+            revoked_at: now,
+            role_id: None,
+            trust_id: None,
+            user_id: None,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::token::ProjectScopePayload;
+
+    #[test]
+    fn test_create_from_token() {
+        let token = Token::ProjectScope(ProjectScopePayload {
+            user_id: "bar".into(),
+            methods: Vec::from(["password".to_string()]),
+            project_id: "pid".into(),
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: DateTime::parse_from_rfc3339("2025-11-17T19:55:06.123456Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            ..Default::default()
+        });
+        let revocation: RevocationEventCreate = RevocationEventCreate::try_from(&token).unwrap();
+
+        assert!(revocation.access_token_id.is_none());
+        assert!(revocation.audit_chain_id.is_none());
+        assert_eq!(
+            *token.audit_ids().first().unwrap(),
+            revocation.audit_id.unwrap()
+        );
+        assert!(revocation.consumer_id.is_none());
+        assert!(revocation.domain_id.is_none());
+        assert_eq!(
+            DateTime::parse_from_rfc3339("2025-11-17T19:55:06.000000Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            revocation.expires_at.unwrap()
+        );
+        assert!(revocation.project_id.is_none());
+        assert!(revocation.role_id.is_none());
+        assert!(revocation.trust_id.is_none());
+        assert!(revocation.user_id.is_none());
+    }
 }

@@ -99,4 +99,15 @@ impl RevokeApi for RevokeProvider {
     ) -> Result<bool, RevokeProviderError> {
         self.backend_driver.is_token_revoked(state, token).await
     }
+
+    /// Revoke the token.
+    ///
+    /// Mark the token as revoked to prohibit from being used even while not expired.
+    async fn revoke_token(
+        &self,
+        state: &ServiceState,
+        token: &Token,
+    ) -> Result<(), RevokeProviderError> {
+        self.backend_driver.revoke_token(state, token).await
+    }
 }

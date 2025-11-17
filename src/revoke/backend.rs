@@ -12,7 +12,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 //! Token revocation: Backends.
-
+//! Revocation provider Backend trait.
 use async_trait::async_trait;
 use dyn_clone::DynClone;
 
@@ -25,6 +25,9 @@ pub mod error;
 pub mod sql;
 
 #[async_trait]
+/// RevokeBackend trait.
+///
+/// Backend driver interface expected by the revocation provider.
 pub trait RevokeBackend: DynClone + Send + Sync + std::fmt::Debug {
     /// Set config
     fn set_config(&mut self, config: Config);
@@ -37,6 +40,15 @@ pub trait RevokeBackend: DynClone + Send + Sync + std::fmt::Debug {
         state: &ServiceState,
         token: &Token,
     ) -> Result<bool, RevokeProviderError>;
+
+    /// Revoke the token.
+    ///
+    /// Mark the token as revoked to prohibit from being used even while not expired.
+    async fn revoke_token(
+        &self,
+        state: &ServiceState,
+        token: &Token,
+    ) -> Result<(), RevokeProviderError>;
 }
 
 dyn_clone::clone_trait_object!(RevokeBackend);

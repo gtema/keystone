@@ -14,9 +14,6 @@
 //! Revoke provider: database backend.
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use derive_builder::Builder;
-use serde::{Deserialize, Serialize};
 
 use super::RevokeBackend;
 use crate::config::Config;
@@ -24,8 +21,10 @@ use crate::db::entity::revocation_event as db_revocation_event;
 use crate::keystone::ServiceState;
 use crate::revoke::RevokeProviderError;
 use crate::revoke::backend::error::RevokeDatabaseError;
+use crate::revoke::types::*;
 use crate::token::types::Token;
 
+mod create;
 mod list;
 
 /// Sql Database revocation backend.
@@ -79,77 +78,18 @@ impl RevokeBackend for SqlBackend {
             Ok(false)
         }
     }
-}
 
-/// Revocation event.
-#[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
-#[builder(setter(strip_option, into))]
-pub struct RevocationEvent {
-    pub domain_id: Option<String>,
-    pub project_id: Option<String>,
-    pub user_id: Option<String>,
-    pub role_id: Option<String>,
-    pub trust_id: Option<String>,
-    pub consumer_id: Option<String>,
-    pub access_token_id: Option<String>,
-    pub issued_before: DateTime<Utc>,
-    pub expires_at: Option<DateTime<Utc>>,
-    pub revoked_at: DateTime<Utc>,
-    pub audit_id: Option<String>,
-    pub audit_chain_id: Option<String>,
-}
-
-/// Revocation list parameters.
-///
-/// It may be necessary to list revocation events not related to the certain token.
-#[derive(Builder, Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
-#[builder(setter(strip_option, into))]
-struct RevocationEventListParameters {
-    //pub access_token_id: Option<String>,
-    //pub audit_chain_id: Option<String>,
-    #[builder(default)]
-    pub audit_id: Option<String>,
-    //pub consumer_id: Option<String>,
-    #[builder(default)]
-    pub domain_id: Option<String>,
-    #[builder(default)]
-    pub expires_at: Option<DateTime<Utc>>,
-    #[builder(default)]
-    pub issued_before: Option<DateTime<Utc>>,
-    #[builder(default)]
-    pub project_id: Option<String>,
-    #[builder(default)]
-    pub revoked_at: Option<DateTime<Utc>>,
-    //pub role_id: Option<String>,
-    //pub trust_id: Option<String>,
-    #[builder(default)]
-    pub user_id: Option<Vec<String>>,
-}
-
-impl TryFrom<&Token> for RevocationEventListParameters {
-    type Error = RevokeProviderError;
-    fn try_from(value: &Token) -> Result<Self, Self::Error> {
-        // TODO: for trust token user_id can be trustee_id or trustor_id
-        Ok(Self {
-            //access_token_id: None,
-            //audit_chain_id: None,
-            audit_id: Some(
-                value
-                    .audit_ids()
-                    .first()
-                    .ok_or_else(|| RevokeProviderError::TokenHasNoAuditId)?,
-            )
-            .cloned(),
-            //consumer_id: None,
-            domain_id: value.domain().map(|domain| domain.id.clone()),
-            expires_at: None,
-            issued_before: Some(*value.issued_at()),
-            project_id: value.project_id().cloned(),
-            revoked_at: None,
-            //role_id: None,
-            //trust_id: None,
-            user_id: Some(vec![value.user_id().clone()]),
-        })
+    /// Revoke the token.
+    ///
+    /// Mark the token as revoked to prohibit from being used even while not expired.
+    async fn revoke_token(
+        &self,
+        state: &ServiceState,
+        token: &Token,
+    ) -> Result<(), RevokeProviderError> {
+        Ok(create::create(&state.db, token.try_into()?)
+            .await
+            .map(|_| ())?)
     }
 }
 

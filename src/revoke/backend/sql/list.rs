@@ -17,11 +17,11 @@ use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use sea_orm::query::*;
 
-use super::{RevocationEvent, RevocationEventListParameters};
 use crate::db::entity::{
     prelude::RevocationEvent as DbRevocationEvent, revocation_event as db_revocation_event,
 };
 use crate::revoke::backend::error::{RevokeDatabaseError, db_err};
+use crate::revoke::types::{RevocationEvent, RevocationEventListParameters};
 
 fn build_query_filters(
     params: &RevocationEventListParameters,
