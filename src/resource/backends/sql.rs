@@ -13,18 +13,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use sea_orm::DatabaseConnection;
-use sea_orm::entity::*;
-use sea_orm::query::*;
-use serde_json::Value;
-use tracing::error;
+
+mod domain;
+mod project;
 
 use super::super::types::*;
 use crate::config::Config;
-use crate::db::entity::{prelude::Project as DbProject, project as db_project};
 use crate::keystone::ServiceState;
 use crate::resource::ResourceProviderError;
-use crate::resource::backends::error::{ResourceDatabaseError, db_err};
+use crate::resource::backends::sql::domain::{get_domain_by_id, get_domain_by_name};
+use crate::resource::backends::sql::project::{get_project, get_project_by_name};
 
 #[derive(Clone, Debug, Default)]
 pub struct SqlBackend {
@@ -75,117 +73,6 @@ impl ResourceBackend for SqlBackend {
         domain_id: &'a str,
     ) -> Result<Option<Project>, ResourceProviderError> {
         Ok(get_project_by_name(&self.config, &state.db, name, domain_id).await?)
-    }
-}
-
-pub async fn get_domain_by_id<I: AsRef<str>>(
-    _conf: &Config,
-    db: &DatabaseConnection,
-    domain_id: I,
-) -> Result<Option<Domain>, ResourceDatabaseError> {
-    let domain_select =
-        DbProject::find_by_id(domain_id.as_ref()).filter(db_project::Column::IsDomain.eq(true));
-
-    let domain_entry: Option<db_project::Model> = domain_select
-        .one(db)
-        .await
-        .map_err(|err| db_err(err, "fetching domain by id"))?;
-    domain_entry.map(TryInto::try_into).transpose()
-}
-
-pub async fn get_domain_by_name<N: AsRef<str>>(
-    _conf: &Config,
-    db: &DatabaseConnection,
-    domain_name: N,
-) -> Result<Option<Domain>, ResourceDatabaseError> {
-    let domain_select = DbProject::find()
-        .filter(db_project::Column::IsDomain.eq(true))
-        .filter(db_project::Column::Name.eq(domain_name.as_ref()));
-
-    let domain_entry: Option<db_project::Model> = domain_select
-        .one(db)
-        .await
-        .map_err(|err| db_err(err, "fetching domain by name"))?;
-    domain_entry.map(TryInto::try_into).transpose()
-}
-
-pub async fn get_project<I: AsRef<str>>(
-    _conf: &Config,
-    db: &DatabaseConnection,
-    id: I,
-) -> Result<Option<Project>, ResourceDatabaseError> {
-    let project_select =
-        DbProject::find_by_id(id.as_ref()).filter(db_project::Column::IsDomain.eq(false));
-
-    let project_entry: Option<db_project::Model> = project_select
-        .one(db)
-        .await
-        .map_err(|err| db_err(err, "fetching project by id"))?;
-    project_entry.map(TryInto::try_into).transpose()
-}
-
-pub async fn get_project_by_name<N: AsRef<str>, D: AsRef<str>>(
-    _conf: &Config,
-    db: &DatabaseConnection,
-    name: N,
-    domain_id: D,
-) -> Result<Option<Project>, ResourceDatabaseError> {
-    let project_select = DbProject::find()
-        .filter(db_project::Column::IsDomain.eq(false))
-        .filter(db_project::Column::Name.eq(name.as_ref()))
-        .filter(db_project::Column::DomainId.eq(domain_id.as_ref()));
-
-    let project_entry: Option<db_project::Model> = project_select
-        .one(db)
-        .await
-        .map_err(|err| db_err(err, "fetching project by name and domain"))?;
-    project_entry.map(TryInto::try_into).transpose()
-}
-
-impl TryFrom<db_project::Model> for Project {
-    type Error = ResourceDatabaseError;
-
-    fn try_from(value: db_project::Model) -> Result<Self, Self::Error> {
-        let mut project_builder = ProjectBuilder::default();
-        project_builder.id(value.id.clone());
-        project_builder.name(value.name.clone());
-        project_builder.domain_id(value.domain_id.clone());
-        if let Some(description) = &value.description {
-            project_builder.description(description.clone());
-        }
-        project_builder.enabled(value.enabled.unwrap_or(false));
-        if let Some(extra) = &value.extra {
-            project_builder.extra(
-                serde_json::from_str::<Value>(extra)
-                    .inspect_err(|e| error!("failed to deserialize project extra properties: {e}"))
-                    .unwrap_or_default(),
-            );
-        }
-
-        Ok(project_builder.build()?)
-    }
-}
-
-impl TryFrom<db_project::Model> for Domain {
-    type Error = ResourceDatabaseError;
-
-    fn try_from(value: db_project::Model) -> Result<Self, Self::Error> {
-        let mut domain_builder = DomainBuilder::default();
-        domain_builder.id(value.id.clone());
-        domain_builder.name(value.name.clone());
-        if let Some(description) = &value.description {
-            domain_builder.description(description.clone());
-        }
-        domain_builder.enabled(value.enabled.unwrap_or(false));
-        if let Some(extra) = &value.extra {
-            domain_builder.extra(
-                serde_json::from_str::<Value>(extra)
-                    .inspect_err(|e| error!("failed to deserialize domain extra: {e}"))
-                    .unwrap_or_default(),
-            );
-        }
-
-        Ok(domain_builder.build()?)
     }
 }
 
