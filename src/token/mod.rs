@@ -341,10 +341,16 @@ impl TokenApi for TokenProvider {
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
     ) -> Result<AuthenticatedInfo, TokenProviderError> {
+        // TODO: is the expand really false?
         let token = self
-            .validate_token(state, credential, allow_expired, window_seconds)
+            .validate_token(
+                state,
+                credential,
+                allow_expired,
+                window_seconds,
+                Some(false),
+            )
             .await?;
-        tracing::debug!("The token is {:?}", token);
         if let Token::Restricted(restriction) = &token
             && !restriction.allow_renew
         {
@@ -370,8 +376,9 @@ impl TokenApi for TokenProvider {
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
+        expand: Option<bool>,
     ) -> Result<Token, TokenProviderError> {
-        let token = self.backend_driver.decode(credential)?;
+        let mut token = self.backend_driver.decode(credential)?;
         if Local::now().to_utc()
             > token
                 .expires_at()
@@ -380,6 +387,11 @@ impl TokenApi for TokenProvider {
             && !allow_expired.unwrap_or(false)
         {
             return Err(TokenProviderError::Expired);
+        }
+
+        // Expand the token unless `expand = Some(false)`
+        if expand.is_none_or(|v| v) {
+            token = self.expand_token_information(state, &token).await?;
         }
 
         if state
@@ -749,6 +761,7 @@ mod tests {
     use std::io::Write;
     use std::sync::Arc;
     use tempfile::tempdir;
+    use tracing_test::traced_test;
     use uuid::Uuid;
 
     use super::*;
@@ -757,8 +770,10 @@ mod tests {
         types::{Assignment, AssignmentType, Role, RoleAssignmentListParameters},
     };
     use crate::config::Config;
+    use crate::identity::{MockIdentityProvider, types::UserResponse};
     use crate::keystone::Service;
     use crate::provider::Provider;
+    use crate::resource::{MockResourceProvider, types::Project};
     use crate::revoke::MockRevokeProvider;
     use crate::token::{DomainScopePayload, ProjectScopePayload, Token, UnscopedPayload};
 
@@ -786,8 +801,8 @@ mod tests {
     fn generate_token(validity: Option<TimeDelta>) -> Result<Token> {
         Ok(Token::ProjectScope(ProjectScopePayload {
             methods: vec!["password".into()],
-            user_id: Uuid::new_v4().into(),
-            project_id: Uuid::new_v4().into(),
+            user_id: Uuid::new_v4().simple().to_string(),
+            project_id: Uuid::new_v4().simple().to_string(),
             audit_ids: vec!["Zm9vCg".into()],
             expires_at: Utc::now()
                 .checked_add_signed(validity.unwrap_or_default())
@@ -903,24 +918,71 @@ mod tests {
         );
     }
 
-    /// Test that a valid token with Revocation events fails validation.
+    /// Test that a valid token with revocation events fails validation.
     #[tokio::test]
+    #[traced_test]
     async fn test_validate_token_revoked() {
         let token = generate_token(Some(TimeDelta::hours(1))).unwrap();
 
         let config = setup_config();
         let token_provider = TokenProvider::new(&config).unwrap();
-        let mut revoke_provider = MockRevokeProvider::default();
+        let mut revoke_mock = MockRevokeProvider::default();
         //let token_clone = token.clone();
-        revoke_provider
+        revoke_mock
             .expect_is_token_revoked()
             // TODO: in roundtrip the precision of expiry is reduced and issued_at is different
             //.withf(move |_, t: &Token| {
             //    *t == token_clone
             //})
             .returning(|_, _| Ok(true));
+
+        let mut identity_mock = MockIdentityProvider::default();
+        let token_clone = token.clone();
+        identity_mock
+            .expect_get_user()
+            .withf(move |_, id: &'_ str| id == token_clone.user_id())
+            .returning(|_, id: &'_ str| {
+                Ok(Some(UserResponse {
+                    id: id.to_string(),
+                    domain_id: "user_domain_id".into(),
+                    ..Default::default()
+                }))
+            });
+        let mut resource_mock = MockResourceProvider::default();
+        let token_clone2 = token.clone();
+        resource_mock
+            .expect_get_project()
+            .withf(move |_, id: &'_ str| id == token_clone2.project_id().unwrap())
+            .returning(|_, id: &'_ str| {
+                Ok(Some(Project {
+                    id: id.to_string(),
+                    name: "project".to_string(),
+                    ..Default::default()
+                }))
+            });
+
+        let mut assignment_mock = MockAssignmentProvider::default();
+        let token_clone3 = token.clone();
+        assignment_mock
+            .expect_list_role_assignments()
+            .withf(move |_, q: &RoleAssignmentListParameters| {
+                q.project_id == token_clone3.project_id().cloned()
+            })
+            .returning(|_, q: &RoleAssignmentListParameters| {
+                Ok(vec![Assignment {
+                    role_id: "rid".into(),
+                    role_name: Some("role_name".into()),
+                    actor_id: q.user_id.clone().unwrap(),
+                    target_id: q.project_id.clone().unwrap(),
+                    r#type: AssignmentType::UserProject,
+                    inherited: false,
+                }])
+            });
         let provider = Provider::mocked_builder()
-            .revoke(revoke_provider)
+            .assignment(assignment_mock)
+            .identity(identity_mock)
+            .revoke(revoke_mock)
+            .resource(resource_mock)
             .build()
             .unwrap();
         let state = Arc::new(
@@ -935,7 +997,7 @@ mod tests {
 
         let credential = token_provider.encode_token(&token).unwrap();
         match token_provider
-            .validate_token(&state, &credential, Some(false), None)
+            .validate_token(&state, &credential, Some(false), None, None)
             .await
         {
             Err(TokenProviderError::TokenRevoked) => {}

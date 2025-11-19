@@ -43,11 +43,8 @@ pub(super) fn openapi_router() -> OpenApiRouter<ServiceState> {
 
 #[cfg(test)]
 mod tests {
-
-    // for `collect`
     use sea_orm::DatabaseConnection;
     use std::sync::Arc;
-    // for `call`, `oneshot`, and `ready`
 
     use crate::config::Config;
     use crate::federation::MockFederationProvider;
@@ -63,15 +60,9 @@ mod tests {
         policy_allowed_see_other_domains: Option<bool>,
     ) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
-        token_mock.expect_validate_token().returning(|_, _, _, _| {
-            Ok(Token::Unscoped(UnscopedPayload {
-                user_id: "bar".into(),
-                ..Default::default()
-            }))
-        });
         token_mock
-            .expect_expand_token_information()
-            .returning(|_, _| {
+            .expect_validate_token()
+            .returning(|_, _, _, _, _| {
                 Ok(Token::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
                     user: Some(UserResponse {

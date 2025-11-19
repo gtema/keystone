@@ -27,7 +27,12 @@ async fn test_validate_own() {
 
     let token = auth(
         &keystone_url,
-        get_password_auth("admin", "password", "default").expect("can't prepare password auth"),
+        get_password_auth(
+            "admin",
+            env::var("OPENSTACK_ADMIN_PASSWORD").unwrap_or("password".to_string()),
+            "default",
+        )
+        .expect("can't prepare password auth"),
         Some(Scope::Project(
             ProjectScopeBuilder::default()
                 .name("admin")
@@ -39,15 +44,12 @@ async fn test_validate_own() {
     .await
     .expect("no token");
 
-    let auth_rsp: TokenResponse = client
-        .get(format!("{}/v3/auth/tokens", keystone_url))
-        .header("x-auth-token", token.clone())
-        .header("x-subject-token", token.clone())
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
+    let auth_rsp: TokenResponse =
+        check_token(&client, keystone_url.clone(), token.clone(), token.clone())
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
     println!("Token: {:?}", auth_rsp);
 }

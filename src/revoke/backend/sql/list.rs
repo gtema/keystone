@@ -26,6 +26,7 @@ use crate::revoke::types::{RevocationEvent, RevocationEventListParameters};
 fn build_query_filters(
     params: &RevocationEventListParameters,
 ) -> Result<Select<DbRevocationEvent>, RevokeDatabaseError> {
+    tracing::info!("Query parameters: {:?}", params);
     let mut select = DbRevocationEvent::find();
 
     //if let Some(val) = &params.access_token_id {
@@ -36,29 +37,70 @@ fn build_query_filters(
     //    select = select.filter(db_revocation_event::Column::AuditChainId.eq(val));
     //}
 
-    if let Some(val) = &params.audit_id {
-        select = select.filter(db_revocation_event::Column::AuditId.eq(val));
-    }
+    select = select.filter(
+        Condition::any()
+            .add(db_revocation_event::Column::AuditId.is_null())
+            .add_option(
+                params
+                    .audit_id
+                    .as_ref()
+                    .map(|val| db_revocation_event::Column::AuditId.eq(val)),
+            ),
+    );
 
-    if let Some(val) = &params.domain_id {
-        select = select.filter(db_revocation_event::Column::DomainId.eq(val));
-    }
+    select = select.filter(
+        Condition::any()
+            .add(db_revocation_event::Column::DomainId.is_null())
+            .add_option(
+                params
+                    .domain_ids
+                    .as_ref()
+                    .and_then(|val| if val.is_empty() { None } else { Some(val) })
+                    .map(|val| db_revocation_event::Column::DomainId.is_in(val)),
+            ),
+    );
 
     if let Some(val) = params.expires_at {
         select = select.filter(db_revocation_event::Column::ExpiresAt.eq(val));
     }
 
     if let Some(val) = params.issued_before {
-        select = select.filter(db_revocation_event::Column::IssuedBefore.lt(val));
+        select = select.filter(db_revocation_event::Column::IssuedBefore.gte(val));
     }
 
-    if let Some(val) = &params.project_id {
-        select = select.filter(db_revocation_event::Column::ProjectId.eq(val));
-    }
+    select = select.filter(
+        Condition::any()
+            .add(db_revocation_event::Column::ProjectId.is_null())
+            .add_option(
+                params
+                    .project_id
+                    .as_ref()
+                    .map(|val| db_revocation_event::Column::ProjectId.eq(val)),
+            ),
+    );
 
-    if let Some(val) = &params.user_id {
-        select = select.filter(db_revocation_event::Column::UserId.is_in(val));
-    }
+    select = select.filter(
+        Condition::any()
+            .add(db_revocation_event::Column::RoleId.is_null())
+            .add_option(
+                params
+                    .role_ids
+                    .as_ref()
+                    .and_then(|val| if val.is_empty() { None } else { Some(val) })
+                    .map(|val| db_revocation_event::Column::RoleId.is_in(val)),
+            ),
+    );
+    select = select.filter(
+        Condition::any()
+            .add(db_revocation_event::Column::UserId.is_null())
+            .add_option(
+                params
+                    .user_ids
+                    .as_ref()
+                    .and_then(|val| if val.is_empty() { None } else { Some(val) })
+                    .map(|val| db_revocation_event::Column::UserId.is_in(val)),
+            ),
+    );
 
     Ok(select)
 }
@@ -123,10 +165,11 @@ mod tests {
                 &db,
                 &RevocationEventListParametersBuilder::default()
                     .audit_id("audit_id")
-                    .domain_id("domain_id")
+                    .domain_ids(vec!["domain_id1".into(), "domain_id2".into()])
                     .expires_at(time2)
                     .issued_before(time1)
                     .project_id("project_id")
+                    .role_ids(vec!["rid1".into(), "rid2".into()])
                     .build()
                     .unwrap()
             )
@@ -139,17 +182,21 @@ mod tests {
             db.into_transaction_log(),
             [Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                r#"SELECT COUNT(*) AS num_items FROM (SELECT "revocation_event"."id", "revocation_event"."domain_id", "revocation_event"."project_id", "revocation_event"."user_id", "revocation_event"."role_id", "revocation_event"."trust_id", "revocation_event"."consumer_id", "revocation_event"."access_token_id", "revocation_event"."issued_before", "revocation_event"."expires_at", "revocation_event"."revoked_at", "revocation_event"."audit_id", "revocation_event"."audit_chain_id" FROM "revocation_event" WHERE "revocation_event"."audit_id" = $1 AND "revocation_event"."domain_id" = $2 AND "revocation_event"."expires_at" = $3 AND "revocation_event"."issued_before" < $4 AND "revocation_event"."project_id" = $5) AS "sub_query""#,
+                r#"SELECT COUNT(*) AS num_items FROM (SELECT "revocation_event"."id", "revocation_event"."domain_id", "revocation_event"."project_id", "revocation_event"."user_id", "revocation_event"."role_id", "revocation_event"."trust_id", "revocation_event"."consumer_id", "revocation_event"."access_token_id", "revocation_event"."issued_before", "revocation_event"."expires_at", "revocation_event"."revoked_at", "revocation_event"."audit_id", "revocation_event"."audit_chain_id" FROM "revocation_event" WHERE ("revocation_event"."audit_id" IS NULL OR "revocation_event"."audit_id" = $1) AND ("revocation_event"."domain_id" IS NULL OR "revocation_event"."domain_id" IN ($2, $3)) AND "revocation_event"."expires_at" = $4 AND "revocation_event"."issued_before" >= $5 AND ("revocation_event"."project_id" IS NULL OR "revocation_event"."project_id" = $6) AND ("revocation_event"."role_id" IS NULL OR "revocation_event"."role_id" IN ($7, $8)) AND "revocation_event"."user_id" IS NULL) AS "sub_query""#,
                 [
                     "audit_id".into(),
-                    "domain_id".into(),
+                    "domain_id1".into(),
+                    "domain_id2".into(),
                     time2.into(),
                     time1.into(),
                     "project_id".into(),
+                    "rid1".into(),
+                    "rid2".into(),
                 ]
             ),]
         );
     }
+
     #[tokio::test]
     async fn test_list() {
         let db = MockDatabase::new(DatabaseBackend::Postgres)
@@ -162,10 +209,11 @@ mod tests {
                 &db,
                 &RevocationEventListParametersBuilder::default()
                     .audit_id("audit_id")
-                    .domain_id("domain_id")
+                    .domain_ids(vec!["domain_id1".into()])
                     .expires_at(time2)
                     .issued_before(time1)
                     .project_id("project_id")
+                    .role_ids(vec!["rid1".into()])
                     .build()
                     .unwrap()
             )
@@ -191,15 +239,308 @@ mod tests {
             db.into_transaction_log(),
             [Transaction::from_sql_and_values(
                 DatabaseBackend::Postgres,
-                r#"SELECT "revocation_event"."id", "revocation_event"."domain_id", "revocation_event"."project_id", "revocation_event"."user_id", "revocation_event"."role_id", "revocation_event"."trust_id", "revocation_event"."consumer_id", "revocation_event"."access_token_id", "revocation_event"."issued_before", "revocation_event"."expires_at", "revocation_event"."revoked_at", "revocation_event"."audit_id", "revocation_event"."audit_chain_id" FROM "revocation_event" WHERE "revocation_event"."audit_id" = $1 AND "revocation_event"."domain_id" = $2 AND "revocation_event"."expires_at" = $3 AND "revocation_event"."issued_before" < $4 AND "revocation_event"."project_id" = $5"#,
+                r#"SELECT "revocation_event"."id", "revocation_event"."domain_id", "revocation_event"."project_id", "revocation_event"."user_id", "revocation_event"."role_id", "revocation_event"."trust_id", "revocation_event"."consumer_id", "revocation_event"."access_token_id", "revocation_event"."issued_before", "revocation_event"."expires_at", "revocation_event"."revoked_at", "revocation_event"."audit_id", "revocation_event"."audit_chain_id" FROM "revocation_event" WHERE ("revocation_event"."audit_id" IS NULL OR "revocation_event"."audit_id" = $1) AND ("revocation_event"."domain_id" IS NULL OR "revocation_event"."domain_id" IN ($2)) AND "revocation_event"."expires_at" = $3 AND "revocation_event"."issued_before" >= $4 AND ("revocation_event"."project_id" IS NULL OR "revocation_event"."project_id" = $5) AND ("revocation_event"."role_id" IS NULL OR "revocation_event"."role_id" IN ($6)) AND "revocation_event"."user_id" IS NULL"#,
                 [
                     "audit_id".into(),
-                    "domain_id".into(),
+                    "domain_id1".into(),
                     time2.into(),
                     time1.into(),
                     "project_id".into(),
+                    "rid1".into(),
                 ]
             ),]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_mysql() {
+        let time1 = Utc::now();
+        let time2 = time1.checked_add_days(Days::new(1)).unwrap();
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .audit_id("audit_id")
+                .domain_ids(vec!["domain_id1".into()])
+                .expires_at(time2)
+                .issued_before(time1)
+                .project_id("project_id")
+                .role_ids(vec!["rid1".into()])
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::MySql)
+        .to_string();
+        assert_eq!(
+            format!(
+                "SELECT `revocation_event`.`id`, `revocation_event`.`domain_id`, `revocation_event`.`project_id`, `revocation_event`.`user_id`, `revocation_event`.`role_id`, `revocation_event`.`trust_id`, `revocation_event`.`consumer_id`, `revocation_event`.`access_token_id`, `revocation_event`.`issued_before`, `revocation_event`.`expires_at`, `revocation_event`.`revoked_at`, `revocation_event`.`audit_id`, `revocation_event`.`audit_chain_id` FROM `revocation_event` WHERE (`revocation_event`.`audit_id` IS NULL OR `revocation_event`.`audit_id` = 'audit_id') AND (`revocation_event`.`domain_id` IS NULL OR `revocation_event`.`domain_id` IN ('domain_id1')) AND `revocation_event`.`expires_at` = '{}' AND `revocation_event`.`issued_before` >= '{}' AND (`revocation_event`.`project_id` IS NULL OR `revocation_event`.`project_id` = 'project_id') AND (`revocation_event`.`role_id` IS NULL OR `revocation_event`.`role_id` IN ('rid1')) AND `revocation_event`.`user_id` IS NULL",
+                time2.format("%F %X%.6f %:z"),
+                time1.format("%F %X%.6f %:z"),
+            ),
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_postgres() {
+        let time1 = Utc::now();
+        let time2 = time1.checked_add_days(Days::new(1)).unwrap();
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .audit_id("audit_id")
+                .domain_ids(vec!["domain_id1".into()])
+                .expires_at(time2)
+                .issued_before(time1)
+                .project_id("project_id")
+                .role_ids(vec!["rid1".into()])
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Postgres)
+        .to_string();
+        assert_eq!(
+            format!(
+                "SELECT \"revocation_event\".\"id\", \"revocation_event\".\"domain_id\", \"revocation_event\".\"project_id\", \"revocation_event\".\"user_id\", \"revocation_event\".\"role_id\", \"revocation_event\".\"trust_id\", \"revocation_event\".\"consumer_id\", \"revocation_event\".\"access_token_id\", \"revocation_event\".\"issued_before\", \"revocation_event\".\"expires_at\", \"revocation_event\".\"revoked_at\", \"revocation_event\".\"audit_id\", \"revocation_event\".\"audit_chain_id\" FROM \"revocation_event\" WHERE (\"revocation_event\".\"audit_id\" IS NULL OR \"revocation_event\".\"audit_id\" = 'audit_id') AND (\"revocation_event\".\"domain_id\" IS NULL OR \"revocation_event\".\"domain_id\" IN ('domain_id1')) AND \"revocation_event\".\"expires_at\" = '{}' AND \"revocation_event\".\"issued_before\" >= '{}' AND (\"revocation_event\".\"project_id\" IS NULL OR \"revocation_event\".\"project_id\" = 'project_id') AND (\"revocation_event\".\"role_id\" IS NULL OR \"revocation_event\".\"role_id\" IN ('rid1')) AND \"revocation_event\".\"user_id\" IS NULL",
+                time2.format("%F %X%.6f %:z"),
+                time1.format("%F %X%.6f %:z"),
+            ),
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_mysql_multiple_domains() {
+        let time1 = Utc::now();
+        let time2 = time1.checked_add_days(Days::new(1)).unwrap();
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .audit_id("audit_id")
+                .domain_ids(vec!["domain_id1".into(), "domain_id2".into()])
+                .expires_at(time2)
+                .issued_before(time1)
+                .project_id("project_id")
+                .role_ids(vec!["rid1".into()])
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::MySql)
+        .to_string();
+        assert_eq!(
+            format!(
+                "SELECT `revocation_event`.`id`, `revocation_event`.`domain_id`, `revocation_event`.`project_id`, `revocation_event`.`user_id`, `revocation_event`.`role_id`, `revocation_event`.`trust_id`, `revocation_event`.`consumer_id`, `revocation_event`.`access_token_id`, `revocation_event`.`issued_before`, `revocation_event`.`expires_at`, `revocation_event`.`revoked_at`, `revocation_event`.`audit_id`, `revocation_event`.`audit_chain_id` FROM `revocation_event` WHERE (`revocation_event`.`audit_id` IS NULL OR `revocation_event`.`audit_id` = 'audit_id') AND (`revocation_event`.`domain_id` IS NULL OR `revocation_event`.`domain_id` IN ('domain_id1', 'domain_id2')) AND `revocation_event`.`expires_at` = '{}' AND `revocation_event`.`issued_before` >= '{}' AND (`revocation_event`.`project_id` IS NULL OR `revocation_event`.`project_id` = 'project_id') AND (`revocation_event`.`role_id` IS NULL OR `revocation_event`.`role_id` IN ('rid1')) AND `revocation_event`.`user_id` IS NULL",
+                time2.format("%F %X%.6f %:z"),
+                time1.format("%F %X%.6f %:z"),
+            ),
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_empty() {
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert_eq!(
+            "SELECT \"revocation_event\".\"id\", \"revocation_event\".\"domain_id\", \"revocation_event\".\"project_id\", \"revocation_event\".\"user_id\", \"revocation_event\".\"role_id\", \"revocation_event\".\"trust_id\", \"revocation_event\".\"consumer_id\", \"revocation_event\".\"access_token_id\", \"revocation_event\".\"issued_before\", \"revocation_event\".\"expires_at\", \"revocation_event\".\"revoked_at\", \"revocation_event\".\"audit_id\", \"revocation_event\".\"audit_chain_id\" FROM \"revocation_event\" WHERE \"revocation_event\".\"audit_id\" IS NULL AND \"revocation_event\".\"domain_id\" IS NULL AND \"revocation_event\".\"project_id\" IS NULL AND \"revocation_event\".\"role_id\" IS NULL AND \"revocation_event\".\"user_id\" IS NULL",
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_audit_id() {
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .audit_id("audit_id")
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains("(\"revocation_event\".\"audit_id\" IS NULL OR \"revocation_event\".\"audit_id\" = 'audit_id')"),
+            "{}", query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_domain_ids_empty() {
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .domain_ids(Vec::new())
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains("AND \"revocation_event\".\"domain_id\" IS NULL"),
+            "{}",
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_domain_ids_list() {
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .domain_ids(vec!["d1".into(), "d2".into()])
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains("AND (\"revocation_event\".\"domain_id\" IS NULL OR \"revocation_event\".\"domain_id\" IN ('d1', 'd2'))"), 
+            "{}", query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_project_id() {
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .project_id("pid")
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains("AND (\"revocation_event\".\"project_id\" IS NULL OR \"revocation_event\".\"project_id\" = 'pid')"),
+            "{}", 
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_role_ids_empty() {
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .role_ids(Vec::new())
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains("AND \"revocation_event\".\"role_id\" IS NULL"),
+            "{}",
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_role_ids_list() {
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .role_ids(vec!["d1".into(), "d2".into()])
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains("AND (\"revocation_event\".\"role_id\" IS NULL OR \"revocation_event\".\"role_id\" IN ('d1', 'd2'))"), 
+            "{}", 
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_user_ids_empty() {
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .user_ids(Vec::new())
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains("AND \"revocation_event\".\"user_id\" IS NULL"),
+            "{}",
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_user_ids_list() {
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .user_ids(vec!["d1".into(), "d2".into()])
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains("AND (\"revocation_event\".\"user_id\" IS NULL OR \"revocation_event\".\"user_id\" IN ('d1', 'd2'))"), 
+            "{}", 
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_expires_at() {
+        let time1 = Utc::now();
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .expires_at(time1)
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains(
+                format!(
+                    "AND \"revocation_event\".\"expires_at\" = '{}'",
+                    time1.format("%F %X%.6f %:z")
+                )
+                .as_str()
+            ),
+            "{}",
+            query
+        );
+    }
+
+    #[tokio::test]
+    async fn test_query_sqlite_issued_before() {
+        let time1 = Utc::now();
+        let query = build_query_filters(
+            &RevocationEventListParametersBuilder::default()
+                .issued_before(time1)
+                .build()
+                .unwrap(),
+        )
+        .unwrap()
+        .build(DatabaseBackend::Sqlite)
+        .to_string();
+        assert!(
+            query.contains(
+                format!(
+                    "AND \"revocation_event\".\"issued_before\" >= '{}'",
+                    time1.format("%F %X%.6f %:z")
+                )
+                .as_str()
+            ),
+            "{}",
+            query
         );
     }
 }

@@ -214,11 +214,11 @@ impl From<OidcError> for KeystoneApiError {
             }
             OidcError::NonJwtMapping | OidcError::NoJwtIssuer => {
                 // Not exposing info about mapping and idp existence.
-                KeystoneApiError::Unauthorized
+                KeystoneApiError::Unauthorized(Some("mapping error".to_string()))
             }
             OidcError::UserNotFound(_) => {
                 // Not exposing info about mapping and idp existence.
-                KeystoneApiError::Unauthorized
+                KeystoneApiError::Unauthorized(Some("User not found".to_string()))
             }
         }
     }

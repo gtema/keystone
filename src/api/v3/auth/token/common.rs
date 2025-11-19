@@ -93,7 +93,7 @@ pub(super) async fn authenticate_request(
         }
     }
     authenticated_info
-        .ok_or(KeystoneApiError::Unauthorized)
+        .ok_or(KeystoneApiError::Unauthorized(None))
         .and_then(|authn| {
             authn.validate()?;
             Ok(authn)
@@ -120,14 +120,14 @@ pub(super) async fn get_authz_info(
             if let Some(project) = find_project_from_scope(state, scope).await? {
                 AuthzInfo::Project(project)
             } else {
-                return Err(KeystoneApiError::Unauthorized);
+                return Err(KeystoneApiError::Unauthorized(None));
             }
         }
         Some(Scope::Domain(scope)) => {
             if let Ok(domain) = get_domain(state, scope.id.as_ref(), scope.name.as_ref()).await {
                 AuthzInfo::Domain(domain)
             } else {
-                return Err(KeystoneApiError::Unauthorized);
+                return Err(KeystoneApiError::Unauthorized(None));
             }
         }
         Some(Scope::System(_scope)) => {
@@ -337,7 +337,7 @@ mod tests {
             },
         )
         .await;
-        if let KeystoneApiError::Unauthorized = rsp.unwrap_err() {
+        if let KeystoneApiError::Unauthorized(..) = rsp.unwrap_err() {
         } else {
             panic!("Should receive Unauthorized");
         }

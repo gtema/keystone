@@ -17,6 +17,7 @@
     * [Federation IDP](adr/0006-federation-idp.md)
     * [Federation Mapping](adr/0007-federation-mapping.md)
     * [Workload Federation](adr/0008-workload-federation.md)
+    * [Auth token revocation](adr/0009-auth-token-revoke.md)
 * [Policy enforcement](./policy.md)
 * [Fernet token]()
   * [Token payloads]()

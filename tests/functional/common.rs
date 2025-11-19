@@ -13,8 +13,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Common functionality used in the functional tests.
 
-use eyre::Report;
-use reqwest::Client;
+use eyre::{Report, eyre};
+use reqwest::{Client, StatusCode};
 
 use openstack_keystone::api::types::*;
 use openstack_keystone::api::v3::auth::token::types::*;
@@ -59,16 +59,74 @@ where
         auth: AuthRequestInner { identity, scope },
     };
     let client = Client::new();
-    Ok(client
+    let rsp = client
         .post(format!("{}/v3/auth/tokens", keystone_url,))
         .json(&serde_json::to_value(auth_request)?)
         .send()
-        .await
-        .unwrap()
+        .await?;
+
+    tracing::debug!("Authentication response: {:?}", rsp);
+
+    if rsp.status() != StatusCode::OK {
+        return Err(eyre!("Authentication failed with {}", rsp.status()));
+    }
+
+    Ok(rsp
         .headers()
         .get("X-Subject-Token")
-        .unwrap()
-        .to_str()
-        .unwrap()
+        .ok_or_else(|| eyre!("Token is missing in the {:?}", rsp))?
+        .to_str()?
+        .into())
+    //.unwrap()
+}
+
+/// Authenticate using the token.
+pub async fn auth_with_token<U, S>(
+    keystone_url: U,
+    token: S,
+    scope: Option<Scope>,
+) -> Result<String, Report>
+where
+    S: AsRef<str> + std::fmt::Display,
+    U: AsRef<str> + std::fmt::Display,
+{
+    let identity = IdentityBuilder::default()
+        .methods(vec!["token".into()])
+        .token(TokenAuthBuilder::default().id(token.as_ref()).build()?)
+        .build()?;
+    let auth_request = AuthRequest {
+        auth: AuthRequestInner { identity, scope },
+    };
+    let client = Client::new();
+    let rsp = client
+        .post(format!("{}/v3/auth/tokens", keystone_url,))
+        .json(&serde_json::to_value(auth_request)?)
+        .send()
+        .await?;
+    Ok(rsp
+        .headers()
+        .get("X-Subject-Token")
+        .ok_or_else(|| eyre!("Token is missing in the {:?}", rsp))?
+        .to_str()?
         .to_string())
+}
+
+/// Perform token check request.
+pub async fn check_token<U, S1, S2>(
+    client: &Client,
+    keystone_url: U,
+    auth_token: S1,
+    subject_token: S2,
+) -> Result<reqwest::Response, reqwest::Error>
+where
+    S1: AsRef<str> + std::fmt::Display,
+    S2: AsRef<str> + std::fmt::Display,
+    U: AsRef<str> + std::fmt::Display,
+{
+    client
+        .get(format!("{}/v3/auth/tokens", keystone_url.as_ref()))
+        .header("x-auth-token", auth_token.as_ref())
+        .header("x-subject-token", subject_token.as_ref())
+        .send()
+        .await
 }

@@ -50,8 +50,8 @@ pub enum KeystoneApiError {
     #[error("{0}.")]
     BadRequest(String),
 
-    #[error("The request you have made requires authentication.")]
-    Unauthorized,
+    #[error("{}", .0.clone().unwrap_or("The request you have made requires authentication.".to_string()))]
+    Unauthorized(Option<String>),
 
     #[error("You are not authorized to perform the requested action.")]
     Forbidden,
@@ -187,7 +187,7 @@ impl IntoResponse for KeystoneApiError {
             KeystoneApiError::NotFound { .. } => StatusCode::NOT_FOUND,
             KeystoneApiError::BadRequest(..) => StatusCode::BAD_REQUEST,
             KeystoneApiError::UserDisabled(..) => StatusCode::UNAUTHORIZED,
-            KeystoneApiError::Unauthorized => StatusCode::UNAUTHORIZED,
+            KeystoneApiError::Unauthorized(..) => StatusCode::UNAUTHORIZED,
             //            KeystoneApiError::AuthenticationInfo { .. } => StatusCode::UNAUTHORIZED,
             KeystoneApiError::Forbidden => StatusCode::FORBIDDEN,
             KeystoneApiError::Policy { .. } => StatusCode::FORBIDDEN,
@@ -356,7 +356,7 @@ impl From<AuthenticationError> for KeystoneApiError {
             AuthenticationError::TokenRenewalForbidden => {
                 KeystoneApiError::SelectedAuthenticationForbidden
             }
-            AuthenticationError::Unauthorized => KeystoneApiError::Unauthorized,
+            AuthenticationError::Unauthorized => KeystoneApiError::Unauthorized(None),
         }
     }
 }
@@ -365,6 +365,9 @@ impl From<IdentityProviderError> for KeystoneApiError {
     fn from(value: IdentityProviderError) -> Self {
         match value {
             IdentityProviderError::AuthenticationInfo { source } => source.into(),
+            IdentityProviderError::WrongUsernamePassword => {
+                Self::Unauthorized(Some("Invalid username or password".to_string()))
+            }
             _ => Self::IdentityError { source: value },
         }
     }
