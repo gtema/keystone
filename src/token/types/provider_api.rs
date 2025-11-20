@@ -33,16 +33,33 @@ pub trait TokenApi: Send + Sync + Clone {
         window_seconds: Option<i64>,
     ) -> Result<AuthenticatedInfo, TokenProviderError>;
 
-    /// Validate the token
+    /// Validate the token.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - An application state.
+    /// * `credential` - A token as a string.
+    /// * `allow_expired` - Indicates whether for the expired token the an error should be raised
+    /// or not.
+    /// * `window_seconds` - An additional token expiration buffer that is added to the
+    /// `token.expires_at() during the expiration calculation.
+    /// * `expand` - Indicates whether the token information should be expanded or not. Defaults to
+    /// true.
     async fn validate_token<'a>(
         &self,
         state: &ServiceState,
         credential: &'a str,
         allow_expired: Option<bool>,
         window_seconds: Option<i64>,
+        expand: Option<bool>,
     ) -> Result<Token, TokenProviderError>;
 
-    /// Issue a token for given parameters
+    /// Issue a token for given parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `authentication_info` - Authentication information for the token.
+    /// * `authz_info` - Authorization information (scope) for the token.
     fn issue_token(
         &self,
         authentication_info: AuthenticatedInfo,

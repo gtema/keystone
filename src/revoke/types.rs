@@ -90,25 +90,40 @@ pub struct RevocationEventCreate {
 pub struct RevocationEventListParameters {
     //pub access_token_id: Option<String>,
     //pub audit_chain_id: Option<String>,
+    /// Audit_id to match against.
     #[builder(default)]
     pub audit_id: Option<String>,
     //pub consumer_id: Option<String>,
+    /// List revocation events with an empty `domain_id` or matching any of the given values.
     #[builder(default)]
-    pub domain_id: Option<String>,
+    pub domain_ids: Option<Vec<String>>,
+    /// Expires_at parameter to match against.
     #[builder(default)]
     pub expires_at: Option<DateTime<Utc>>,
+    /// List revocation events with the `issued_before` value greater or equal the value
+    /// (revocating tokens issued before the certain time).
     #[builder(default)]
     pub issued_before: Option<DateTime<Utc>>,
+    /// Project_id to match against.
     #[builder(default)]
     pub project_id: Option<String>,
     #[builder(default)]
+    /// Revocation timestamp to match against. Currently not respected.
     pub revoked_at: Option<DateTime<Utc>>,
-    //pub role_id: Option<String>,
-    //pub trust_id: Option<String>,
+    /// List revocation events with an empty `role_id` or matching any of the given values.
     #[builder(default)]
-    pub user_id: Option<Vec<String>>,
+    pub role_ids: Option<Vec<String>>,
+    //pub trust_id: Option<String>,
+    /// User_id to match against.
+    #[builder(default)]
+    pub user_ids: Option<Vec<String>>,
 }
 
+/// Convert Token into the revocation events listing parameters following the
+/// <https://openstack-experimental.github.io/keystone/adr/0009-auth-token-revoke.html#revocation-check>
+// TODO: It is necessary to also consider list of the token roles against the role_id of the entry
+// TODO: domain_id of the database entry should be compared against the user_domain_id and the
+// scope_domain_id. That means, however, that we must resolve the user first.
 impl TryFrom<&Token> for RevocationEventListParameters {
     type Error = RevokeProviderError;
     fn try_from(value: &Token) -> Result<Self, Self::Error> {
@@ -124,18 +139,29 @@ impl TryFrom<&Token> for RevocationEventListParameters {
             )
             .cloned(),
             //consumer_id: None,
-            domain_id: value.domain().map(|domain| domain.id.clone()),
+            domain_ids: Some(
+                value
+                    .user()
+                    .iter()
+                    .map(|user| user.domain_id.clone())
+                    .chain(value.domain().map(|domain| domain.id.clone()))
+                    .collect::<Vec<String>>(),
+            ),
             expires_at: None,
             issued_before: Some(*value.issued_at()),
             project_id: value.project_id().cloned(),
             revoked_at: None,
-            //role_id: None,
+            role_ids: value
+                .roles()
+                .map(|roles| roles.iter().map(|role| role.id.clone()).collect()),
             //trust_id: None,
-            user_id: Some(vec![value.user_id().clone()]),
+            user_ids: Some(vec![value.user_id().clone()]),
         })
     }
 }
 
+/// Convert the Token into the new revocation events revord following the
+/// <https://openstack-experimental.github.io/keystone/adr/0009-auth-token-revoke.html#token-revocation>
 impl TryFrom<&Token> for RevocationEventCreate {
     type Error = RevokeProviderError;
     fn try_from(value: &Token) -> Result<Self, Self::Error> {
@@ -166,7 +192,60 @@ impl TryFrom<&Token> for RevocationEventCreate {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity::types::UserResponse;
     use crate::token::ProjectScopePayload;
+    //use crate::resource::types::Domain;
+    use crate::assignment::types::Role;
+
+    #[test]
+    fn test_list_for_project_scope_token() {
+        let token = Token::ProjectScope(ProjectScopePayload {
+            user_id: "user_id".into(),
+            user: Some(UserResponse {
+                id: "user_id".to_string(),
+                domain_id: "user_domain_id".into(),
+                ..Default::default()
+            }),
+            methods: Vec::from(["password".to_string()]),
+            project_id: "project_id".into(),
+            audit_ids: vec!["Zm9vCg".into()],
+            expires_at: DateTime::parse_from_rfc3339("2025-11-17T19:55:06.123456Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            roles: Some(vec![
+                Role {
+                    id: "role_id1".to_string(),
+                    ..Default::default()
+                },
+                Role {
+                    id: "role_id2".to_string(),
+                    ..Default::default()
+                },
+            ]),
+            ..Default::default()
+        });
+        let revocation: RevocationEventListParameters =
+            RevocationEventListParameters::try_from(&token).unwrap();
+
+        //assert!(revocation.audit_chain_id.is_none());
+        assert_eq!(
+            *token.audit_ids().first().unwrap(),
+            revocation.audit_id.unwrap()
+        );
+        //assert!(revocation.consumer_id.is_none());
+        assert_eq!(
+            revocation.domain_ids.unwrap(),
+            vec!["user_domain_id".to_string()]
+        );
+        assert!(revocation.expires_at.is_none());
+        assert_eq!(revocation.project_id.unwrap(), "project_id".to_string());
+        assert_eq!(
+            revocation.role_ids.unwrap(),
+            vec!["role_id1".to_string(), "role_id2".to_string()]
+        );
+        //assert!(revocation.trust_id.is_none());
+        assert_eq!(revocation.user_ids.unwrap(), vec!["user_id".to_string()]);
+    }
 
     #[test]
     fn test_create_from_token() {
@@ -178,6 +257,16 @@ mod tests {
             expires_at: DateTime::parse_from_rfc3339("2025-11-17T19:55:06.123456Z")
                 .unwrap()
                 .with_timezone(&Utc),
+            roles: Some(vec![
+                Role {
+                    id: "role_id1".to_string(),
+                    ..Default::default()
+                },
+                Role {
+                    id: "role_id2".to_string(),
+                    ..Default::default()
+                },
+            ]),
             ..Default::default()
         });
         let revocation: RevocationEventCreate = RevocationEventCreate::try_from(&token).unwrap();

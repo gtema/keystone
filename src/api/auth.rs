@@ -43,7 +43,7 @@ where
             auth_header
         } else {
             debug!("No supported information has been provided.");
-            return Err(KeystoneApiError::Unauthorized)?;
+            return Err(KeystoneApiError::Unauthorized(None))?;
         };
 
         let state = Arc::from_ref(state);
@@ -51,17 +51,10 @@ where
         let token = state
             .provider
             .get_token_provider()
-            .validate_token(&state, auth_header, Some(false), None)
+            .validate_token(&state, auth_header, Some(false), None, Some(true))
             .await
             .inspect_err(|e| error!("{:#?}", e))
-            .map_err(|_| KeystoneApiError::Unauthorized)?;
-
-        // Expand the information (user, project, roles, etc) about the user when a token is valid
-        let token = state
-            .provider
-            .get_token_provider()
-            .expand_token_information(&state, &token)
-            .await?;
+            .map_err(|_| KeystoneApiError::Unauthorized(None))?;
 
         Ok(Self(token))
     }

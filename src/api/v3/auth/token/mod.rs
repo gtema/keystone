@@ -20,12 +20,13 @@ use crate::keystone::ServiceState;
 
 mod common;
 mod create;
+mod delete;
 mod show;
 mod token_impl;
 pub mod types;
 
 pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
-    OpenApiRouter::new().routes(routes!(show::show, create::create))
+    OpenApiRouter::new().routes(routes!(show::show, create::create, delete::delete))
 }
 
 #[cfg(test)]

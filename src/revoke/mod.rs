@@ -97,6 +97,7 @@ impl RevokeApi for RevokeProvider {
         state: &ServiceState,
         token: &Token,
     ) -> Result<bool, RevokeProviderError> {
+        tracing::info!("Checking for the revocation events");
         self.backend_driver.is_token_revoked(state, token).await
     }
 
