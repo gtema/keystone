@@ -19,7 +19,8 @@ use openstack_sdk::{AsyncOpenStack, config::ConfigFile};
 
 mod v3;
 
-use crate::v3::users::list as user_list;
+use crate::v3::user::list as user_list;
+use crate::v3::auth::validate as validate_token;
 
 struct Session {
     token: String,
@@ -32,6 +33,11 @@ async fn main() -> Result<(), GooseError> {
             scenario!("ListUsers")
                 .register_transaction(transaction!(openstack_login).set_on_start())
                 .register_transaction(transaction!(user_list)),
+        )
+        .register_scenario(
+            scenario!("ValidateToken")
+                .register_transaction(transaction!(openstack_login).set_on_start())
+                .register_transaction(transaction!(validate_token)),
         )
         .execute()
         .await?;
