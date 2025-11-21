@@ -12,17 +12,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-#[cfg(test)]
-use mockall::mock;
 
-pub mod backends;
+pub mod backend;
 pub mod error;
-pub(crate) mod types;
+#[cfg(test)]
+mod mock;
+pub mod types;
 
-use crate::assignment::backends::sql::SqlBackend;
+use crate::assignment::backend::{AssignmentBackend, SqlBackend};
 use crate::assignment::error::AssignmentProviderError;
 use crate::assignment::types::{
-    Assignment, AssignmentBackend, Role, RoleAssignmentListForMultipleActorTargetParametersBuilder,
+    Assignment, Role, RoleAssignmentListForMultipleActorTargetParametersBuilder,
     RoleAssignmentListParameters, RoleAssignmentTarget, RoleListParameters,
 };
 use crate::config::Config;
@@ -30,65 +30,13 @@ use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
 use crate::plugin_manager::PluginManager;
 
+#[cfg(test)]
+pub use mock::MockAssignmentProvider;
+pub use types::AssignmentApi;
+
 #[derive(Clone, Debug)]
 pub struct AssignmentProvider {
     backend_driver: Box<dyn AssignmentBackend>,
-}
-
-#[async_trait]
-pub trait AssignmentApi: Send + Sync + Clone {
-    /// List Roles
-    async fn list_roles(
-        &self,
-        state: &ServiceState,
-        params: &RoleListParameters,
-    ) -> Result<impl IntoIterator<Item = Role>, AssignmentProviderError>;
-
-    /// Get a single role
-    async fn get_role<'a>(
-        &self,
-        state: &ServiceState,
-        role_id: &'a str,
-    ) -> Result<Option<Role>, AssignmentProviderError>;
-
-    /// List role assignments for given target/role/actor
-    async fn list_role_assignments(
-        &self,
-        state: &ServiceState,
-        params: &RoleAssignmentListParameters,
-    ) -> Result<impl IntoIterator<Item = Assignment>, AssignmentProviderError>;
-}
-
-#[cfg(test)]
-mock! {
-    pub AssignmentProvider {
-        pub fn new(cfg: &Config, plugin_manager: &PluginManager) -> Result<Self, AssignmentProviderError>;
-    }
-
-    #[async_trait]
-    impl AssignmentApi for AssignmentProvider {
-        async fn list_roles(
-            &self,
-            state: &ServiceState,
-            params: &RoleListParameters,
-        ) -> Result<Vec<Role>, AssignmentProviderError>;
-
-        async fn get_role<'a>(
-            &self,
-            state: &ServiceState,
-            id: &'a str,
-        ) -> Result<Option<Role>, AssignmentProviderError>;
-
-        async fn list_role_assignments(
-            &self,
-            state: &ServiceState,
-            params: &RoleAssignmentListParameters,
-        ) -> Result<Vec<Assignment>, AssignmentProviderError>;
-    }
-
-    impl Clone for AssignmentProvider {
-        fn clone(&self) -> Self;
-    }
 }
 
 impl AssignmentProvider {
@@ -178,5 +126,15 @@ impl AssignmentApi for AssignmentProvider {
         } else {
             self.backend_driver.list_assignments(state, params).await
         }
+    }
+
+    /// Create assignment grant.
+    #[tracing::instrument(level = "info", skip(self, state))]
+    async fn create_grant(
+        &self,
+        state: &ServiceState,
+        params: Assignment,
+    ) -> Result<Assignment, AssignmentProviderError> {
+        self.backend_driver.create_grant(state, params).await
     }
 }

@@ -18,7 +18,8 @@ use sea_orm::prelude::Expr;
 use sea_orm::query::*;
 use std::collections::{BTreeMap, HashMap};
 
-use crate::assignment::backends::error::{AssignmentDatabaseError, db_err};
+use crate::assignment::backend::error::{AssignmentDatabaseError, db_err};
+use crate::assignment::backend::sql::implied_role;
 use crate::assignment::types::*;
 use crate::config::Config;
 use crate::db::entity::{
@@ -159,7 +160,7 @@ pub async fn list_for_multiple_actors_and_targets(
     }
 
     // Get all implied rules
-    let imply_rules = super::implied_role::list_rules(db, true).await?;
+    let imply_rules = implied_role::list_rules(db, true).await?;
 
     let mut db_assignments: BTreeMap<String, db_assignment::Model> = BTreeMap::new();
     // Get assignments resolving the roles inference
@@ -201,223 +202,22 @@ pub async fn list_for_multiple_actors_and_targets(
     }
 }
 
-impl TryFrom<db_assignment::Model> for Assignment {
-    type Error = AssignmentDatabaseError;
-
-    fn try_from(value: db_assignment::Model) -> Result<Self, Self::Error> {
-        let mut builder = AssignmentBuilder::default();
-        builder.role_id(value.role_id.clone());
-        builder.actor_id(value.actor_id.clone());
-        builder.target_id(value.target_id.clone());
-        builder.inherited(value.inherited);
-        builder.r#type(AssignmentType::try_from(value.r#type)?);
-
-        Ok(builder.build()?)
-    }
-}
-
-impl TryFrom<db_system_assignment::Model> for Assignment {
-    type Error = AssignmentDatabaseError;
-
-    fn try_from(value: db_system_assignment::Model) -> Result<Self, Self::Error> {
-        let mut builder = AssignmentBuilder::default();
-        builder.role_id(value.role_id.clone());
-        builder.actor_id(value.actor_id.clone());
-        builder.target_id(value.target_id.clone());
-        builder.inherited(value.inherited);
-        builder.r#type(AssignmentType::try_from(value.r#type.as_ref())?);
-
-        Ok(builder.build()?)
-    }
-}
-
-impl TryFrom<&db_assignment::Model> for Assignment {
-    type Error = AssignmentDatabaseError;
-
-    fn try_from(value: &db_assignment::Model) -> Result<Self, Self::Error> {
-        let mut builder = AssignmentBuilder::default();
-        builder.role_id(value.role_id.clone());
-        builder.actor_id(value.actor_id.clone());
-        builder.target_id(value.target_id.clone());
-        builder.inherited(value.inherited);
-        builder.r#type(AssignmentType::try_from(value.r#type.clone())?);
-
-        Ok(builder.build()?)
-    }
-}
-
-impl TryFrom<(&db_assignment::Model, Option<&String>)> for Assignment {
-    type Error = AssignmentDatabaseError;
-
-    fn try_from(value: (&db_assignment::Model, Option<&String>)) -> Result<Self, Self::Error> {
-        let mut builder = AssignmentBuilder::default();
-        builder.role_id(value.0.role_id.clone());
-        builder.actor_id(value.0.actor_id.clone());
-        builder.target_id(value.0.target_id.clone());
-        builder.inherited(value.0.inherited);
-        builder.r#type(AssignmentType::try_from(value.0.r#type.clone())?);
-        if let Some(val) = value.1 {
-            builder.role_name(val.clone());
-        }
-
-        Ok(builder.build()?)
-    }
-}
-
-impl TryFrom<(db_assignment::Model, Option<db_role::Model>)> for Assignment {
-    type Error = AssignmentDatabaseError;
-
-    fn try_from(
-        value: (db_assignment::Model, Option<db_role::Model>),
-    ) -> Result<Self, Self::Error> {
-        let mut builder = AssignmentBuilder::default();
-        builder.role_id(value.0.role_id.clone());
-        builder.actor_id(value.0.actor_id.clone());
-        builder.target_id(value.0.target_id.clone());
-        builder.inherited(value.0.inherited);
-        builder.r#type(AssignmentType::try_from(value.0.r#type)?);
-        if let Some(val) = &value.1 {
-            builder.role_name(val.name.clone());
-        }
-
-        Ok(builder.build()?)
-    }
-}
-
-impl TryFrom<(db_system_assignment::Model, Option<db_role::Model>)> for Assignment {
-    type Error = AssignmentDatabaseError;
-
-    fn try_from(
-        value: (db_system_assignment::Model, Option<db_role::Model>),
-    ) -> Result<Self, Self::Error> {
-        let mut builder = AssignmentBuilder::default();
-        builder.role_id(value.0.role_id.clone());
-        builder.actor_id(value.0.actor_id.clone());
-        builder.target_id(value.0.target_id.clone());
-        builder.inherited(value.0.inherited);
-        builder.r#type(AssignmentType::try_from(value.0.r#type.as_ref())?);
-        if let Some(val) = &value.1 {
-            builder.role_name(val.name.clone());
-        }
-
-        Ok(builder.build()?)
-    }
-}
-
-impl TryFrom<DbAssignmentType> for AssignmentType {
-    type Error = AssignmentDatabaseError;
-    fn try_from(value: DbAssignmentType) -> Result<Self, Self::Error> {
-        match value {
-            DbAssignmentType::GroupDomain => Ok(Self::GroupDomain),
-            DbAssignmentType::GroupProject => Ok(Self::GroupProject),
-            DbAssignmentType::UserDomain => Ok(Self::UserDomain),
-            DbAssignmentType::UserProject => Ok(Self::UserProject),
-        }
-    }
-}
-
-impl TryFrom<&str> for AssignmentType {
-    type Error = AssignmentDatabaseError;
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "UserSystem" => Ok(Self::UserSystem),
-            _ => Err(AssignmentDatabaseError::InvalidAssignmentType(value.into())),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
-    use std::collections::BTreeMap;
 
     use crate::config::Config;
-    use crate::db::entity::{
-        assignment, implied_role, role, sea_orm_active_enums, system_assignment,
-    };
+    use crate::db::entity::assignment;
 
+    use super::super::tests::*;
     use super::*;
-
-    fn get_role_assignment_mock(role_id: String) -> assignment::Model {
-        assignment::Model {
-            role_id: role_id.clone(),
-            actor_id: "actor".into(),
-            target_id: "target".into(),
-            r#type: sea_orm_active_enums::Type::UserProject,
-            inherited: false,
-        }
-    }
-
-    fn get_role_system_assignment_mock(role_id: String) -> system_assignment::Model {
-        system_assignment::Model {
-            role_id: role_id.clone(),
-            actor_id: "actor".into(),
-            target_id: "system".into(),
-            r#type: "UserSystem".into(),
-            inherited: false,
-        }
-    }
-
-    fn get_role_mock(role_id: String, role_name: String) -> BTreeMap<String, Value> {
-        BTreeMap::from([
-            ("id".to_string(), Value::String(Some(Box::new(role_id)))),
-            ("name".to_string(), Value::String(Some(Box::new(role_name)))),
-        ])
-    }
-
-    fn get_implied_rules_mock() -> Vec<implied_role::Model> {
-        vec![implied_role::Model {
-            prior_role_id: "1".to_string(),
-            implied_role_id: "2".to_string(),
-        }]
-    }
-
-    fn get_role_assignment_with_role_mock(role_id: String) -> (assignment::Model, role::Model) {
-        (
-            assignment::Model {
-                role_id: role_id.clone(),
-                actor_id: "actor".into(),
-                target_id: "target".into(),
-                r#type: sea_orm_active_enums::Type::UserProject,
-                inherited: false,
-            },
-            role::Model {
-                id: role_id.clone(),
-                name: role_id.clone(),
-                extra: None,
-                domain_id: String::new(),
-                description: None,
-            },
-        )
-    }
-
-    fn get_role_system_assignment_with_role_mock(
-        role_id: String,
-    ) -> (system_assignment::Model, role::Model) {
-        (
-            system_assignment::Model {
-                role_id: role_id.clone(),
-                actor_id: "actor".into(),
-                target_id: "system".into(),
-                r#type: "UserSystem".into(),
-                inherited: false,
-            },
-            role::Model {
-                id: role_id.clone(),
-                name: role_id.clone(),
-                extra: None,
-                domain_id: String::new(),
-                description: None,
-            },
-        )
-    }
 
     #[tokio::test]
     async fn test_list_no_params() {
         // Create MockDatabase with mock query results
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
-            .append_query_results([vec![get_role_system_assignment_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_mock("1")]])
+            .append_query_results([vec![get_role_system_assignment_mock("1")]])
             .into_connection();
         let config = Config::default();
         assert_eq!(
@@ -465,8 +265,8 @@ mod tests {
     async fn test_list_role_id() {
         // Create MockDatabase with mock query results
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
-            .append_query_results([vec![get_role_system_assignment_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_mock("1")]])
+            .append_query_results([vec![get_role_system_assignment_mock("1")]])
             .into_connection();
         let config = Config::default();
         assert_eq!(
@@ -521,7 +321,7 @@ mod tests {
     async fn test_list_project_id() {
         // Create MockDatabase with mock query results
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_mock("1")]])
             .into_connection();
         let config = Config::default();
         assert_eq!(
@@ -559,8 +359,8 @@ mod tests {
     async fn test_list_include_names() {
         // Create MockDatabase with mock query results
         let db = MockDatabase::new(DatabaseBackend::Postgres)
-            .append_query_results([vec![get_role_assignment_with_role_mock("1".into())]])
-            .append_query_results([vec![get_role_system_assignment_with_role_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_with_role_mock("1")]])
+            .append_query_results([vec![get_role_system_assignment_with_role_mock("1")]])
             .into_connection();
         let config = Config::default();
         assert_eq!(
@@ -616,10 +416,10 @@ mod tests {
         // Create MockDatabase with mock query results
         let db = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([get_implied_rules_mock()])
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_mock("1")]])
             .append_query_results([vec![
-                get_role_mock("1".into(), "rname".into()),
-                get_role_mock("2".into(), "rname2".into()),
+                get_role_mock("1", "rname"),
+                get_role_mock("2", "rname2"),
             ]])
             .into_connection();
         let config = Config::default();
@@ -692,10 +492,10 @@ mod tests {
 
         let db = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([get_implied_rules_mock()])
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_mock("1")]])
             .append_query_results([vec![
-                get_role_mock("1".into(), "rname".into()),
-                get_role_mock("2".into(), "rname2".into()),
+                get_role_mock("1", "rname"),
+                get_role_mock("2", "rname2"),
             ]])
             .into_connection();
         let config = Config::default();
@@ -759,10 +559,10 @@ mod tests {
 
         let db = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([get_implied_rules_mock()])
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_mock("1")]])
             .append_query_results([vec![
-                get_role_mock("1".into(), "rname".into()),
-                get_role_mock("2".into(), "rname2".into()),
+                get_role_mock("1", "rname"),
+                get_role_mock("2", "rname2"),
             ]])
             .into_connection();
         let config = Config::default();
@@ -810,10 +610,10 @@ mod tests {
 
         let db = MockDatabase::new(DatabaseBackend::Postgres)
             .append_query_results([get_implied_rules_mock()])
-            .append_query_results([vec![get_role_assignment_mock("1".into())]])
+            .append_query_results([vec![get_role_assignment_mock("1")]])
             .append_query_results([vec![
-                get_role_mock("1".into(), "rname".into()),
-                get_role_mock("2".into(), "rname2".into()),
+                get_role_mock("1", "rname"),
+                get_role_mock("2", "rname2"),
             ]])
             .into_connection();
         let config = Config::default();
