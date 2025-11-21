@@ -13,8 +13,12 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Common API helpers
 //!
+use serde_json::{Value, json};
+
 use crate::api::error::KeystoneApiError;
 use crate::api::types::ProjectScope;
+use crate::assignment::AssignmentApi;
+use crate::identity::IdentityApi;
 use crate::keystone::ServiceState;
 use crate::resource::{
     ResourceApi,
@@ -116,6 +120,65 @@ pub async fn find_project_from_scope(
         return Err(KeystoneApiError::ProjectIdOrName);
     };
     Ok(project)
+}
+
+/// Build check grant target.
+pub async fn build_enforcement_target(
+    state: &ServiceState,
+    role_id: Option<String>,
+    project_id: Option<String>,
+    domain_id: Option<String>,
+    user_id: Option<String>,
+    group_id: Option<String>,
+) -> Result<Value, KeystoneApiError> {
+    let mut result = json!({});
+
+    if let Some(res_id) = &role_id
+        && let Some(resource) = state
+            .provider
+            .get_assignment_provider()
+            .get_role(state, res_id)
+            .await?
+    {
+        result["role"] = serde_json::to_value(resource)?;
+    }
+    if let Some(res_id) = &project_id
+        && let Some(resource) = state
+            .provider
+            .get_resource_provider()
+            .get_project(state, res_id)
+            .await?
+    {
+        result["project"] = serde_json::to_value(resource)?;
+    }
+    if let Some(res_id) = &domain_id
+        && let Some(resource) = state
+            .provider
+            .get_resource_provider()
+            .get_domain(state, res_id)
+            .await?
+    {
+        result["domain"] = serde_json::to_value(resource)?;
+    }
+    if let Some(res_id) = &user_id
+        && let Some(resource) = state
+            .provider
+            .get_identity_provider()
+            .get_user(state, res_id)
+            .await?
+    {
+        result["user"] = serde_json::to_value(resource)?;
+    }
+    if let Some(res_id) = &group_id
+        && let Some(resource) = state
+            .provider
+            .get_identity_provider()
+            .get_group(state, res_id)
+            .await?
+    {
+        result["group"] = serde_json::to_value(resource)?;
+    }
+    Ok(result)
 }
 
 #[cfg(test)]

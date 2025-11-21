@@ -43,30 +43,28 @@ mod tests {
         MockAssignmentProvider,
         types::{Assignment, AssignmentType, RoleAssignmentListParameters},
     };
-
     use crate::config::Config;
-
+    use crate::identity::types::UserResponse;
     use crate::keystone::{Service, ServiceState};
-    use crate::policy::MockPolicyFactory;
+    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyError, PolicyEvaluationResult};
     use crate::provider::Provider;
-
     use crate::token::{MockTokenProvider, Token, UnscopedPayload};
 
-    fn get_mocked_state(assignment_mock: MockAssignmentProvider) -> ServiceState {
+    fn get_mocked_state(
+        assignment_mock: MockAssignmentProvider,
+        policy_allowed: bool,
+    ) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_validate_token()
             .returning(|_, _, _, _, _| {
                 Ok(Token::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
-                    ..Default::default()
-                }))
-            });
-        token_mock
-            .expect_expand_token_information()
-            .returning(|_, _| {
-                Ok(Token::Unscoped(UnscopedPayload {
-                    user_id: "bar".into(),
+                    user: Some(UserResponse {
+                        id: "bar".into(),
+                        domain_id: "udid".into(),
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 }))
             });
@@ -77,12 +75,30 @@ mod tests {
             .build()
             .unwrap();
 
+        let mut policy_factory_mock = MockPolicyFactory::default();
+        if policy_allowed {
+            policy_factory_mock.expect_instantiate().returning(|| {
+                let mut policy_mock = MockPolicy::default();
+                policy_mock
+                    .expect_enforce()
+                    .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+                Ok(policy_mock)
+            });
+        } else {
+            policy_factory_mock.expect_instantiate().returning(|| {
+                let mut policy_mock = MockPolicy::default();
+                policy_mock.expect_enforce().returning(|_, _, _, _| {
+                    Err(PolicyError::Forbidden(PolicyEvaluationResult::forbidden()))
+                });
+                Ok(policy_mock)
+            });
+        }
         Arc::new(
             Service::new(
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
-                MockPolicyFactory::new(),
+                policy_factory_mock,
             )
             .unwrap(),
         )
@@ -105,7 +121,7 @@ mod tests {
                 }])
             });
 
-        let state = get_mocked_state(assignment_mock);
+        let state = get_mocked_state(assignment_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -208,7 +224,7 @@ mod tests {
                 }])
             });
 
-        let state = get_mocked_state(assignment_mock);
+        let state = get_mocked_state(assignment_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())

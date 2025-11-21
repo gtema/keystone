@@ -16,12 +16,16 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
 };
+use mockall_double::double;
+use serde_json::to_value;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::api::auth::Auth;
 use crate::api::error::KeystoneApiError;
 use crate::assignment::AssignmentApi;
 use crate::keystone::ServiceState;
+#[double]
+use crate::policy::Policy;
 use types::{Assignment, AssignmentList, RoleAssignmentListParameters};
 
 pub mod types;
@@ -30,12 +34,14 @@ pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
     OpenApiRouter::new().routes(routes!(list))
 }
 
-/// List role assignments
+/// List role assignments.
+///
+/// Lists role assignments.
 #[utoipa::path(
     get,
     path = "/",
+    operation_id = "/role_assignment:list",
     params(RoleAssignmentListParameters),
-    description = "List roles",
     responses(
         (status = OK, description = "List of role assignments", body = AssignmentList),
         (status = 500, description = "Internal error", example = json!(KeystoneApiError::InternalError(String::from("id = 1"))))
@@ -43,15 +49,25 @@ pub(crate) fn openapi_router() -> OpenApiRouter<ServiceState> {
     tag="roles"
 )]
 #[tracing::instrument(
-    name = "api::role_assignment_list",
+    name = "api::v3::role_assignment::list",
     level = "debug",
-    skip(state, _user_auth)
+    skip(state, user_auth, policy)
 )]
 async fn list(
-    Auth(_user_auth): Auth,
+    Auth(user_auth): Auth,
+    mut policy: Policy,
     Query(query): Query<RoleAssignmentListParameters>,
     State(state): State<ServiceState>,
 ) -> Result<impl IntoResponse, KeystoneApiError> {
+    policy
+        .enforce(
+            "identity/role_assignment/list",
+            &user_auth,
+            to_value(&query)?,
+            None,
+        )
+        .await?;
+
     let assignments: Result<Vec<Assignment>, _> = state
         .provider
         .get_assignment_provider()
@@ -74,7 +90,6 @@ mod tests {
     };
     use http_body_util::BodyExt; // for `collect`
     use sea_orm::DatabaseConnection;
-
     use std::sync::Arc;
     use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
     use tower_http::trace::TraceLayer;
@@ -88,30 +103,28 @@ mod tests {
         MockAssignmentProvider,
         types::{Assignment, AssignmentType, RoleAssignmentListParameters},
     };
-
     use crate::config::Config;
-
+    use crate::identity::types::UserResponse;
     use crate::keystone::{Service, ServiceState};
-    use crate::policy::MockPolicyFactory;
+    use crate::policy::{MockPolicy, MockPolicyFactory, PolicyError, PolicyEvaluationResult};
     use crate::provider::Provider;
-
     use crate::token::{MockTokenProvider, Token, UnscopedPayload};
 
-    fn get_mocked_state(assignment_mock: MockAssignmentProvider) -> ServiceState {
+    fn get_mocked_state(
+        assignment_mock: MockAssignmentProvider,
+        policy_allowed: bool,
+    ) -> ServiceState {
         let mut token_mock = MockTokenProvider::default();
         token_mock
             .expect_validate_token()
             .returning(|_, _, _, _, _| {
                 Ok(Token::Unscoped(UnscopedPayload {
                     user_id: "bar".into(),
-                    ..Default::default()
-                }))
-            });
-        token_mock
-            .expect_expand_token_information()
-            .returning(|_, _| {
-                Ok(Token::Unscoped(UnscopedPayload {
-                    user_id: "bar".into(),
+                    user: Some(UserResponse {
+                        id: "bar".into(),
+                        domain_id: "udid".into(),
+                        ..Default::default()
+                    }),
                     ..Default::default()
                 }))
             });
@@ -122,12 +135,30 @@ mod tests {
             .build()
             .unwrap();
 
+        let mut policy_factory_mock = MockPolicyFactory::default();
+        if policy_allowed {
+            policy_factory_mock.expect_instantiate().returning(|| {
+                let mut policy_mock = MockPolicy::default();
+                policy_mock
+                    .expect_enforce()
+                    .returning(|_, _, _, _| Ok(PolicyEvaluationResult::allowed()));
+                Ok(policy_mock)
+            });
+        } else {
+            policy_factory_mock.expect_instantiate().returning(|| {
+                let mut policy_mock = MockPolicy::default();
+                policy_mock.expect_enforce().returning(|_, _, _, _| {
+                    Err(PolicyError::Forbidden(PolicyEvaluationResult::forbidden()))
+                });
+                Ok(policy_mock)
+            });
+        }
         Arc::new(
             Service::new(
                 Config::default(),
                 DatabaseConnection::Disconnected,
                 provider,
-                MockPolicyFactory::new(),
+                policy_factory_mock,
             )
             .unwrap(),
         )
@@ -150,7 +181,7 @@ mod tests {
                 }])
             });
 
-        let state = get_mocked_state(assignment_mock);
+        let state = get_mocked_state(assignment_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())
@@ -253,7 +284,7 @@ mod tests {
                 }])
             });
 
-        let state = get_mocked_state(assignment_mock);
+        let state = get_mocked_state(assignment_mock, true);
 
         let mut api = openapi_router()
             .layer(TraceLayer::new_for_http())

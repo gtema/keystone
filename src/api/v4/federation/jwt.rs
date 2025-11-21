@@ -77,7 +77,6 @@ type FullIdToken = IdToken<
     operation_id = "/federation/identity_provider/jwt:login",
     params(
         ("openstack-mapping" = String, Header, description = "Federated attribute mapping"),
-
     ),
     responses(
         (status = OK, description = "Authentication Token object", body = KeystoneTokenResponse,

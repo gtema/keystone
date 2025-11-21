@@ -49,3 +49,13 @@ own_token_restriction if {
 	input.target.domain_id != null
 	input.target.domain_id == input.credentials.domain_id
 }
+
+own_domain if {
+	input.target.domain_id != null
+	input.target.domain_id == input.credentials.domain_id
+}
+
+foreign_domain if {
+	input.target.domain_id != null
+	input.target.domain_id != input.credentials.domain_id
+}
