@@ -16,7 +16,7 @@ use sea_orm::DatabaseConnection;
 use sea_orm::entity::*;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::assignment::backends::error::{AssignmentDatabaseError, db_err};
+use crate::assignment::backend::error::{AssignmentDatabaseError, db_err};
 use crate::db::entity::prelude::ImpliedRole as DbImpliedRole;
 
 /// Build a resolved tree of role inference

@@ -40,6 +40,10 @@ pub enum AssignmentDatabaseError {
         source: RoleBuilderError,
     },
 
+    /// Invalid assignment type.
+    #[error("{0}")]
+    InvalidAssignmentType(String),
+
     /// Conflict
     #[error("{message}")]
     Conflict { message: String, context: String },
@@ -54,9 +58,6 @@ pub enum AssignmentDatabaseError {
         source: sea_orm::DbErr,
         context: String,
     },
-
-    #[error("{0}")]
-    InvalidAssignmentType(String),
 }
 
 /// Convert the DB error into the [AssignmentDatabaseError] with the context information.

@@ -14,7 +14,7 @@
 
 use thiserror::Error;
 
-use crate::assignment::backends::error::*;
+use crate::assignment::backend::error::*;
 use crate::assignment::types::assignment::RoleAssignmentListForMultipleActorTargetParametersBuilderError;
 use crate::assignment::types::*;
 use crate::identity::error::IdentityProviderError;
@@ -50,6 +50,10 @@ pub enum AssignmentProviderError {
         source: IdentityProviderError,
     },
 
+    /// Invalid assignment type.
+    #[error("{0}")]
+    InvalidAssignmentType(String),
+
     #[error("building role assignment query: {}", source)]
     RoleAssignmentParametersBuilder {
         #[from]
@@ -75,6 +79,7 @@ impl From<AssignmentDatabaseError> for AssignmentProviderError {
             AssignmentDatabaseError::Conflict { message, .. } => Self::Conflict(message),
             AssignmentDatabaseError::RoleNotFound(x) => Self::RoleNotFound(x),
             AssignmentDatabaseError::Serde { source } => Self::Serde { source },
+            AssignmentDatabaseError::InvalidAssignmentType(x) => Self::InvalidAssignmentType(x),
             _ => Self::AssignmentDatabaseError { source },
         }
     }

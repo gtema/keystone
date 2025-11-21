@@ -15,7 +15,7 @@
 use async_trait::async_trait;
 
 use super::super::types::*;
-use crate::assignment::AssignmentProviderError;
+use crate::assignment::{AssignmentProviderError, backend::AssignmentBackend};
 use crate::config::Config;
 use crate::keystone::ServiceState;
 
@@ -78,5 +78,25 @@ impl AssignmentBackend for SqlBackend {
             assignment::list_for_multiple_actors_and_targets(&self.config, &state.db, params)
                 .await?,
         )
+    }
+
+    /// Create assignment grant.
+    #[tracing::instrument(level = "info", skip(self, state))]
+    async fn create_grant(
+        &self,
+        state: &ServiceState,
+        grant: Assignment,
+    ) -> Result<Assignment, AssignmentProviderError> {
+        Ok(assignment::create(&state.db, grant).await?)
+    }
+
+    /// Check assignment grant.
+    #[tracing::instrument(level = "info", skip(self, state))]
+    async fn check_grant(
+        &self,
+        state: &ServiceState,
+        grant: &Assignment,
+    ) -> Result<bool, AssignmentProviderError> {
+        Ok(assignment::check(&state.db, grant).await?)
     }
 }

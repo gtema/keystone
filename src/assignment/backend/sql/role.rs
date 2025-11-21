@@ -18,7 +18,7 @@ use sea_orm::query::*;
 use serde_json::Value;
 use tracing::error;
 
-use crate::assignment::backends::error::{AssignmentDatabaseError, db_err};
+use crate::assignment::backend::error::{AssignmentDatabaseError, db_err};
 use crate::assignment::types::*;
 use crate::config::Config;
 use crate::db::entity::{prelude::Role as DbRole, role as db_role};

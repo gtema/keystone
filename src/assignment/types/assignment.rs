@@ -14,6 +14,7 @@
 
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Role
 #[derive(Builder, Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -45,7 +46,20 @@ pub enum AssignmentType {
     GroupSystem,
 }
 
-/// Parameters for listing role assignments for role/target/actor
+impl fmt::Display for AssignmentType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::GroupDomain => write!(f, "GroupDomain"),
+            Self::GroupProject => write!(f, "GroupProject"),
+            Self::GroupSystem => write!(f, "GroupSystem"),
+            Self::UserDomain => write!(f, "UserDomain"),
+            Self::UserProject => write!(f, "UserProject"),
+            Self::UserSystem => write!(f, "UserSystem"),
+        }
+    }
+}
+
+/// Parameters for listing role assignments for role/target/actor.
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[builder(setter(strip_option, into))]
 pub struct RoleAssignmentListParameters {
@@ -79,31 +93,30 @@ pub struct RoleAssignmentListParameters {
 
     /// If set to true, then the names of any entities returned will be include as well as their
     /// IDs. Any value other than 0 (including no value) will be interpreted as true.
-    ///
-    /// New in version 3.6
     #[builder(default)]
     pub include_names: Option<bool>,
 }
 
 /// Querying effective role assignments for list of actors (typically user with all groups user is
-/// member of) on list of targets (exactl project + inherited from uppoer projects/domain)
+/// member of) on list of targets (exactl project + inherited from uppoer projects/domain).
 #[derive(Builder, Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[builder(setter(strip_option, into))]
 pub struct RoleAssignmentListForMultipleActorTargetParameters {
-    /// List of actors for which assignments are looked up
+    /// List of actors for which assignments are looked up.
     #[builder(default)]
     pub actors: Vec<String>,
 
-    /// Optionally filter for the concrete role ID
+    /// Optionally filter for the concrete role ID.
     #[builder(default)]
     pub role_id: Option<String>,
 
-    /// List of targets for which assignments are looked up
+    /// List of targets for which assignments are looked up.
     #[builder(default)]
     pub targets: Vec<RoleAssignmentTarget>,
 }
 
-/// Role assignment target which is either target_id or target_id with explicit inherited parameter
+/// Role assignment target which is either target_id or target_id with explicit inherited
+/// parameter.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct RoleAssignmentTarget {
     pub target_id: String,

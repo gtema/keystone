@@ -12,12 +12,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-pub mod assignment;
-pub mod role;
+pub mod error;
+pub mod sql;
 
 use async_trait::async_trait;
+use dyn_clone::DynClone;
 
 use crate::assignment::AssignmentProviderError;
+use crate::config::Config;
 use crate::keystone::ServiceState;
 
 pub use crate::assignment::types::assignment::{
@@ -29,28 +31,44 @@ pub use crate::assignment::types::assignment::{
 };
 pub use crate::assignment::types::role::{Role, RoleBuilder, RoleBuilderError, RoleListParameters};
 
+pub use sql::SqlBackend;
+
 #[async_trait]
-pub trait AssignmentApi: Send + Sync + Clone {
-    /// List Roles.
+pub trait AssignmentBackend: DynClone + Send + Sync + std::fmt::Debug {
+    /// Set config
+    fn set_config(&mut self, config: Config);
+
+    /// List Roles
     async fn list_roles(
         &self,
         state: &ServiceState,
         params: &RoleListParameters,
-    ) -> Result<impl IntoIterator<Item = Role>, AssignmentProviderError>;
+    ) -> Result<Vec<Role>, AssignmentProviderError>;
 
-    /// Get a single role.
+    /// Get single role by ID
     async fn get_role<'a>(
         &self,
         state: &ServiceState,
-        role_id: &'a str,
+        id: &'a str,
     ) -> Result<Option<Role>, AssignmentProviderError>;
 
-    /// List role assignments for given target/role/actor.
-    async fn list_role_assignments(
+    /// List Role assignments
+    async fn list_assignments(
         &self,
         state: &ServiceState,
         params: &RoleAssignmentListParameters,
-    ) -> Result<impl IntoIterator<Item = Assignment>, AssignmentProviderError>;
+    ) -> Result<Vec<Assignment>, AssignmentProviderError>;
+
+    /// List all role assignments for multiple actors on multiple targets
+    ///
+    /// It is a naive interpretation of the effective role assignments where we check all roles
+    /// assigned to the user (including groups) on a concrete target (including all higher targets
+    /// the role can be inherited from)
+    async fn list_assignments_for_multiple_actors_and_targets(
+        &self,
+        state: &ServiceState,
+        params: &RoleAssignmentListForMultipleActorTargetParameters,
+    ) -> Result<Vec<Assignment>, AssignmentProviderError>;
 
     /// Create assignment grant.
     async fn create_grant(
@@ -58,4 +76,13 @@ pub trait AssignmentApi: Send + Sync + Clone {
         state: &ServiceState,
         params: Assignment,
     ) -> Result<Assignment, AssignmentProviderError>;
+
+    /// Check assignment grant.
+    async fn check_grant(
+        &self,
+        state: &ServiceState,
+        params: &Assignment,
+    ) -> Result<bool, AssignmentProviderError>;
 }
+
+dyn_clone::clone_trait_object!(AssignmentBackend);
